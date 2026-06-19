@@ -1,0 +1,12 @@
+{
+  "name": "Al-Moharif AI",
+  "description": "Al-Moharif AI Crypto Trading Terminal",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

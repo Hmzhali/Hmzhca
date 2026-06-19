@@ -1,0 +1,187 @@
+src/App.tsx line 120 called setUserData deps: [ 'user' ]
+src/App.tsx line 129 called setUserData deps: [ 'user' ]
+src/App.tsx line 211 called setSystemUpdate deps: [ 'user' ]
+src/App.tsx line 331 called setSelectedPairIndex deps: [ 'pairs', 'selectedPairIndex' ]
+src/App.tsx line 988 called setPriceAlerts deps: [ 'pairs' ]
+src/App.tsx line 1202 called setPairs deps: [ 'serializedSymbols' ]
+src/App.tsx line 1242 called setPairs deps: [ 'serializedSymbols' ]
+src/App.tsx line 1304 called setPairs deps: [ 'serializedSymbols' ]
+src/App.tsx line 1342 called setTimeout deps: [ 'serializedSymbols' ]
+src/App.tsx line 1348 called setTimeout deps: [ 'serializedSymbols' ]
+src/App.tsx line 1370 called setInterval deps: []
+src/App.tsx line 1371 called setPairs deps: []
+src/App.tsx line 1575 called setInterval deps: [
+  'isLiveTrading',
+  'MemberExpression',
+  'MemberExpression',
+  'MemberExpression',
+  'MemberExpression'
+]
+src/App.tsx line 1768 called setInterval deps: []
+src/App.tsx line 1859 called setActiveBots deps: []
+src/App.tsx line 1864 called setPortfolio deps: []
+src/App.tsx line 1885 called setProfitHistory deps: []
+src/App.tsx line 2393 called setKillCountdown deps: [ 'killCountdown' ]
+src/App.tsx line 2398 called setTimeout deps: [ 'killCountdown' ]
+src/App.tsx line 2399 called setKillCountdown deps: [ 'killCountdown' ]
+src/App.tsx line 2485 called setInterval deps: [
+  'manualWatchlistScannerEnabled',
+  'pairs',
+  'MemberExpression',
+  'orders',
+  'canTrade'
+]
+src/App.tsx line 2607 called setActiveBots deps: []
+src/App.tsx line 2632 called setPortfolio deps: []
+src/App.tsx line 2636 called setTimeout deps: []
+src/App.tsx line 2655 called setInterval deps: []
+src/components/Backtester.tsx line 38 called setLowerPrice deps: [ 'MemberExpression' ]
+src/components/Backtester.tsx line 39 called setUpperPrice deps: [ 'MemberExpression' ]
+src/components/Backtester.tsx line 47 called setChartWidth deps: [ 'result' ]
+src/components/BinanceAIManager.tsx line 159 called setTargetAsset deps: [ 'activePair' ]
+src/components/BinanceAIManager.tsx line 169 called setRsi deps: [ 'activePair' ]
+src/components/BinanceAIManager.tsx line 173 called setSma20 deps: [ 'activePair' ]
+src/components/BinanceAIManager.tsx line 178 called setSma50 deps: [ 'activePair' ]
+src/components/BinanceAIManager.tsx line 183 called setSma200 deps: [ 'activePair' ]
+src/components/BinanceAIManager.tsx line 186 called setGoldenCross deps: [ 'activePair' ]
+src/components/BinanceAIManager.tsx line 258 called setInterval deps: [
+  'isAutoManagerActive',
+  'rsi',
+  'activePair',
+  'portfolio',
+  'maxAllocationPercent'
+]
+src/components/BinanceAIManager.tsx line 352 called setLogs deps: [
+  'isAutoManagerActive',
+  'rsi',
+  'activePair',
+  'portfolio',
+  'maxAllocationPercent'
+]
+src/components/BotTradesHistory.tsx line 30 called setBotEnabled deps: []
+src/components/BotTradesHistory.tsx line 46 called setTrades deps: []
+src/components/BotTradesHistory.tsx line 55 called setInterval deps: []
+src/components/BotTrading.tsx line 60 called setInterval deps: [ 'rightPanelTab', 'pairs' ]
+src/components/BotTrading.tsx line 61 called setRadialSweepAngle deps: [ 'rightPanelTab', 'pairs' ]
+src/components/BotTrading.tsx line 65 called setInterval deps: [ 'rightPanelTab', 'pairs' ]
+src/components/BotTrading.tsx line 80 called setFalconLogs deps: [ 'rightPanelTab', 'pairs' ]
+src/components/BotTrading.tsx line 82 called setActiveEagleHunt deps: [ 'rightPanelTab', 'pairs' ]
+src/components/BotTrading.tsx line 272 called setLowerPrice deps: [ 'MemberExpression' ]
+src/components/BotTrading.tsx line 273 called setUpperPrice deps: [ 'MemberExpression' ]
+src/components/BotTrading.tsx line 280 called setGridInvestment deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 281 called setDcaInvestment deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 282 called setBaseOrderSize deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 283 called setSafetyOrderSize deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 285 called setGridInvestment deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 286 called setDcaInvestment deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 287 called setBaseOrderSize deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 288 called setSafetyOrderSize deps: [ 'OptionalMemberExpression' ]
+src/components/BotTrading.tsx line 331 called setBotEnabled deps: []
+src/components/FuturesTrading.tsx line 144 called setInterval deps: [
+  'OptionalMemberExpression',
+  'OptionalMemberExpression',
+  'OptionalMemberExpression',
+  'OptionalMemberExpression'
+]
+src/components/FuturesTrading.tsx line 149 called setLiveBalance deps: [
+  'OptionalMemberExpression',
+  'OptionalMemberExpression',
+  'OptionalMemberExpression',
+  'OptionalMemberExpression'
+]
+src/components/FuturesTrading.tsx line 150 called setFuturesApiError deps: [
+  'OptionalMemberExpression',
+  'OptionalMemberExpression',
+  'OptionalMemberExpression',
+  'OptionalMemberExpression'
+]
+src/components/FuturesTrading.tsx line 386 called setPositions deps: []
+src/components/FuturesTrading.tsx line 408 called setTimeout deps: []
+src/components/FuturesTrading.tsx line 422 called setInterval deps: []
+src/components/FuturesTrading.tsx line 441 called setLimitPrice deps: [ 'MemberExpression', 'MemberExpression' ]
+src/components/FuturesTrading.tsx line 485 called setInterval deps: [ 'OptionalMemberExpression' ]
+src/components/FuturesTrading.tsx line 486 called setPositions deps: [ 'OptionalMemberExpression' ]
+src/components/FuturesTrading.tsx line 530 called setTimeout deps: [ 'OptionalMemberExpression' ]
+src/components/FuturesTrading.tsx line 976 called setPositions deps: [
+  'isAlgoActive',
+  'algoSide',
+  'algoLeverage',
+  'algoInvestment',
+  'smartRiskPilot',
+  'onTriggerToast',
+  'apiConnection',
+  'MemberExpression',
+  'isSmartMode',
+  'lang',
+  'allPairs',
+  'algoMaxConcurrentTrades',
+  'algoType',
+  'algoAutoSearchPair'
+]
+src/components/Header.tsx line 104 called setTime deps: []
+src/components/Header.tsx line 107 called setInterval deps: []
+src/components/Header.tsx line 115 called setIsAlreadyInstalled deps: []
+src/components/Header.tsx line 120 called setDeferredPrompt deps: []
+src/components/HybridTrading.tsx line 264 called setScannedAssets deps: []
+src/components/HybridTrading.tsx line 342 called setTrades deps: [ 'autopilot' ]
+src/components/HybridTrading.tsx line 567 called setTrades deps: [ 'autopilot' ]
+src/components/HybridTrading.tsx line 626 called setTrades deps: [ 'autopilot' ]
+src/components/InteractiveChart.tsx line 38 called setIsLoadingCandles deps: [ 'MemberExpression', 'interval' ]
+src/components/InteractiveChart.tsx line 47 called setCandles deps: [ 'MemberExpression', 'interval' ]
+src/components/InteractiveChart.tsx line 48 called setHoveredCandle deps: [ 'MemberExpression', 'interval' ]
+src/components/InteractiveChart.tsx line 49 called setIsLoadingCandles deps: [ 'MemberExpression', 'interval' ]
+src/components/InteractiveChart.tsx line 59 called setCandles deps: [ 'MemberExpression', 'interval' ]
+src/components/InteractiveChart.tsx line 60 called setHoveredCandle deps: [ 'MemberExpression', 'interval' ]
+src/components/InteractiveChart.tsx line 61 called setIsLoadingCandles deps: [ 'MemberExpression', 'interval' ]
+src/components/InteractiveChart.tsx line 75 called setCandles deps: [ 'MemberExpression' ]
+src/components/InteractiveChart.tsx line 94 called setDimensions deps: []
+src/components/LeverageRiskCalculator.tsx line 35 called setDirection deps: [ 'defaultSide' ]
+src/components/LeverageRiskCalculator.tsx line 39 called setEntryPrice deps: [ 'defaultPrice' ]
+src/components/LeverageRiskCalculator.tsx line 43 called setLeverage deps: [ 'defaultLeverage' ]
+src/components/ManualTrading.tsx line 44 called setPrice deps: [ 'MemberExpression', 'orderType' ]
+src/components/ManualTrading.tsx line 50 called setPrice deps: [ 'MemberExpression' ]
+src/components/ManualTrading.tsx line 60 called setIsLiveBookLoading deps: [ 'MemberExpression' ]
+src/components/ManualTrading.tsx line 69 called setOrderBook deps: [ 'MemberExpression' ]
+src/components/ManualTrading.tsx line 70 called setIsLiveBookLoading deps: [ 'MemberExpression' ]
+src/components/ManualTrading.tsx line 79 called setOrderBook deps: [ 'MemberExpression' ]
+src/components/ManualTrading.tsx line 80 called setIsLiveBookLoading deps: [ 'MemberExpression' ]
+src/components/ManualTrading.tsx line 87 called setInterval deps: [ 'MemberExpression' ]
+src/components/MarketSentimentIndicator.tsx line 48 called setLoading deps: [ 'MemberExpression', 'lang' ]
+src/components/MarketSentimentIndicator.tsx line 57 called setAiSentiment deps: [ 'MemberExpression', 'lang' ]
+src/components/MarketSentimentIndicator.tsx line 64 called setLoading deps: [ 'MemberExpression', 'lang' ]
+src/components/OrderHistory.tsx line 396 called setCurrentPage deps: [
+  'symbolFilter',
+  'sideFilter',
+  'searchQuery',
+  'pnlFilter',
+  'typeFilter',
+  'timeFilter',
+  'dateSort'
+]
+src/components/OwnerDashboard.tsx line 56 called setPlatformBalance deps: []
+src/components/OwnerDashboard.tsx line 75 called setTickets deps: []
+src/components/OwnerDashboard.tsx line 89 called setUnresolvedQueries deps: []
+src/components/OwnerDashboard.tsx line 99 called setUsersList deps: []
+src/components/OwnerDashboard.tsx line 122 called setTicketMessages deps: [ 'activeTicket' ]
+src/components/OwnerDashboard.tsx line 123 called setTimeout deps: [ 'activeTicket' ]
+src/components/PriceAlertManager.tsx line 35 called setPermissionStatus deps: []
+src/components/PriceAlertManager.tsx line 41 called setTargetPriceInput deps: [ 'MemberExpression' ]
+src/components/SupportBot.tsx line 26 called setChat deps: [ 'userId' ]
+src/components/ToastList.tsx line 53 called setTimeout deps: [ 'MemberExpression', 'onDismiss' ]
+src/components/WhaleTracker.tsx line 83 called setTempMinUSDValue deps: [ 'minUSDValue' ]
+src/components/WhaleTracker.tsx line 241 called setWsStatus deps: [ 'useLiveWebSocket', 'minUSDValue', 'soundEnabled' ]
+src/components/WhaleTracker.tsx line 263 called setWsStatus deps: [ 'useLiveWebSocket', 'minUSDValue', 'soundEnabled' ]
+src/components/WhaleTracker.tsx line 272 called setWsStatus deps: [ 'useLiveWebSocket', 'minUSDValue', 'soundEnabled' ]
+src/components/WhaleTracker.tsx line 347 called setTransactions deps: [ 'useLiveWebSocket', 'minUSDValue', 'soundEnabled' ]
+src/components/WhaleTracker.tsx line 360 called setWsStatus deps: [ 'useLiveWebSocket', 'minUSDValue', 'soundEnabled' ]
+src/components/WhaleTracker.tsx line 365 called setWsStatus deps: [ 'useLiveWebSocket', 'minUSDValue', 'soundEnabled' ]
+src/components/WhaleTracker.tsx line 367 called setTimeout deps: [ 'useLiveWebSocket', 'minUSDValue', 'soundEnabled' ]
+src/components/WhaleTracker.tsx line 389 called setInterval deps: [ 'minUSDValue', 'pairs' ]
+src/components/WhaleTracker.tsx line 470 called setTransactions deps: [ 'minUSDValue', 'pairs' ]
+src/useLiveBinance.ts line 42 called setLiveCoins deps: [ 'serializedSymbols' ]
+src/useLiveBinance.ts line 43 called setIsLoading deps: [ 'serializedSymbols' ]
+src/useLiveBinance.ts line 49 called setIsLoading deps: [ 'serializedSymbols' ]
+src/useLiveBinance.ts line 74 called setLiveCoins deps: [ 'serializedSymbols' ]
+src/useLiveBinance.ts line 102 called setIsLoading deps: [ 'serializedSymbols' ]
+src/useLiveBinance.ts line 111 called setTimeout deps: [ 'serializedSymbols' ]
+src/useLiveBinance.ts line 125 called setInterval deps: [ 'serializedSymbols' ]

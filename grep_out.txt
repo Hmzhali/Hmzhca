@@ -1,0 +1,141 @@
+111:        localStorage.setItem("almoharif_user_uid", user.uid);
+120:            setUserData(docRef.data());
+129:      setUserData(null);
+140:    localStorage.setItem("almoharif_lang", lang);
+155:    localStorage.setItem("almoharif_whale_trading_enabled", String(whaleTradingEnabled));
+156:    localStorage.setItem("almoharif_manual_watchlist_scanner", String(manualWatchlistScannerEnabled));
+166:    localStorage.setItem(
+179:    setToasts((prev) => prev.filter((t) => t.id !== id));
+188:    localStorage.setItem("almoharif_toasts_muted", String(toastsMuted));
+211:            setSystemUpdate(data);
+239:        localStorage.setItem(
+244:      setSystemUpdate(null);
+254:    localStorage.setItem("almoharif_is_live_trading", String(isLiveTrading));
+283:      setPairsRaw(val);
+304:    setPairs([...pairs, newPair]);
+318:    localStorage.setItem("almoharif_market_pairs", JSON.stringify(pairs));
+322:    localStorage.setItem(
+331:      setSelectedPairIndex(Math.max(0, pairs.length - 1));
+351:      localStorage.setItem("almoharif_manual_orders", JSON.stringify(filteredOrders));
+358:    localStorage.setItem("almoharif_manual_orders", JSON.stringify(orders));
+368:    localStorage.setItem("almoharif_active_bots", JSON.stringify(activeBots));
+393:    localStorage.setItem("almoharif_portfolio", JSON.stringify(portfolio));
+397:    setTimeout(() => {
+398:      setPortfolio((p) => ({
+407:    setTimeout(() => {
+408:      setPortfolio((p) => {
+424:    setReboundStats((prev) => ({
+459:    localStorage.setItem("almoharif_is_aggressive_rebound", String(isAggressiveRebound));
+498:    setTimeout(() => {
+499:      setFuturesApiError(err);
+512:    localStorage.setItem(
+528:    setNotificationsHistory([]);
+539:    localStorage.setItem("almoharif_price_alerts", JSON.stringify(priceAlerts));
+576:    setAddCoinFeedback(null);
+579:      setAddCoinFeedback({
+599:      setAddCoinFeedback({
+674:        setPortfolio((prev) => ({
+680:      setPairs((prev) => {
+686:      setAddCoinSearchQuery("");
+687:      setAddCoinFeedback({
+704:      setAddCoinFeedback({
+732:    setPairs((prev) => prev.filter((_, idx) => idx !== idxToRemove));
+735:      setSelectedPairIndex(0);
+760:        osc.frequency.setValueAtTime(freq, start);
+762:        gain.gain.setValueAtTime(0.12, start);
+896:    setTimeout(() => {
+898:        setToasts((prev) => [toast, ...prev].slice(0, 5));
+902:      setNotificationsHistory((prev) => {
+904:        localStorage.setItem("almoharif_notifications_history", JSON.stringify(updated));
+988:      setPriceAlerts(updatedAlerts);
+1132:    setPriceAlerts((prev) => [alert, ...prev]);
+1136:    setPriceAlerts((prev) => prev.filter((a) => a.id !== id));
+1140:    setPairs((prevPairs) =>
+1202:              setPairs((prevPairs) =>
+1242:          setPairs((prevPairs) =>
+1304:              setPairs((prevPairs) =>
+1342:            reconnectTimeout = setTimeout(connectBinanceWS, 5000);
+1348:          reconnectTimeout = setTimeout(connectBinanceWS, 5000);
+1370:    const t = setInterval(() => {
+1371:      setPairs((prevPairs) =>
+1411:        setBalanceSyncError(
+1420:      setIsSyncingBalances(true);
+1421:      setBalanceSyncError(null);
+1471:          setPortfolio({
+1480:            setBalanceSyncError(null);
+1493:            setApiConnection((prev) => ({ ...prev, isConnected: false }));
+1494:            setPortfolio({ usdt: 0, futuresUsdt: 0, btc: 0, eth: 0, sol: 0, bnb: 0 });
+1495:            setBalanceSyncError(
+1501:            setBalanceSyncError(
+1533:          setApiConnection((prev) => ({ ...prev, isConnected: false }));
+1534:          setPortfolio({ usdt: 0, futuresUsdt: 0, btc: 0, eth: 0, sol: 0, bnb: 0 });
+1535:          setBalanceSyncError(
+1541:          setBalanceSyncError(
+1555:        setBalanceSyncError(err.message || "Fatal connection failure.");
+1559:        setIsSyncingBalances(false);
+1575:      balanceTimer = setInterval(autoSync, 20000);
+1768:    const t = setInterval(() => {
+1859:        setActiveBots(nextBots);
+1864:            setPortfolio((prevWallet) => ({
+1885:          setProfitHistory((prevHistory) => {
+1981:    setPortfolio((prev) => {
+2022:    setOrders((prev) => [populatedOrder, ...prev]);
+2032:    setOrders((prevOrders) =>
+2168:    setPortfolio((prev) => ({
+2195:    setActiveBots((prev) => [instantiatedBot, ...prev]);
+2209:      setPortfolio((prev) => ({
+2215:    setActiveBots((prev) => prev.filter((b) => b.id !== id));
+2219:    setActiveBots((prev) =>
+2233:    setActiveBots((prev) =>
+2247:    setActiveBots((prev) =>
+2279:    setIsKilling(true);
+2282:      setActiveBots((prev) =>
+2290:      setPortfolio((prev) => {
+2369:      setIsKilling(false);
+2377:      setKillCountdown(null);
+2386:    setKillCountdown(5);
+2393:      setKillCountdown(null);
+2398:    const timer = setTimeout(() => {
+2399:      setKillCountdown((prev) => (prev !== null ? prev - 1 : null));
+2485:    const scannerInterval = setInterval(async () => {
+2607:        setActiveBots((prev) =>
+2632:          setPortfolio((prev) => ({
+2636:          setTimeout(() => {
+2655:    const heartbeat = setInterval(() => {
+2656:      localStorage.setItem("almoharif_last_online", Date.now().toString());
+2772:      setAuthError("");
+2773:      setAuthSuccess("");
+2776:        setAuthError(
+2786:          await resetPassword(emailForSignIn);
+2787:          setAuthSuccess(
+2796:          setAuthError(
+2807:            setAuthError(
+2812:            setMathA(Math.floor(Math.random() * 10) + 1);
+2813:            setMathB(Math.floor(Math.random() * 10) + 1);
+2814:            setMathAnswer("");
+2837:        setAuthError(msg);
+2862:              onChange={(e) => setEmailForSignIn(e.target.value)}
+2874:                onChange={(e) => setPasswordForSignIn(e.target.value)}
+2894:                  onChange={(e) => setMathAnswer(e.target.value)}
+2937:                  setAuthMode("login");
+2938:                  setAuthError("");
+2939:                  setAuthSuccess("");
+2952:                  setAuthMode("register");
+2953:                  setAuthError("");
+2954:                  setAuthSuccess("");
+2965:                  setAuthMode("forgot");
+2966:                  setAuthError("");
+2967:                  setAuthSuccess("");
+3044:                  setAddCoinFeedback(null);
+3045:                  setIsAddCoinOpen(true);
+3068:                      onClick={() => setSelectedPairIndex(idx)}
+3125:                  setAddCoinFeedback(null);
+3126:                  setIsAddCoinOpen(true);
+3165:                    onChange={(e) => setIsAggressiveRebound(e.target.checked)}
+3187:                    onClick={() => setSimulationsEnabled(!simulationsEnabled)}
+3211:                    onClick={() => setToastsMuted(!toastsMuted)}
+3635:                setApiConnection((prev) => ({ ...prev, ...conn }))
+3664:              onClick={() => setIsAddCoinOpen(false)}
+3699:                  onClick={() => setIsAddCoinOpen(false)}
+3727:                        setAddCoinSearchQuery(e.target.value);
+3728:                        setAddCoinFeedback(null);

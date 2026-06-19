@@ -1,0 +1,152 @@
+
+/app/applet/src/App.tsx
+    17:25  error    'ARABIC_DICT' is defined but never used                                                                                                                    no-unused-vars
+    42:3   error    'Award' is defined but never used                                                                                                                          no-unused-vars
+    67:3   error    'getDoc' is defined but never used                                                                                                                         no-unused-vars
+    68:3   error    'setDoc' is defined but never used                                                                                                                         no-unused-vars
+    96:25  error    'localStorage' is not defined                                                                                                                              no-undef
+   100:29  error    'localStorage' is not defined                                                                                                                              no-undef
+   101:23  error    'localStorage' is not defined                                                                                                                              no-undef
+   110:37  error    'localStorage' is not defined                                                                                                                              no-undef
+   111:9   error    'localStorage' is not defined                                                                                                                              no-undef
+   112:9   error    'window' is not defined                                                                                                                                    no-undef
+   124:11  error    'console' is not defined                                                                                                                                   no-undef
+   135:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   140:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   144:31  error    'setWhaleTradingEnabled' is assigned a value but never used                                                                                                no-unused-vars
+   145:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   149:41  error    'setManualWatchlistScannerEnabled' is assigned a value but never used                                                                                      no-unused-vars
+   150:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   155:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   156:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   161:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   166:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   183:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   188:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   207:13  error    'localStorage' is not defined                                                                                                                              no-undef
+   216:9   error    'console' is not defined                                                                                                                                   no-undef
+   225:27  error    'localStorage' is not defined                                                                                                                              no-undef
+   226:21  error    'localStorage' is not defined                                                                                                                              no-undef
+   235:35  error    'localStorage' is not defined                                                                                                                              no-undef
+   236:7   error    'window' is not defined                                                                                                                                    no-undef
+   239:9   error    'localStorage' is not defined                                                                                                                              no-undef
+   250:12  error    'localStorage' is not defined                                                                                                                              no-undef
+   254:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   268:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   301:22  error    'localStorage' is not defined                                                                                                                              no-undef
+   311:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   315:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   332:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   344:7   error    'localStorage' is not defined                                                                                                                              no-undef
+   351:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   356:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   361:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   366:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   385:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   389:5   error    'setTimeout' is not defined                                                                                                                                no-undef
+   399:5   error    'setTimeout' is not defined                                                                                                                                no-undef
+   427:11  error    'initialBotProfit' is assigned a value but never used                                                                                                      no-unused-vars
+   447:12  error    'localStorage' is not defined                                                                                                                              no-undef
+   451:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   454:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   464:16  error    'e' is defined but never used                                                                                                                              no-unused-vars
+   490:5   error    'setTimeout' is not defined                                                                                                                                no-undef
+   504:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   515:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   521:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   526:19  error    'localStorage' is not defined                                                                                                                              no-undef
+   531:5   error    'localStorage' is not defined                                                                                                                              no-undef
+   604:25  error    'fetch' is not defined                                                                                                                                     no-undef
+   695:14  error    'e' is defined but never used                                                                                                                              no-unused-vars
+   744:9   error    'window' is not defined                                                                                                                                    no-undef
+   744:33  error    'window' is not defined                                                                                                                                    no-undef
+   770:7   error    'console' is not defined                                                                                                                                   no-undef
+   789:7   error    'console' is not defined                                                                                                                                   no-undef
+   796:7   error    'console' is not defined                                                                                                                                   no-undef
+   803:9   error    This assigned value is not used in subsequent statements                                                                                                   no-useless-assignment
+   804:9   error    This assigned value is not used in subsequent statements                                                                                                   no-useless-assignment
+   805:9   error    This assigned value is not used in subsequent statements                                                                                                   no-useless-assignment
+   869:13  error    'fetch' is not defined                                                                                                                                     no-undef
+   879:7   error    'console' is not defined                                                                                                                                   no-undef
+   884:6   warning  React Hook useCallback has a missing dependency: 'lang'. Either include it or remove the dependency array                                                  react-hooks/exhaustive-deps
+   888:5   error    'setTimeout' is not defined                                                                                                                                no-undef
+   896:9   error    'localStorage' is not defined                                                                                                                              no-undef
+   918:29  error    'window' is not defined                                                                                                                                    no-undef
+   920:9   error    'Notification' is not defined                                                                                                                              no-undef
+   931:13  error    'Notification' is not defined                                                                                                                              no-undef
+   937:9   error    'console' is not defined                                                                                                                                   no-undef
+   988:32  error    'fetch' is not defined                                                                                                                                     no-undef
+  1003:13  error    'console' is not defined                                                                                                                                   no-undef
+  1033:6   warning  React Hook useEffect has missing dependencies: 'dispatchBrowserNotification' and 'handleTriggerToast'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  1075:11  error    'fetch' is not defined                                                                                                                                     no-undef
+  1103:15  error    'console' is not defined                                                                                                                                   no-undef
+  1108:6   warning  React Hook useEffect has a missing dependency: 'handleTriggerToast'. Either include it or remove the dependency array                                      react-hooks/exhaustive-deps
+  1131:9   error    'triggerVolatilityMockEvent' is assigned a value but never used                                                                                            no-unused-vars
+  1172:13  error    'WebSocket' is not defined                                                                                                                                 no-undef
+  1173:27  error    'NodeJS' is not defined                                                                                                                                    no-undef
+  1186:37  error    'fetch' is not defined                                                                                                                                     no-undef
+  1215:13  error    'console' is not defined                                                                                                                                   no-undef
+  1223:32  error    'fetch' is not defined                                                                                                                                     no-undef
+  1265:9   error    'console' is not defined                                                                                                                                   no-undef
+  1282:18  error    'WebSocket' is not defined                                                                                                                                 no-undef
+  1285:11  error    'console' is not defined                                                                                                                                   no-undef
+  1317:20  error    'parseErr' is defined but never used                                                                                                                       no-unused-vars
+  1323:11  error    'console' is not defined                                                                                                                                   no-undef
+  1330:11  error    'console' is not defined                                                                                                                                   no-undef
+  1334:32  error    'setTimeout' is not defined                                                                                                                                no-undef
+  1338:9   error    'console' is not defined                                                                                                                                   no-undef
+  1340:30  error    'setTimeout' is not defined                                                                                                                                no-undef
+  1355:9   error    'clearTimeout' is not defined                                                                                                                              no-undef
+  1358:6   warning  React Hook useEffect has a missing dependency: 'pairs'. Either include it or remove the dependency array                                                   react-hooks/exhaustive-deps
+  1362:15  error    'setInterval' is not defined                                                                                                                               no-undef
+  1387:18  error    'clearInterval' is not defined                                                                                                                             no-undef
+  1416:30  error    'fetch' is not defined                                                                                                                                     no-undef
+  1539:7   error    'console' is not defined                                                                                                                                   no-undef
+  1555:23  error    'NodeJS' is not defined                                                                                                                                    no-undef
+  1564:22  error    'setInterval' is not defined                                                                                                                               no-undef
+  1568:25  error    'clearInterval' is not defined                                                                                                                             no-undef
+  1570:6   warning  React Hook useEffect has a missing dependency: 'syncLiveBalances'. Either include it or remove the dependency array                                        react-hooks/exhaustive-deps
+  1625:13  error    'currentLang' is assigned a value but never used                                                                                                           no-unused-vars
+  1706:37  error    'fetch' is not defined                                                                                                                                     no-undef
+  1721:13  error    'console' is not defined                                                                                                                                   no-undef
+  1727:13  error    'console' is not defined                                                                                                                                   no-undef
+  1734:11  error    'console' is not defined                                                                                                                                   no-undef
+  1757:15  error    'setInterval' is not defined                                                                                                                               no-undef
+  1869:22  error    'e' is defined but never used                                                                                                                              no-unused-vars
+  1892:18  error    'clearInterval' is not defined                                                                                                                             no-undef
+  1893:6   warning  React Hook useEffect has missing dependencies: 'handleTriggerToast' and 'pairs'. Either include them or remove the dependency array                        react-hooks/exhaustive-deps
+  1915:34  error    'fetch' is not defined                                                                                                                                     no-undef
+  1945:13  error    'alert' is not defined                                                                                                                                     no-undef
+  1951:13  error    'alert' is not defined                                                                                                                                     no-undef
+  1958:11  error    'console' is not defined                                                                                                                                   no-undef
+  1961:9   error    'alert' is not defined                                                                                                                                     no-undef
+  2126:6   warning  React Hook useEffect has a missing dependency: 'triggerManualTpSl'. Either include it or remove the dependency array                                       react-hooks/exhaustive-deps
+  2148:7   error    'alert' is not defined                                                                                                                                     no-undef
+  2311:34  error    'fetch' is not defined                                                                                                                                     no-undef
+  2324:13  error    'alert' is not defined                                                                                                                                     no-undef
+  2330:13  error    'alert' is not defined                                                                                                                                     no-undef
+  2337:11  error    'alert' is not defined                                                                                                                                     no-undef
+  2344:9   error    'alert' is not defined                                                                                                                                     no-undef
+  2351:7   error    'console' is not defined                                                                                                                                   no-undef
+  2352:7   error    'alert' is not defined                                                                                                                                     no-undef
+  2367:7   error    'alert' is not defined                                                                                                                                     no-undef
+  2387:19  error    'setTimeout' is not defined                                                                                                                                no-undef
+  2391:18  error    'clearTimeout' is not defined                                                                                                                              no-undef
+  2392:6   warning  React Hook useEffect has a missing dependency: 'executeKillSequence'. Either include it or remove the dependency array                                     react-hooks/exhaustive-deps
+  2464:7   error    'console' is not defined                                                                                                                                   no-undef
+  2474:29  error    'setInterval' is not defined                                                                                                                               no-undef
+  2575:11  error    'console' is not defined                                                                                                                                   no-undef
+  2580:18  error    'clearInterval' is not defined                                                                                                                             no-undef
+  2581:6   warning  React Hook useEffect has missing dependencies: 'handleAddNewOrder' and 'handleTriggerToast'. Either include them or remove the dependency array            react-hooks/exhaustive-deps
+  2585:27  error    'localStorage' is not defined                                                                                                                              no-undef
+  2625:11  error    'setTimeout' is not defined                                                                                                                                no-undef
+  2644:23  error    'setInterval' is not defined                                                                                                                               no-undef
+  2645:7   error    'localStorage' is not defined                                                                                                                              no-undef
+  2648:18  error    'clearInterval' is not defined                                                                                                                             no-undef
+  2649:6   warning  React Hook useEffect has missing dependencies: 'activeBots.length' and 'handleTriggerToast'. Either include them or remove the dependency array            react-hooks/exhaustive-deps
+  2692:13  error    'localStorage' is not defined                                                                                                                              no-undef
+  2747:15  error    'window' is not defined                                                                                                                                    no-undef
+  2813:9   error    'console' is not defined                                                                                                                                   no-undef
+
+✖ 147 problems (137 errors, 10 warnings)
+

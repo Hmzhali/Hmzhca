@@ -1,0 +1,210 @@
+  resetPassword,
+  setDoc,
+  const [userData, setUserData] = useState<any>(null);
+  const [emailForSignIn, setEmailForSignIn] = useState<string>("");
+  const [passwordForSignIn, setPasswordForSignIn] = useState<string>("");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">(
+  const [authError, setAuthError] = useState<string>("");
+  const [authSuccess, setAuthSuccess] = useState<string>("");
+  const [mathA, setMathA] = useState(Math.floor(Math.random() * 10) + 1);
+  const [mathB, setMathB] = useState(Math.floor(Math.random() * 10) + 1);
+  const [mathAnswer, setMathAnswer] = useState("");
+        localStorage.setItem("almoharif_user_uid", user.uid);
+            setUserData(docRef.data());
+      setUserData(null);
+  // Localization setup (default to Arabic 'ar' as requested, saved to local storage)
+  const [lang, setLang] = useState<"ar" | "en">(() => {
+    localStorage.setItem("almoharif_lang", lang);
+  const [whaleTradingEnabled, setWhaleTradingEnabled] = useState<boolean>(() => {
+  const [manualWatchlistScannerEnabled, setManualWatchlistScannerEnabled] = useState<boolean>(() => {
+    localStorage.setItem("almoharif_whale_trading_enabled", String(whaleTradingEnabled));
+    localStorage.setItem("almoharif_manual_watchlist_scanner", String(manualWatchlistScannerEnabled));
+  const [simulationsEnabled, setSimulationsEnabled] = useState<boolean>(() => {
+    localStorage.setItem(
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  const [toastsMuted, setToastsMuted] = useState<boolean>(() => {
+    localStorage.setItem("almoharif_toasts_muted", String(toastsMuted));
+  const [systemUpdate, setSystemUpdate] = useState<any>(null);
+            setSystemUpdate(data);
+        localStorage.setItem(
+      setSystemUpdate(null);
+  const [isLiveTrading, setIsLiveTrading] = useState<boolean>(() => {
+    localStorage.setItem("almoharif_is_live_trading", String(isLiveTrading));
+  // Synchronized ref for tracking latest live trading setting in background intervals/hooks
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
+      const [pairsRaw, setPairsRaw] = useState<MarketPair[]>(() => {
+  const setPairs = React.useCallback((val: any) => {
+      setPairsRaw(val);
+    setPairs([...pairs, newPair]);
+  const [selectedPairIndex, setSelectedPairIndex] = useState<number>(() => {
+    localStorage.setItem("almoharif_market_pairs", JSON.stringify(pairs));
+    localStorage.setItem(
+      setSelectedPairIndex(Math.max(0, pairs.length - 1));
+  const [orders, setOrders] = useState<TradeOrder[]>(() => {
+      localStorage.setItem("almoharif_manual_orders", JSON.stringify(filteredOrders));
+    localStorage.setItem("almoharif_manual_orders", JSON.stringify(orders));
+  const [activeBots, setActiveBots] = useState<TradingBot[]>(() => {
+    localStorage.setItem("almoharif_active_bots", JSON.stringify(activeBots));
+  const [portfolio, setPortfolio] = useState(() => {
+    localStorage.setItem("almoharif_portfolio", JSON.stringify(portfolio));
+    setTimeout(() => {
+      setPortfolio((p) => ({
+  const handleAIUpdatePortfolio = useCallback((incUsdt: number, incAsset: number, assetName?: string) => {
+    const lowerAssetName = (assetName || "btc").toLowerCase();
+    setTimeout(() => {
+      setPortfolio((p) => {
+        if (lowerAssetName in p) {
+          const decimals = lowerAssetName === "btc" ? 6 : 4;
+          const prevAssetVal = (p as any)[lowerAssetName] ?? 0;
+          (updated as any)[lowerAssetName] = parseFloat(
+            (prevAssetVal + incAsset).toFixed(decimals),
+    setReboundStats((prev) => ({
+  const [profitHistory, setProfitHistory] = useState<
+  const [reboundStats, setReboundStats] = useState({
+  const [isAggressiveRebound, setIsAggressiveRebound] = useState<boolean>(() => {
+    localStorage.setItem("almoharif_is_aggressive_rebound", String(isAggressiveRebound));
+  const [apiConnection, setApiConnection] = useState<ApiConnection>(() => {
+  const [isSyncingBalances, setIsSyncingBalances] = useState<boolean>(false);
+  const [balanceSyncError, setBalanceSyncError] = useState<string | null>(null);
+  const [futuresApiError, setFuturesApiError] = useState<string | null>(null);
+    setTimeout(() => {
+      setFuturesApiError(err);
+  const [isAddCoinOpen, setIsAddCoinOpen] = useState<boolean>(false);
+  const [addCoinSearchQuery, setAddCoinSearchQuery] = useState<string>("");
+  const [addCoinFeedback, setAddCoinFeedback] = useState<{
+    localStorage.setItem(
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [notificationsHistory, setNotificationsHistory] = useState<ToastNotification[]>(() => {
+    setNotificationsHistory([]);
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>(() => {
+    localStorage.setItem("almoharif_price_alerts", JSON.stringify(priceAlerts));
+    setAddCoinFeedback(null);
+      setAddCoinFeedback({
+      setAddCoinFeedback({
+        setPortfolio((prev) => ({
+      setPairs((prev) => {
+      setAddCoinSearchQuery("");
+      setAddCoinFeedback({
+      setAddCoinFeedback({
+    setPairs((prev) => prev.filter((_, idx) => idx !== idxToRemove));
+      setSelectedPairIndex(0);
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.12, start);
+    setTimeout(() => {
+        setToasts((prev) => [toast, ...prev].slice(0, 5));
+      setNotificationsHistory((prev) => {
+        localStorage.setItem("almoharif_notifications_history", JSON.stringify(updated));
+      setPriceAlerts(updatedAlerts);
+    setPriceAlerts((prev) => [alert, ...prev]);
+    setPriceAlerts((prev) => prev.filter((a) => a.id !== id));
+    setPairs((prevPairs) =>
+              setPairs((prevPairs) =>
+          setPairs((prevPairs) =>
+          "[Binance Baseline Ticker] Initial setup note:",
+              setPairs((prevPairs) =>
+            reconnectTimeout = setTimeout(connectBinanceWS, 5000);
+          reconnectTimeout = setTimeout(connectBinanceWS, 5000);
+    const t = setInterval(() => {
+      setPairs((prevPairs) =>
+        setBalanceSyncError(
+      setIsSyncingBalances(true);
+      setBalanceSyncError(null);
+          // Extract USDT and BTC assets, alongside other major tradeable assets
+          setPortfolio({
+            setBalanceSyncError(null);
+            setApiConnection((prev) => ({ ...prev, isConnected: false }));
+            setPortfolio({ usdt: 0, futuresUsdt: 0, btc: 0, eth: 0, sol: 0, bnb: 0 });
+            setBalanceSyncError(
+            setBalanceSyncError(
+          setApiConnection((prev) => ({ ...prev, isConnected: false }));
+          setPortfolio({ usdt: 0, futuresUsdt: 0, btc: 0, eth: 0, sol: 0, bnb: 0 });
+          setBalanceSyncError(
+          setBalanceSyncError(
+                : "Unable to load wallet ledger assets. Confirm network environment."),
+        "[Binance Balance Synchronizer warning] Failed to sync live wallet assets:",
+        setBalanceSyncError(err.message || "Fatal connection failure.");
+        setIsSyncingBalances(false);
+      balanceTimer = setInterval(autoSync, 20000);
+      // Dispatch order to real Binance exchange if LIVE setting is active
+    const t = setInterval(() => {
+        setActiveBots(nextBots);
+            setPortfolio((prevWallet) => ({
+          setProfitHistory((prevHistory) => {
+    // Deduct/Credit available spot assets
+    setPortfolio((prev) => {
+      const newAssets: any = {};
+        newAssets.btc = parseFloat(((prev.btc ?? 0) + addedAsset).toFixed(6));
+        newAssets.eth = parseFloat(((prev.eth ?? 0) + addedAsset).toFixed(4));
+        newAssets.sol = parseFloat(((prev.sol ?? 0) + addedAsset).toFixed(4));
+        newAssets.bnb = parseFloat(((prev.bnb ?? 0) + addedAsset).toFixed(4));
+        (newAssets as any)[baseAsset] = parseFloat(
+        ...newAssets,
+    setOrders((prev) => [populatedOrder, ...prev]);
+    setOrders((prevOrders) =>
+    // 3. Place counter order immediately which will re-adjust portfolio assets and log the closing order
+    setPortfolio((prev) => ({
+    setActiveBots((prev) => [instantiatedBot, ...prev]);
+      setPortfolio((prev) => ({
+    setActiveBots((prev) => prev.filter((b) => b.id !== id));
+    setActiveBots((prev) =>
+    setActiveBots((prev) =>
+    setActiveBots((prev) =>
+  const [isKilling, setIsKilling] = useState<boolean>(false);
+  const [killCountdown, setKillCountdown] = useState<number | null>(null);
+    setIsKilling(true);
+      setActiveBots((prev) =>
+      setPortfolio((prev) => {
+      setIsKilling(false);
+      setKillCountdown(null);
+    setKillCountdown(5);
+      setKillCountdown(null);
+    const timer = setTimeout(() => {
+      setKillCountdown((prev) => (prev !== null ? prev - 1 : null));
+    const scannerInterval = setInterval(async () => {
+            aiExplanationEn: `🔍 [Manual Watchlist Scanner] Auto-Trade! Core bot scanned all manual trading digital assets and located a highly premium signal on ${coin.symbol} (Confidence ${bestCandidate.confidenceScore}% | RSI: ${bestCandidate.rsi}). Instantly triggered a ${tradeSide} order of $${sizeInUsdt} at entry $${coinPrice}.`,
+        setActiveBots((prev) =>
+          setPortfolio((prev) => ({
+          setTimeout(() => {
+    const heartbeat = setInterval(() => {
+      localStorage.setItem("almoharif_last_online", Date.now().toString());
+      setAuthError("");
+      setAuthSuccess("");
+        setAuthError(
+          await resetPassword(emailForSignIn);
+          setAuthSuccess(
+          setAuthError(
+            setAuthError(
+            setMathA(Math.floor(Math.random() * 10) + 1);
+            setMathB(Math.floor(Math.random() * 10) + 1);
+            setMathAnswer("");
+        setAuthError(msg);
+              onChange={(e) => setEmailForSignIn(e.target.value)}
+                onChange={(e) => setPasswordForSignIn(e.target.value)}
+                  onChange={(e) => setMathAnswer(e.target.value)}
+                  setAuthMode("login");
+                  setAuthError("");
+                  setAuthSuccess("");
+                  setAuthMode("register");
+                  setAuthError("");
+                  setAuthSuccess("");
+                  setAuthMode("forgot");
+                  setAuthError("");
+                  setAuthSuccess("");
+        setLang={setLang}
+        setActiveTab={setActiveTab}
+        setIsLiveTrading={setIsLiveTrading}
+                  setAddCoinFeedback(null);
+                  setIsAddCoinOpen(true);
+                      onClick={() => setSelectedPairIndex(idx)}
+                  setAddCoinFeedback(null);
+                  setIsAddCoinOpen(true);
+                    onChange={(e) => setIsAggressiveRebound(e.target.checked)}
+                    onClick={() => setSimulationsEnabled(!simulationsEnabled)}
+                    onClick={() => setToastsMuted(!toastsMuted)}
+                setFuturesApiError={handleSetFuturesApiError}
+                onTabChange={setActiveTab}
+                setApiConnection((prev) => ({ ...prev, ...conn }))
+              onClick={() => setIsAddCoinOpen(false)}
+                  onClick={() => setIsAddCoinOpen(false)}
+                        setAddCoinSearchQuery(e.target.value);
+                        setAddCoinFeedback(null);

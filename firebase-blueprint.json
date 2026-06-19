@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user settings, roles, and exchange configurations.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["OWNER", "USER"]
+        },
+        "createdAt": {
+          "type": "timestamp"
+        },
+        "updatedAt": {
+          "type": "timestamp"
+        },
+        "walletUsdt": {
+          "type": "number"
+        },
+        "config": {
+          "type": "object"
+        }
+      },
+      "required": ["email", "role", "createdAt"]
+    },
+    "PlatformWallet": {
+      "title": "Platform Commission Wallet",
+      "description": "Stores central commission wallet balances",
+      "type": "object",
+      "properties": {
+        "balanceUsdt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "timestamp"
+        }
+      },
+      "required": ["balanceUsdt", "updatedAt"]
+    },
+    "Trade": {
+      "title": "Bot Trade Record",
+      "description": "A record of an autonomous trade executed by the bot.",
+      "type": "object",
+      "properties": {
+        "symbol": {
+          "type": "string"
+        },
+        "side": {
+          "type": "string"
+        },
+        "entryPrice": {
+          "type": "number"
+        },
+        "exitPrice": {
+          "type": "number"
+        },
+        "margin": {
+          "type": "number"
+        },
+        "leverage": {
+          "type": "number"
+        },
+        "realizedPnl": {
+          "type": "number"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": ["symbol", "side", "entryPrice", "exitPrice", "margin", "leverage", "realizedPnl", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "platform/wallet": {
+      "schema": "PlatformWallet",
+      "description": "Central platform commission pool"
+    },
+    "trades/{tradeId}": {
+      "schema": "Trade",
+      "description": "Executed bot trades"
+    }
+  }
+}

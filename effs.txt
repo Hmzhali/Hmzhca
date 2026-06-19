@@ -1,0 +1,1532 @@
+94:  useEffect(() => {
+95-    if (user) {
+96-      const storedUid = localStorage.getItem("almoharif_user_uid");
+97-      if (storedUid !== user.uid) {
+98-        // User switched or fresh login! Clear all local preferences/API keys to start from zero
+99-        const keysToRemove = [];
+100-        for (let i = 0; i < localStorage.length; i++) {
+101-          const key = localStorage.key(i);
+102-          if (
+103-            key &&
+104-            key.startsWith("almoharif_") &&
+105-            key !== "almoharif_user_uid"
+106-          ) {
+107-            keysToRemove.push(key);
+108-          }
+109-        }
+110-        keysToRemove.forEach((k) => localStorage.removeItem(k));
+111-        localStorage.setItem("almoharif_user_uid", user.uid);
+112-        window.location.reload();
+113-        return;
+114-      }
+115-
+116-      const unsub = onSnapshot(
+117-        doc(db, "users", user.uid),
+118-        (docRef) => {
+119-          if (docRef.exists()) {
+120-            setUserData(docRef.data());
+121-          }
+122-        },
+123-        (error) => {
+124-          console.warn("User data snapshot error:", error);
+125-        },
+126-      );
+127-      return () => unsub();
+128-    } else {
+129-      setUserData(null);
+130-    }
+131-  }, [user]);
+132-
+133-  // Localization setup (default to Arabic 'ar' as requested, saved to local storage)
+134-  const [lang, setLang] = useState<"ar" | "en">(() => {
+135-    const saved = localStorage.getItem("almoharif_lang");
+136-    return (saved === "ar" || saved === "en") ? saved : "ar";
+137-  });
+138-
+139:  useEffect(() => {
+140-    localStorage.setItem("almoharif_lang", lang);
+141-  }, [lang]);
+142-
+143-  // Automated whale trading integrations and full market scanner controls
+144-  const [whaleTradingEnabled, setWhaleTradingEnabled] = useState<boolean>(() => {
+145-    const saved = localStorage.getItem("almoharif_whale_trading_enabled");
+146-    return saved === null ? true : saved === "true";
+147-  });
+148-
+149-  const [manualWatchlistScannerEnabled, setManualWatchlistScannerEnabled] = useState<boolean>(() => {
+150-    const saved = localStorage.getItem("almoharif_manual_watchlist_scanner");
+151-    return saved === null ? true : saved === "true";
+152-  });
+153-
+154:  useEffect(() => {
+155-    localStorage.setItem("almoharif_whale_trading_enabled", String(whaleTradingEnabled));
+156-    localStorage.setItem("almoharif_manual_watchlist_scanner", String(manualWatchlistScannerEnabled));
+157-  }, [whaleTradingEnabled, manualWatchlistScannerEnabled]);
+158-
+159-  // New Simulation control switches (persistently saved)
+160-  const [simulationsEnabled, setSimulationsEnabled] = useState<boolean>(() => {
+161-    const saved = localStorage.getItem("almoharif_simulations_enabled");
+162-    return saved === null ? true : saved === "true"; // Defaults to true
+163-  });
+164-
+165:  useEffect(() => {
+166-    localStorage.setItem(
+167-      "almoharif_simulations_enabled",
+168-      String(simulationsEnabled),
+169-    );
+170-  }, [simulationsEnabled]);
+171-
+172-  const simulationsEnabledRef = useRef<boolean>(simulationsEnabled);
+173:  useEffect(() => {
+174-    simulationsEnabledRef.current = simulationsEnabled;
+175-  }, [simulationsEnabled]);
+176-
+177-  // Screen Toast alerts popup muting control (persistently saved - defaults to true for quiet professional trading)
+178-  const handleDismissToast = useCallback((id: string) => {
+179-    setToasts((prev) => prev.filter((t) => t.id !== id));
+180-  }, []);
+181-
+182-  const [toastsMuted, setToastsMuted] = useState<boolean>(() => {
+183-    const saved = localStorage.getItem("almoharif_toasts_muted");
+184-    return saved === null ? true : saved === "true"; // Defaults to true
+185-  });
+186-
+187:  useEffect(() => {
+188-    localStorage.setItem("almoharif_toasts_muted", String(toastsMuted));
+189-  }, [toastsMuted]);
+190-
+191-  const toastsMutedRef = useRef<boolean>(toastsMuted);
+192:  useEffect(() => {
+193-    toastsMutedRef.current = toastsMuted;
+194-  }, [toastsMuted]);
+195-
+196-  // System Update Notification tracker
+197-  const [systemUpdate, setSystemUpdate] = useState<any>(null);
+198-
+199:  useEffect(() => {
+200-    if (!user) return;
+201-    const unsub = onSnapshot(
+202-      doc(db, "system", "update_notification"),
+203-      (docSnap) => {
+204-        if (docSnap.exists()) {
+205-          const data = docSnap.data();
+206-          const lastSeenVersion = parseInt(
+207-            localStorage.getItem("almoharif_seen_update_ver") || "0",
+208-            10,
+209-          );
+210-          if (data.version && data.version > lastSeenVersion) {
+211-            setSystemUpdate(data);
+212-          }
+213-        }
+214-      },
+215-      (error) => {
+216-        console.error("System update snapshot error: ", error);
+217-      }
+218-    );
+219-    return () => unsub();
+220-  }, [user]);
+221-
+222-  const handleAcknowledgeUpdate = (reset: boolean) => {
+223-    if (reset) {
+224-      const keysToRemove = [];
+225-      for (let i = 0; i < localStorage.length; i++) {
+226-        const key = localStorage.key(i);
+227-        if (
+228-          key &&
+229-          key.startsWith("almoharif_") &&
+230-          key !== "almoharif_user_uid"
+231-        ) {
+232-          keysToRemove.push(key);
+233-        }
+234-      }
+235-      keysToRemove.forEach((k) => localStorage.removeItem(k));
+236-      window.location.reload();
+237-    } else {
+238-      if (systemUpdate) {
+239-        localStorage.setItem(
+240-          "almoharif_seen_update_ver",
+241-          String(systemUpdate.version),
+242-        );
+243-      }
+244-      setSystemUpdate(null);
+245-    }
+246-  };
+247-
+248-  // Global Live vs Paper Trading mode toggle (persistent in localStorage)
+249-  const [isLiveTrading, setIsLiveTrading] = useState<boolean>(() => {
+250-    return localStorage.getItem("almoharif_is_live_trading") === "true";
+251-  });
+252-
+253:  useEffect(() => {
+254-    localStorage.setItem("almoharif_is_live_trading", String(isLiveTrading));
+255-  }, [isLiveTrading]);
+256-
+257-  // Synchronized ref for tracking latest live trading setting in background intervals/hooks
+258-  const isLiveTradingRef = useRef<boolean>(isLiveTrading);
+259:  useEffect(() => {
+260-    isLiveTradingRef.current = isLiveTrading;
+261-  }, [isLiveTrading]);
+262-
+263-  // Navigation
+264-  const [activeTab, setActiveTab] = useState<string>("dashboard");
+265-
+266-  // Market Pairs feed with local storage persistence
+267-  
+268-      const [pairsRaw, setPairsRaw] = useState<MarketPair[]>(() => {
+269-    const saved = localStorage.getItem("almoharif_market_pairs");
+270-    const rawPairs = saved ? JSON.parse(saved) : INITIAL_PAIRS;
+271-    const uniqueMap = new Map<string, MarketPair>();
+272-    rawPairs.forEach((p: MarketPair) => {
+273-      if (p && p.symbol) {
+274-        uniqueMap.set(p.symbol, p);
+275-      }
+276-    });
+277-    return Array.from(uniqueMap.values());
+278-  });
+279-
+280-  const pairs = pairsRaw;
+281-
+282-  const setPairs = React.useCallback((val: any) => {
+283-      setPairsRaw(val);
+284-  }, []);
+285-
+286-  const handleAddPair = (symbol: string) => {
+287-    const formattedSymbol = symbol.toUpperCase().includes('/') ? symbol.toUpperCase() : `${symbol.toUpperCase()}/USDT`;
+288-    
+289-    // Check if pair already exists
+290-    if (pairs.find(p => p.symbol === formattedSymbol)) return;
+291-
+292-    const newPair: MarketPair = {
+293-      symbol: formattedSymbol,
+294-      name: formattedSymbol,
+295-      currentPrice: 0,
+296-      change24h: 0,
+297-      high24h: 0,
+298-      low24h: 0,
+299-      volume24h: 0,
+300-      baseAsset: formattedSymbol.split('/')[0],
+301-      quoteAsset: 'USDT'
+302-    };
+303-
+304-    setPairs([...pairs, newPair]);
+305-  };
+306-
+307-  const [selectedPairIndex, setSelectedPairIndex] = useState<number>(() => {
+308-    const savedIdx = localStorage.getItem("almoharif_selected_pair_index");
+309-    if (savedIdx) {
+310-      const idx = parseInt(savedIdx, 10);
+311-      return isNaN(idx) ? 0 : idx;
+312-    }
+313-    return 0;
+314-  });
+315-  const activePair = pairs[selectedPairIndex] || pairs[0] || INITIAL_PAIRS[0];
+316-
+317:  useEffect(() => {
+318-    localStorage.setItem("almoharif_market_pairs", JSON.stringify(pairs));
+319-  }, [pairs]);
+320-
+321:  useEffect(() => {
+322-    localStorage.setItem(
+323-      "almoharif_selected_pair_index",
+324-      String(selectedPairIndex),
+325-    );
+326-  }, [selectedPairIndex]);
+327-
+328-  // Safely guard selected pair index from getting out-of-bounds
+329:  useEffect(() => {
+330-    if (selectedPairIndex >= pairs.length) {
+331-      setSelectedPairIndex(Math.max(0, pairs.length - 1));
+332-    }
+333-  }, [pairs, selectedPairIndex]);
+334-
+335-  const canTrade = userData?.permissions?.canTrade !== false;
+336-
+337-  // Manual Orders Storage with local storage persistence
+338-  const [orders, setOrders] = useState<TradeOrder[]>(() => {
+339-    const saved = localStorage.getItem("almoharif_manual_orders");
+340-    if (!saved) return [];
+341-
+342-    const parsedOrders: TradeOrder[] = JSON.parse(saved);
+343-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+344-
+345-    const filteredOrders = parsedOrders.filter(
+346-      (order) => order.timestamp > thirtyDaysAgo
+347-    );
+348-
+349-    // If we removed orders, update localStorage immediately to reflect cleaned state
+350-    if (filteredOrders.length !== parsedOrders.length) {
+351-      localStorage.setItem("almoharif_manual_orders", JSON.stringify(filteredOrders));
+352-    }
+353-
+354-    return filteredOrders;
+355-  });
+356-
+357:  useEffect(() => {
+358-    localStorage.setItem("almoharif_manual_orders", JSON.stringify(orders));
+359-  }, [orders]);
+360-
+361-  // Active Automated Bots list (defaults to empty [] to prevent fake spammy startup bots)
+362-  const [activeBots, setActiveBots] = useState<TradingBot[]>(() => {
+363-    const saved = localStorage.getItem("almoharif_active_bots");
+364-    return saved ? JSON.parse(saved) : [];
+365-  });
+366-
+367:  useEffect(() => {
+368-    localStorage.setItem("almoharif_active_bots", JSON.stringify(activeBots));
+369-  }, [activeBots]);
+370-
+371-  // Wallet Portfolio Balances
+372-  const [portfolio, setPortfolio] = useState(() => {
+373-    const saved = localStorage.getItem("almoharif_portfolio");
+374-    if (saved) {
+375-      const parsed = JSON.parse(saved);
+376-      // Give the user 15000 default if they happen to be at exactly 0 from previous saves.
+377-      if (parsed.usdt === 0) {
+378-        parsed.usdt = 15000;
+379-      }
+380-      return parsed;
+381-    }
+382-    return {
+383-      usdt: 15000,
+384-      futuresUsdt: 0,
+385-      btc: 0,
+386-      eth: 0,
+387-      sol: 0,
+388-      bnb: 0,
+389-    };
+390-  });
+391-
+392:  useEffect(() => {
+393-    localStorage.setItem("almoharif_portfolio", JSON.stringify(portfolio));
+394-  }, [portfolio]);
+395-
+396-  const handleFuturesUpdatePortfolio = useCallback((incUsdt: number, incBtc: number) => {
+397-    setTimeout(() => {
+398-      setPortfolio((p) => ({
+399-        ...p,
+400-        usdt: parseFloat((p.usdt + incUsdt).toFixed(2)),
+401-        btc: parseFloat((p.btc + incBtc).toFixed(6)),
+402-      }));
+403-    }, 0);
+404-  }, []);
+405-  const handleAIUpdatePortfolio = useCallback((incUsdt: number, incAsset: number, assetName?: string) => {
+406-    const lowerAssetName = (assetName || "btc").toLowerCase();
+407-    setTimeout(() => {
+408-      setPortfolio((p) => {
+409-        const updated = { ...p };
+410-        updated.usdt = parseFloat((p.usdt + incUsdt).toFixed(2));
+411-        if (lowerAssetName in p) {
+412-          const decimals = lowerAssetName === "btc" ? 6 : 4;
+413-          const prevAssetVal = (p as any)[lowerAssetName] ?? 0;
+414-          (updated as any)[lowerAssetName] = parseFloat(
+415-            (prevAssetVal + incAsset).toFixed(decimals),
+416-          );
+417-        }
+418-        return updated;
+419-      });
+420-    }, 0);
+421-  }, []);
+422-
+423-  const handleAIReboundCapture = useCallback(() => {
+424-    setReboundStats((prev) => ({
+425-      captures: prev.captures + 1,
+426-      chances: prev.chances + (Math.random() > 0.5 ? 1 : 0),
+427-    }));
+428-  }, []);
+429-
+430-  const [profitHistory, setProfitHistory] = useState<
+431-    { time: string; profit: number; botsCount: number }[]
+432-  >(() => {
+433-    const now = new Date();
+434-    const data = [];
+435-    const initialBotProfit = 0;
+436-    for (let i = 23; i >= 0; i--) {
+437-      const d = new Date(now.getTime() - i * 60 * 60 * 1050);
+438-      const hourStr = d.toLocaleTimeString(undefined, {
+439-        hour: "2-digit",
+440-        minute: "2-digit",
+441-        hour12: false,
+442-      });
+443-      const simulatedBotsCount = i === 0 ? 0 : Math.max(1, Math.min(5, Math.round(2 + Math.sin(i * 0.5) * 2)));
+444-      data.push({ time: hourStr, profit: 0, botsCount: simulatedBotsCount });
+445-    }
+446-    return data;
+447-  });
+448-
+449-  // Exchange API Connection state
+450-  const [reboundStats, setReboundStats] = useState({
+451-    captures: 14,
+452-    chances: 18,
+453-  });
+454-  const [isAggressiveRebound, setIsAggressiveRebound] = useState<boolean>(() => {
+455-    return localStorage.getItem("almoharif_is_aggressive_rebound") === "true";
+456-  });
+457-
+458:  useEffect(() => {
+459-    localStorage.setItem("almoharif_is_aggressive_rebound", String(isAggressiveRebound));
+460-  }, [isAggressiveRebound]);
+461-  const [apiConnection, setApiConnection] = useState<ApiConnection>(() => {
+462-    const saved = localStorage.getItem("almoharif_api_connection");
+463-    if (saved) {
+464-      try {
+465-        const parsed = JSON.parse(saved);
+466-        // Ensure default telegram keys are set if they were missing or null
+467-        parsed.telegramBotToken =
+468-          parsed.telegramBotToken ||
+469-          "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms";
+470-        parsed.telegramChatId = parsed.telegramChatId || "5450846071";
+471-        return parsed;
+472-      } catch (e) {
+473-        // ignore JSON parse errors and fallback
+474-      }
+475-    }
+476-    return {
+477-      exchange: "Binance",
+478-      apiKey: "",
+479-      apiSecret: "",
+480-      ipWhitelisting: false,
+481-      withdrawalDisabled: true,
+482-      readOnly: true,
+483-      tradingEnabled: false,
+484-      isConnected: false,
+485-      lastTested: 0,
+486-      telegramBotToken: "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms",
+487-      telegramChatId: "5450846071",
+488-      useTestnet: false,
+489-    };
+490-  });
+491-
+492-  // State to track manual live balance synchronization
+493-  const [isSyncingBalances, setIsSyncingBalances] = useState<boolean>(false);
+494-  const [balanceSyncError, setBalanceSyncError] = useState<string | null>(null);
+495-  const [futuresApiError, setFuturesApiError] = useState<string | null>(null);
+496-
+497-  const handleSetFuturesApiError = useCallback((err: string | null) => {
+498-    setTimeout(() => {
+499-      setFuturesApiError(err);
+500-    }, 0);
+501-  }, []);
+502-
+503-  // Dynamic custom coin/trading pair selection manager states
+504-  const [isAddCoinOpen, setIsAddCoinOpen] = useState<boolean>(false);
+505-  const [addCoinSearchQuery, setAddCoinSearchQuery] = useState<string>("");
+506-  const [addCoinFeedback, setAddCoinFeedback] = useState<{
+507-    type: "success" | "error";
+508-    text: string;
+509-  } | null>(null);
+510-
+511:  useEffect(() => {
+512-    localStorage.setItem(
+513-      "almoharif_api_connection",
+514-      JSON.stringify(apiConnection),
+515-    );
+516-  }, [apiConnection]);
+517-
+518-  // Toast notifications active storage
+519-  const [toasts, setToasts] = useState<ToastNotification[]>([]);
+520-
+521-  // Persistent notifications history log
+522-  const [notificationsHistory, setNotificationsHistory] = useState<ToastNotification[]>(() => {
+523-    const saved = localStorage.getItem("almoharif_notifications_history");
+524-    return saved ? JSON.parse(saved) : [];
+525-  });
+526-
+527-  const handleClearNotificationsHistory = () => {
+528-    setNotificationsHistory([]);
+529-    localStorage.removeItem("almoharif_notifications_history");
+530-  };
+531-
+532-  // Local storage synchronized Price alerts configuration state
+533-  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>(() => {
+534-    const saved = localStorage.getItem("almoharif_price_alerts");
+535-    return saved ? JSON.parse(saved) : [];
+536-  });
+537-
+538:  useEffect(() => {
+539-    localStorage.setItem("almoharif_price_alerts", JSON.stringify(priceAlerts));
+540-  }, [priceAlerts]);
+541-
+542-  // Synchronized refs for tracking latest state values safely in background timers and observers
+543-  const activeBotsRef = useRef<TradingBot[]>(activeBots);
+544-  const portfolioRef = useRef(portfolio);
+545-  const priceAlertsRef = useRef<PriceAlert[]>(priceAlerts);
+546-  const apiConnectionRef = useRef<ApiConnection>(apiConnection);
+547-  const userRef = useRef<any>(user);
+548-  const userDataRef = useRef<any>(userData);
+549-
+550:  useEffect(() => {
+551-    userRef.current = user;
+552-  }, [user]);
+553-
+554:  useEffect(() => {
+555-    userDataRef.current = userData;
+556-  }, [userData]);
+557-
+558:  useEffect(() => {
+559-    activeBotsRef.current = activeBots;
+560-  }, [activeBots]);
+561-
+562:  useEffect(() => {
+563-    portfolioRef.current = portfolio;
+564-  }, [portfolio]);
+565-
+566:  useEffect(() => {
+567-    priceAlertsRef.current = priceAlerts;
+568-  }, [priceAlerts]);
+569-
+570:  useEffect(() => {
+571-    apiConnectionRef.current = apiConnection;
+572-  }, [apiConnection]);
+573-
+574-  // Handle to add a custom coin and dynamically validate it on Binance
+575-  const handleAddCustomCoin = async (tokenSymbol: string) => {
+576-    setAddCoinFeedback(null);
+577-    const raw = tokenSymbol.toUpperCase().replace("/", "").trim();
+578-    if (!raw) {
+579-      setAddCoinFeedback({
+580-        type: "error",
+581-        text:
+582-          lang === "ar"
+583-            ? "⚠️ يرجى إدخال رمز العملة بشكل صحيح."
+584-            : "⚠️ Please enter a valid currency ticker.",
+585-      });
+586-      return;
+587-    }
+588-
+589-    let base = raw;
+590-    let parsedSymbol = "";
+591-    if (raw.endsWith("USDT")) {
+592-      base = raw.slice(0, -4);
+593-      parsedSymbol = `${base}/USDT`;
+594-    } else {
+595-      parsedSymbol = `${raw}/USDT`;
+596-    }
+597-
+598-    if (pairs.some((p) => p.symbol === parsedSymbol)) {
+599-      setAddCoinFeedback({
+600-        type: "error",
+601-        text:
+602-          lang === "ar"
+603-            ? `⚠️ العملة ${parsedSymbol} مضافة بالفعل في قائمة المراقبة.`
+604-            : `⚠️ The pair ${parsedSymbol} is already active on your watch-list.`,
+605-      });
+606-      return;
+607-    }
+608-
+609-    try {
+610-      // Validate with Binance server price lookup
+611-      const url = `https://api.binance.com/api/v3/ticker/price?symbol=${base}USDT`;
+612-      const res = await fetch(url);
+613-      if (!res.ok) {
+614-        throw new Error("Not found");
+615-      }
+616-      const data = await res.json();
+617-      const currentPrice = parseFloat(data.price) || 1.0;
+618-
+619-      let arName = base;
+620-      let enName = base;
+621-      if (base === "XRP") {
+622-        arName = "ريبل";
+623-        enName = "Ripple";
+624-      } else if (base === "DOGE") {
+625-        arName = "دوج كوين";
+626-        enName = "Dogecoin";
+627-      } else if (base === "ADA") {
+628-        arName = "كاردانو";
+629-        enName = "Cardano";
+630-      } else if (base === "LTC") {
+631-        arName = "لايت كوين";
+632-        enName = "Litecoin";
+633-      } else if (base === "AVAX") {
+634-        arName = "أفالانش";
+635-        enName = "Avalanche";
+636-      } else if (base === "DOT") {
+637-        arName = "بولكادوت";
+638-        enName = "Polkadot";
+639-      } else if (base === "LINK") {
+640-        arName = "تشينلينك";
+641-        enName = "Chainlink";
+642-      } else if (base === "SHIB") {
+643-        arName = "شيبا إينو";
+644-        enName = "Shiba Inu";
+645-      } else if (base === "PEPE") {
+646-        arName = "بيبي كوين";
+647-        enName = "Pepe Coin";
+648-      } else if (base === "SUI") {
+649-        arName = "سوي نتورك";
+650-        enName = "Sui Network";
+651-      } else if (base === "FET") {
+652-        arName = "ذكاء اصطناعي";
+653-        enName = "Artificial Intelligence";
+654-      } else {
+655-        arName = `عملة ${base}`;
+656-        enName = `${base} Token`;
+657-      }
+658-
+659-      const newPair: MarketPair = {
+660-        symbol: parsedSymbol,
+661-        name: `${enName} / ${arName}`,
+662-        currentPrice: currentPrice,
+663-        change24h: 0.0,
+664-        high24h: currentPrice,
+665-        low24h: currentPrice,
+666-        volume24h: 10000000,
+667-        baseAsset: base,
+668-        quoteAsset: "USDT",
+669-      };
+670-
+--
+951:  useEffect(() => {
+952-    const currentAlerts = priceAlertsRef.current;
+953-    if (currentAlerts.length === 0) return;
+954-
+955-    let changed = false;
+956-    const triggered: PriceAlert[] = [];
+957-
+958-    const updatedAlerts = currentAlerts.map((alert) => {
+959-      if (alert.isTriggered) return alert;
+960-
+961-      const currentPair = pairs.find((p) => p.symbol === alert.symbol);
+962-      if (!currentPair) return alert;
+963-
+964-      let reached = false;
+965-      const currentValue = alert.type === 'PRICE' ? currentPair.currentPrice : (currentPair as any).rsi;
+966-      if (
+967-        alert.condition === "ABOVE" &&
+968-        currentValue >= alert.value
+969-      ) {
+970-        reached = true;
+971-      } else if (
+972-        alert.condition === "BELOW" &&
+973-        currentValue <= alert.value
+974-      ) {
+975-        reached = true;
+976-      }
+977-
+978-      if (reached) {
+979-        triggered.push(alert);
+980-        changed = true;
+981-        return { ...alert, isTriggered: true };
+982-      }
+983-
+984-      return alert;
+985-    });
+986-
+987-    if (changed) {
+988-      setPriceAlerts(updatedAlerts);
+989-
+990-      triggered.forEach(async (alert) => {
+991-        const livePair = pairs.find((p) => p.symbol === alert.symbol);
+992-        const currentValue = alert.type === 'PRICE' ? livePair?.currentPrice : (livePair as any)?.rsi;
+993-        
+994-        let aiAnalysis = "";
+995-        try {
+996-            const resp = await fetch('/api/gemini/alert-analysis', {
+997-                method: 'POST',
+998-                headers: { 'Content-Type': 'application/json' },
+999-                body: JSON.stringify({ 
+1000-                    symbol: alert.symbol,
+1001-                    type: alert.type,
+1002-                    value: alert.value,
+1003-                    condition: alert.condition,
+1004-                    currentValue,
+1005-                    lang: 'ar'
+1006-                })
+1007-            });
+1008-            const data = await resp.json();
+1009-            aiAnalysis = data.reply || "";
+1010-        } catch (e) {
+1011-            console.error('AI alert analysis failed', e);
+1012-        }
+1013-
+1014-        // Trigger Audio Chime
+1015-        playAlertChime();
+1016-
+1017-        // Dispatch Native Push
+1018-        dispatchBrowserNotification(
+1019-          alert.symbol,
+1020-          alert.type,
+1021-          alert.value,
+1022-          alert.condition,
+1023-          currentValue || 0,
+1024-        );
+1025-
+1026-        // Deliver App toast with AI analysis
+1027-        handleTriggerToast({
+1028-          id: `alert-toast-${Date.now()}-${Math.random().toString().substring(2, 7)}`,
+1029-          botId: "price-alert",
+1030-          botType: "GRID", // Or handle dynamically
+1031-          symbol: alert.symbol,
+1032-          profit: 0,
+1033-          timestamp: Date.now(),
+1034-          condition: alert.condition,
+1035-          type: alert.type,
+1036-          value: alert.value,
+1037-          aiExplanationAr: `⚠️ ${alert.symbol} alert triggered!\n\n${aiAnalysis}`
+1038-        } as any);
+1039-      });
+1040-    }
+1041-  }, [pairs]);
+1042-
+1043-  // Surveillance of sharp price fluctuations (>= 2.0% within less than 1 minute)
+1044:  useEffect(() => {
+1045-    if (!pairs || pairs.length === 0) return;
+1046-    const now = Date.now();
+1047-    const history = priceHistoryRef.current;
+1048-
+1049-    pairs.forEach((pair) => {
+1050-      if (!history[pair.symbol]) {
+1051-        history[pair.symbol] = [];
+1052-      }
+1053-
+1054-      const list = history[pair.symbol];
+1055-      // Append current point
+1056-      list.push({ timestamp: now, price: pair.currentPrice });
+1057-
+1058-      // Keep only points from the last 60 seconds
+1059-      const filtered = list.filter((item) => now - item.timestamp <= 60000);
+1060-      history[pair.symbol] = filtered;
+1061-
+1062-      // Look for a point in filtered where price has changed by >= 2.0%
+1063-      if (filtered.length < 2) return;
+1064-      const initialPoint = filtered[0]; // oldest point in last 60 seconds
+1065-      const priceDiffPercent =
+1066-        ((pair.currentPrice - initialPoint.price) / initialPoint.price) * 100;
+1067-
+1068-      if (Math.abs(priceDiffPercent) >= 2.0) {
+1069-        // Prevent triggering mock alert popups if simulations are off or muted
+1070-        if (!simulationsEnabledRef.current || toastsMutedRef.current) {
+1071-          return;
+1072-        }
+1073-
+1074-        // Prevent triggering multiple alerts in a short span (e.g. 30 seconds) to avoid spam
+1075-        const lastTrigger = lastVolatilityTriggerRef.current[pair.symbol] || 0;
+1076-        if (now - lastTrigger > 30000) {
+1077-          lastVolatilityTriggerRef.current[pair.symbol] = now;
+1078-
+1079-          // Trigger Chime
+1080-          playAlertChime();
+1081-
+1082-          // Fetch highly structured AI explanatory analysis from server-side secure Gemini proxy
+1083-          fetch("/api/gemini/volatility-analysis", {
+1084-            method: "POST",
+1085-            headers: {
+1086-              "Content-Type": "application/json",
+1087-            },
+1088-            body: JSON.stringify({
+1089-              symbol: pair.symbol,
+1090-              changePercent: priceDiffPercent,
+1091-              priceStart: initialPoint.price,
+1092-              priceEnd: pair.currentPrice,
+1093-            }),
+1094-          })
+1095-            .then((res) => res.json())
+1096-            .then((data) => {
+1097-              handleTriggerToast({
+1098-                id: `volatility-${pair.symbol}-${Date.now()}`,
+1099-                botId: "volatility-warning",
+1100-                symbol: pair.symbol,
+1101-                timestamp: Date.now(),
+1102-                isVolatilityWarning: true,
+1103-                volatilityChange: priceDiffPercent,
+1104-                volatilityPriceStart: initialPoint.price,
+1105-                volatilityPriceEnd: pair.currentPrice,
+1106-                aiExplanationAr: data.explanation_ar,
+1107-                aiExplanationEn: data.explanation_en,
+1108-              });
+1109-            })
+1110-            .catch((err) => {
+1111-              console.error("Error generating AI volatility analysis:", err);
+1112-            });
+1113-        }
+1114-      }
+1115-    });
+1116-  }, [pairs]);
+1117-
+1118-  const handleAddPriceAlert = (
+1119-    type: "PRICE" | "RSI",
+1120-    value: number,
+1121-    condition: "ABOVE" | "BELOW",
+1122-  ) => {
+1123-    const alert: PriceAlert = {
+1124-      id: `alert-${Math.random().toString().substring(2, 8)}`,
+1125-      symbol: activePair.symbol,
+1126-      type,
+1127-      value,
+1128-      condition,
+1129-      isTriggered: false,
+1130-      createdAt: Date.now(),
+1131-    };
+1132-    setPriceAlerts((prev) => [alert, ...prev]);
+1133-  };
+1134-
+1135-  const handleDeletePriceAlert = (id: string) => {
+1136-    setPriceAlerts((prev) => prev.filter((a) => a.id !== id));
+1137-  };
+1138-
+1139-  const triggerVolatilityMockEvent = (isUpward: boolean) => {
+1140-    setPairs((prevPairs) =>
+1141-      prevPairs.map((p, idx) => {
+1142-        if (idx !== selectedPairIndex) return p;
+1143-
+1144-        const now = Date.now();
+--
+1179:  useEffect(() => {
+1180-    let ws: WebSocket | null = null;
+1181-    let reconnectTimeout: NodeJS.Timeout | null = null;
+1182-    let isMounted = true;
+1183-
+1184-    // Fetch initial baseline prices instantly via REST API
+1185-    const fetchInitialBaseline = async () => {
+1186-      if (pairs.length === 0) return;
+1187-      try {
+1188-        const symbolList = pairs.map((p) =>
+1189-          p.symbol.replace("/", "").toUpperCase(),
+1190-        );
+1191-        const stringified = JSON.stringify(symbolList);
+1192-
+1193-        // Try local server-side proxy (bypasses browser CORS completely)
+1194-        const proxyResponse = await fetch(
+1195-          `/api/binance/prices?symbols=${encodeURIComponent(stringified)}`,
+1196-        );
+1197-        if (proxyResponse.ok) {
+1198-          const contentType = proxyResponse.headers.get("content-type") || "";
+1199-          if (contentType.includes("application/json")) {
+1200-            const data = await proxyResponse.json();
+1201-            if (isMounted && Array.isArray(data)) {
+1202-              setPairs((prevPairs) =>
+1203-                prevPairs.map((pair) => {
+1204-                  const liveData = data.find(
+1205-                    (item: any) => item.symbol === pair.symbol,
+1206-                  );
+1207-                  if (liveData) {
+1208-                    return {
+1209-                      ...pair,
+1210-                      currentPrice: liveData.currentPrice,
+1211-                      change24h: liveData.change24h,
+1212-                      high24h: liveData.high24h,
+1213-                      low24h: liveData.low24h,
+1214-                      volume24h: liveData.volume24h,
+1215-                    };
+1216-                  }
+1217-                  return pair;
+1218-                }),
+1219-              );
+1220-              return;
+1221-            }
+1222-          } else {
+1223-            console.warn(
+1224-              "[fetchInitialBaseline] Expected JSON but received:",
+1225-              contentType,
+1226-            );
+1227-          }
+1228-        }
+1229-
+1230-        // Fallback to direct fetch if proxy fails
+1231-        const response = await fetch(
+1232-          `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(stringified)}`,
+1233-        );
+1234-        if (!response.ok) {
+1235-          throw new Error(
+1236-            `Binance Baseline REST API error: ${response.status}`,
+1237-          );
+1238-        }
+1239-        const data = await response.json();
+1240-        const dataArr = Array.isArray(data) ? data : [data];
+1241-        if (isMounted && dataArr.length > 0) {
+1242-          setPairs((prevPairs) =>
+1243-            prevPairs.map((pair) => {
+1244-              const rawSymbol = pair.symbol.replace("/", "");
+1245-              const liveData = dataArr.find(
+1246-                (item: any) => item.symbol === rawSymbol,
+1247-              );
+1248-              if (liveData) {
+1249-                return {
+1250-                  ...pair,
+1251-                  currentPrice: parseFloat(
+1252-                    parseFloat(liveData.lastPrice).toFixed(2),
+1253-                  ),
+1254-                  change24h: parseFloat(
+1255-                    parseFloat(liveData.priceChangePercent).toFixed(2),
+1256-                  ),
+1257-                  high24h: parseFloat(
+1258-                    parseFloat(liveData.highPrice).toFixed(2),
+1259-                  ),
+1260-                  low24h: parseFloat(parseFloat(liveData.lowPrice).toFixed(2)),
+1261-                  volume24h: parseFloat(
+1262-                    parseFloat(liveData.quoteVolume || liveData.volume).toFixed(
+1263-                      0,
+1264-                    ),
+1265-                  ),
+1266-                };
+1267-              }
+1268-              return pair;
+1269-            }),
+1270-          );
+1271-        }
+1272-      } catch (err) {
+1273-        console.log(
+1274-          "[Binance Baseline Ticker] Initial setup note:",
+1275-          err instanceof Error ? err.message : err,
+1276-        );
+1277-      }
+1278-    };
+1279-
+--
+1369:  useEffect(() => {
+1370-    const t = setInterval(() => {
+1371-      setPairs((prevPairs) =>
+1372-        prevPairs.map((pair) => {
+1373-          // Micro price moves (-0.05% to +0.05%)
+1374-          const direction = Math.random() > 0.45 ? 1 : -1;
+1375-          const fluctuationPercent = Math.random() * 0.0004;
+1376-          const delta = pair.currentPrice * fluctuationPercent * direction;
+1377-          const updatedPrice = parseFloat(
+1378-            (pair.currentPrice + delta).toFixed(2),
+1379-          );
+1380-
+1381-          // Compute new 24h limits
+1382-          const high = Math.max(pair.high24h, updatedPrice);
+1383-          const low = Math.min(pair.low24h, updatedPrice);
+1384-
+1385-          return {
+1386-            ...pair,
+1387-            currentPrice: updatedPrice,
+1388-            high24h: parseFloat(high.toFixed(2)),
+1389-            low24h: parseFloat(low.toFixed(2)),
+1390-          };
+1391-        }),
+1392-      );
+1393-    }, 3000);
+1394-
+1395-    return () => clearInterval(t);
+1396-  }, []);
+1397-
+1398-  const langRef = useRef<"ar" | "en">(lang);
+1399:  useEffect(() => {
+1400-    langRef.current = lang;
+1401-  }, [lang]);
+1402-
+1403-  // General function to synchronize live Binance wallet balances on-demand or automatically
+1404-  const syncLiveBalances = async (silent = true) => {
+1405-    if (
+1406-      !apiConnection.isConnected ||
+1407-      !apiConnection.apiKey ||
+1408-      !apiConnection.apiSecret
+1409-    ) {
+1410-      if (!silent) {
+1411-        setBalanceSyncError(
+1412-          lang === "ar"
+1413-            ? 'الرجاء ربط مفاتيح API أولاً من تبويب "أمان الـ API"'
+1414-            : 'Please link API keys first under "API Security" tab.',
+1415-        );
+1416-      }
+1417-      return;
+1418-    }
+1419-    if (!silent) {
+1420-      setIsSyncingBalances(true);
+1421-      setBalanceSyncError(null);
+1422-    }
+1423-    try {
+1424-      const response = await fetch("/api/binance/test", {
+1425-        method: "POST",
+1426-        headers: { "Content-Type": "application/json" },
+1427-        body: JSON.stringify({
+1428-          apiKey: apiConnection.apiKey,
+1429-          apiSecret: apiConnection.apiSecret,
+1430-          useTestnet: apiConnection.useTestnet === true,
+1431-        }),
+1432-      });
+1433-
+1434-      if (response.ok) {
+1435-        const contentType = response.headers.get("content-type") || "";
+1436-        if (!contentType.includes("application/json")) {
+1437-          const text = await response.text();
+1438-          throw new Error(
+1439-            "Server returned HTML instead of JSON: " + text.slice(0, 100),
+1440-          );
+1441-        }
+1442-        const resData = await response.json();
+1443-        if (resData.success && resData.balances) {
+1444-          const rawBalances = resData.balances;
+1445-
+1446-          // Extract USDT and BTC assets, alongside other major tradeable assets
+1447-          const usdtAsset = rawBalances.find((b: any) => b.asset === "USDT");
+1448-          const usdcAsset = rawBalances.find((b: any) => b.asset === "USDC");
+1449-          const fdusdAsset = rawBalances.find((b: any) => b.asset === "FDUSD");
+1450-          const btcAsset = rawBalances.find((b: any) => b.asset === "BTC");
+1451-          const ethAsset = rawBalances.find((b: any) => b.asset === "ETH");
+1452-          const solAsset = rawBalances.find((b: any) => b.asset === "SOL");
+1453-          const bnbAsset = rawBalances.find((b: any) => b.asset === "BNB");
+1454-
+1455-          const liveUsdt = (usdtAsset ? parseFloat(usdtAsset.free) + parseFloat(usdtAsset.locked) : 0)
+1456-                         + (usdcAsset ? parseFloat(usdcAsset.free) + parseFloat(usdcAsset.locked) : 0)
+1457-                         + (fdusdAsset ? parseFloat(fdusdAsset.free) + parseFloat(fdusdAsset.locked) : 0);
+1458-          const liveBtc = btcAsset
+1459-            ? parseFloat(btcAsset.free) + parseFloat(btcAsset.locked)
+1460-            : 0;
+1461-          const liveEth = ethAsset
+1462-            ? parseFloat(ethAsset.free) + parseFloat(ethAsset.locked)
+1463-            : 0;
+1464-          const liveSol = solAsset
+1465-            ? parseFloat(solAsset.free) + parseFloat(solAsset.locked)
+1466-            : 0;
+1467-          const liveBnb = bnbAsset
+1468-            ? parseFloat(bnbAsset.free) + parseFloat(bnbAsset.locked)
+1469-            : 0;
+1470-
+1471-          setPortfolio({
+1472-            usdt: parseFloat(liveUsdt.toFixed(2)),
+1473-            futuresUsdt: parseFloat((resData.futuresUsdt || 0).toFixed(2)),
+1474-            btc: parseFloat(liveBtc.toFixed(6)),
+1475-            eth: parseFloat(liveEth.toFixed(4)),
+1476-            sol: parseFloat(liveSol.toFixed(4)),
+1477-            bnb: parseFloat(liveBnb.toFixed(4)),
+1478-          });
+1479-          if (!silent) {
+1480-            setBalanceSyncError(null);
+1481-          }
+1482-        } else {
+1483-          const errText = (resData.error || "").toLowerCase();
+1484-          const isAuthError =
+1485-            errText.includes("api-key") ||
+1486-            errText.includes("apikey") ||
+1487-            errText.includes("signature") ||
+1488-            errText.includes("invalid") ||
+1489-            errText.includes("exist") ||
+1490-            errText.includes("permission") ||
+1491-            errText.includes("unauthorized");
+1492-          if (isAuthError) {
+1493-            setApiConnection((prev) => ({ ...prev, isConnected: false }));
+1494-            setPortfolio({ usdt: 0, futuresUsdt: 0, btc: 0, eth: 0, sol: 0, bnb: 0 });
+1495-            setBalanceSyncError(
+1496-              lang === "ar"
+1497-                ? "❌ تم الكشف عن إلغاء أو حذف مفاتيح API من منصة بينانس! تم تصفير المحفظة وفصل الاتصال تلقائياً لحمايتك."
+1498-                : "❌ Binance API keys have been revoked or deleted! Real wallet connection has been severed and balances set to 0.",
+1499-            );
+--
+1565:  useEffect(() => {
+1566-    let balanceTimer: NodeJS.Timeout | null = null;
+1567-
+1568-    const autoSync = () => {
+1569-      syncLiveBalances(true);
+1570-    };
+1571-
+1572-    if (isLiveTrading && apiConnection.isConnected && apiConnection.apiKey) {
+1573-      autoSync();
+1574-      // Poll every 20 seconds to keep platform balance perfectly aligned with Binance
+1575-      balanceTimer = setInterval(autoSync, 20000);
+1576-    }
+1577-
+1578-    return () => {
+1579-      if (balanceTimer) clearInterval(balanceTimer);
+1580-    };
+1581-  }, [
+1582-    isLiveTrading,
+1583-    apiConnection.isConnected,
+1584-    apiConnection.apiKey,
+1585-    apiConnection.apiSecret,
+1586-    apiConnection.useTestnet,
+1587-  ]);
+1588-
+1589-  // Background trading bot profit generator (collect simulated arbitrage yield!)
+1590:  useEffect(() => {
+1591-    const getLiveRsiAttr = (symbol: string, change24h: number) => {
+1592-      let baseRsi = 50 + (change24h * 3.8);
+1593-      const hash = symbol.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+1594-      const wave = Math.sin((Date.now() / 15000) + hash) * 4.5;
+1595-      baseRsi += wave;
+1596-      return Math.min(Math.max(Math.round(baseRsi), 14), 86);
+1597-    };
+1598-
+1599-    const getVolatilityAttr = (symbol: string, change24h: number) => {
+1600-      const hash = symbol.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+1601-      const baseVol = Math.abs(change24h) * 1.25 + 1.1;
+1602-      const waveByTime = Math.sin((Date.now() / 25000) + hash) * 0.35;
+1603-      return parseFloat(Math.min(Math.max(baseVol + waveByTime, 0.6), 18.2).toFixed(2));
+1604-    };
+1605-
+1606-    const getLiveScannerOpportunities = () => {
+1607-      const availablePairs = pairs.length > 0 ? pairs : INITIAL_PAIRS;
+1608-      return availablePairs.map((coin) => {
+1609-        const rsi = getLiveRsiAttr(coin.symbol, coin.change24h);
+1610-        const vol = getVolatilityAttr(coin.symbol, coin.change24h);
+1611-        const isVolumeSpike = (Math.abs(coin.change24h) * 1.5 + (coin.volume24h % 100) / 10) > 6.0;
+1612-        
+1613-        const rsiDistance = Math.abs(50 - rsi);
+1614-        const volBonus = vol * 3.5;
+1615-        const spBonus = isVolumeSpike ? 15 : 0;
+1616-        const confidenceScore = Math.min(Math.max(Math.round(45 + rsiDistance * 1.5 + volBonus + spBonus), 35), 99);
+1617-
+1618-        return {
+1619-          symbol: coin.symbol,
+1620-          rsi,
+1621-          volatility: vol,
+1622-          isVolumeSpike,
+1623-          confidenceScore,
+1624-          isHighConfidence: confidenceScore >= 85,
+1625-          pairObj: coin
+1626-        };
+1627-      }).sort((a, b) => b.confidenceScore - a.confidenceScore);
+1628-    };
+1629-
+1630-    const executeSmartBotAction = async (
+1631-      bot: TradingBot,
+1632-      increment: number,
+1633-      crossedMilestone: boolean,
+1634-      newMilestone?: number,
+1635-    ) => {
+1636-      const currentLang = langRef.current;
+1637-      
+1638-      // Dynamic Asset Resolver: Target the absolute best market asset based on real-time market signals (highest confidence score)
+1639-      const availableOpportunities = getLiveScannerOpportunities();
+1640-      const topOpportunity = availableOpportunities[0] || { symbol: "BTC/USDT", pairObj: (pairs.length > 0 ? pairs[0] : INITIAL_PAIRS[0]), confidenceScore: 80 };
+1641-      
+1642-      const resolvedSymbol = topOpportunity.symbol;
+1643-      const targetPairObj = topOpportunity.pairObj;
+1644-      let botTradeAmount = bot.minTradeAmount !== undefined ? bot.minTradeAmount : 0.5;
+1645-      botTradeAmount = Math.max(0.5, botTradeAmount);
+1646-
+1647-      let chosenSide: "BUY" | "SELL" = Math.random() > 0.5 ? "BUY" : "SELL";
+1648-      let aiExplanationEn = `🤖 [AI SIGNAL TARGETED] Simulated bot analyzed all active pairs and targeted ${resolvedSymbol} (Confidence: ${topOpportunity.confidenceScore}%) for standard spot arbitrage optimization.`;
+1649-      let aiExplanationAr = `🤖 [تم رصد إشارة قوية بالذكاء] قام البوت بمسح كافة أزواج السوق واستهداف عملة ${resolvedSymbol} (بمستوى ثقة ${topOpportunity.confidenceScore}%) لتنفيذ صفقة تداول وموازنة تلقائية فنية.`;
+1650-
+1651-      // Active Rebound Detection Strategy
+1652-      if (bot.reboundFocusEnabled !== false) {
+1653-        const timeframes = bot.reboundTimeframes && bot.reboundTimeframes.length > 0
+1654-          ? bot.reboundTimeframes
+1655-          : ["15m", "30m", "1h"];
+1656-        
+1657-        // Isolate one timeframe to mock analyzing
+1658-        const chosenTf = timeframes[Math.floor(Math.random() * timeframes.length)];
+1659-        const reboundSide = Math.random() > 0.5 ? "BUY" : "SELL";
+1660-        chosenSide = reboundSide;
+1661-
+1662-        const simulatedPrcChange = (1.5 + Math.random() * 3.5).toFixed(2);
+1663-        const simRsi = reboundSide === "BUY" ? (18 + Math.random() * 11).toFixed(1) : (71 + Math.random() * 19).toFixed(1);
+1664-
+1665-        if (reboundSide === "BUY") {
+1666-          aiExplanationEn = `⏱️ [REBOUND ON ${chosenTf}] ${resolvedSymbol} fell sharply by -${simulatedPrcChange}% (RSI at ${simRsi}). Executed bottom rebound BUY of $${botTradeAmount} USDT.`;
+1667-          aiExplanationAr = `⏱️ [تم رصد ارتداد على فريم ${chosenTf}] انخفضت عملة ${resolvedSymbol} بشكل حاد بنسبة -${simulatedPrcChange}% (مؤشر القوة ${simRsi}). تم تنفيذ صفقة شراء ارتدادية عند القاع بقيمة ${botTradeAmount} USDT.`;
+1668-        } else {
+1669-          aiExplanationEn = `⏱️ [REBOUND ON ${chosenTf}] ${resolvedSymbol} spiked by +${simulatedPrcChange}% (RSI at ${simRsi}). Executed overbought pullback SELL of $${botTradeAmount} USDT.`;
+1670-          aiExplanationAr = `⏱️ [تم رصد ارتداد على فريم ${chosenTf}] ارتفعت عملة ${resolvedSymbol} بقوة بنسبة +${simulatedPrcChange}% (مؤشر القوة ${simRsi}). تم تنفيذ صفقة بيع ارتدادية وجني الأرباح بقيمة ${botTradeAmount} USDT.`;
+1671-        }
+1672-      } else if (bot.type === "RSI") {
+1673-        const config = bot.config as any;
+1674-        const oversold = config.oversoldThreshold || 30;
+1675-        const overbought = config.overboughtThreshold || 70;
+1676-
+1677-        // Simulate a reactive RSI value hitting the user's defined extremes
+1678-        const isOversold = Math.random() > 0.5;
+1679-        const simulatedRsi = isOversold
+1680-          ? oversold - Math.random() * 15 // Drops below threshold
+1681-          : overbought + Math.random() * 15; // Rises above threshold
+1682-
+1683-        if (simulatedRsi <= oversold) {
+1684-          chosenSide = "BUY";
+1685-          aiExplanationEn = `RSI Oscillator for ${resolvedSymbol} hit ${simulatedRsi.toFixed(1)} (Below Oversold Threshold of ${oversold}). Executing algorithmic BUY.`;
+1686-          aiExplanationAr = `تراجع مؤشر القوة النسبية (RSI) لعملة ${resolvedSymbol} إلى ${simulatedRsi.toFixed(1)} (أسفل حد الشراء ${oversold}). جاري تنفيذ الشراء التلقائي.`;
+1687-        } else {
+1688-          chosenSide = "SELL";
+1689-          aiExplanationEn = `RSI Oscillator for ${resolvedSymbol} hit ${simulatedRsi.toFixed(1)} (Above Overbought Threshold of ${overbought}). Executing algorithmic SELL.`;
+1690-          aiExplanationAr = `ارتفع مؤشر القوة النسبية (RSI) لعملة ${resolvedSymbol} إلى ${simulatedRsi.toFixed(1)} (أعلى من حد البيع ${overbought}). جاري تنفيذ البيع التلقائي لجني الأرباح.`;
+--
+2086:  useEffect(() => {
+2087-    const eligibleOrders = orders.filter(
+2088-      (o) =>
+2089-        o.status === "FILLED" &&
+2090-        ((o.takeProfit && o.takeProfit > 0) || (o.stopLoss && o.stopLoss > 0)),
+2091-    );
+2092-
+2093-    if (eligibleOrders.length === 0) return;
+2094-
+2095-    for (const order of eligibleOrders) {
+2096-      const pair = pairs.find((p) => p.symbol === order.symbol);
+2097-      if (!pair) continue;
+2098-
+2099-      const currentPrice = pair.currentPrice;
+2100-      let triggered: "TP" | "SL" | null = null;
+2101-
+2102-      if (order.side === "BUY") {
+2103-        if (
+2104-          order.takeProfit &&
+2105-          order.takeProfit > 0 &&
+2106-          currentPrice >= order.takeProfit
+2107-        ) {
+2108-          triggered = "TP";
+2109-        } else if (
+2110-          order.stopLoss &&
+2111-          order.stopLoss > 0 &&
+2112-          currentPrice <= order.stopLoss
+2113-        ) {
+2114-          triggered = "SL";
+2115-        }
+2116-      } else {
+2117-        if (
+2118-          order.takeProfit &&
+2119-          order.takeProfit > 0 &&
+2120-          currentPrice <= order.takeProfit
+2121-        ) {
+2122-          triggered = "TP";
+2123-        } else if (
+2124-          order.stopLoss &&
+2125-          order.stopLoss > 0 &&
+2126-          currentPrice >= order.stopLoss
+2127-        ) {
+2128-          triggered = "SL";
+2129-        }
+2130-      }
+2131-
+2132-      if (triggered) {
+2133-        triggerManualTpSl(order, triggered, currentPrice);
+2134-        break; // Trigger one at a time per render cycle for state safety
+2135-      }
+2136-    }
+2137-  }, [pairs, orders, lang]);
+2138-
+2139-  // Bot Manager Triggers
+2140-  const handleCreateBot = (newBotData: any) => {
+2141-    const isGrid = newBotData.type === "GRID";
+2142-    const isDca = newBotData.type === "DCA";
+2143-    
+2144-    // Support ultra-low micro budgets down to 0.5 USDT ("ولو بنص دولار")
+2145-    const botMinAllowed = newBotData.minTradeAmount !== undefined ? newBotData.minTradeAmount : 0.5;
+2146-
+2147-    let cost = isGrid
+2148-      ? newBotData.config.investmentAmount
+2149-      : isDca
+2150-        ? newBotData.config.totalInvestment
+2151-        : newBotData.config.tradeAmount * 3; // Reserve capital for 3 trades
+2152-
+2153-    // If they specified a tiny budget or have low wallet balance, scale down cost to fit
+2154-    if (cost > portfolio.usdt && portfolio.usdt >= botMinAllowed) {
+2155-      cost = portfolio.usdt;
+2156-    }
+2157-
+2158-    if (cost > portfolio.usdt || portfolio.usdt < botMinAllowed) {
+2159-      alert(
+2160-        lang === "ar"
+2161-          ? `عذراً! رصيد USDT غير كافٍ لتشغيل هذا البوت. يرجى توفر ${botMinAllowed} USDT على الأقل لتغطية الصفقات الصغرى للارتداد.`
+2162-          : `Insufficient funds. Minimum wallet USDT required to cover rebound micro trades is ${botMinAllowed} USDT.`,
+2163-      );
+2164-      return;
+2165-    }
+2166-
+2167-    // Freeze USDT investment inside active trading bots
+2168-    setPortfolio((prev) => ({
+2169-      ...prev,
+2170-      usdt: parseFloat((prev.usdt - cost).toFixed(2)),
+2171-    }));
+2172-
+2173-    const instantiatedBot: TradingBot = {
+2174-      id: `bot-${Math.random().toString().substring(2, 8)}`,
+2175-      symbol: newBotData.symbol,
+2176-      type: newBotData.type,
+2177-      config: {
+2178-        ...newBotData.config,
+2179-        // Ensure investment value represents the calibrated cost
+2180-        investmentAmount: isGrid ? cost : (newBotData.config as any).investmentAmount,
+2181-        totalInvestment: isDca ? cost : (newBotData.config as any).totalInvestment,
+2182-      },
+2183-      status: "RUNNING",
+2184-      createdTime: Date.now(),
+2185-      accumulatedProfit: 0,
+2186-      profitPercentage: 0,
+--
+2389:  useEffect(() => {
+2390-    if (killCountdown === null) return;
+2391-
+2392-    if (killCountdown === 0) {
+2393-      setKillCountdown(null);
+2394-      executeKillSequence();
+2395-      return;
+2396-    }
+2397-
+2398-    const timer = setTimeout(() => {
+2399-      setKillCountdown((prev) => (prev !== null ? prev - 1 : null));
+2400-    }, 1000);
+2401-
+2402-    return () => clearTimeout(timer);
+2403-  }, [killCountdown]);
+2404-
+2405-  // Background Tracker for last automated whale trade timing to prevent high-frequency spam execution (min 8 seconds cooldown)
+2406-  const lastWhaleTradeTimeRef = useRef<number>(0);
+2407-
+2408-  const handleWhaleSignal = async (signal: {
+2409-    symbol: string;
+2410-    type: 'INFLOW' | 'OUTFLOW' | 'TRANSFER' | 'CONTRACT';
+2411-    amount: number;
+2412-    usdValue: number;
+2413-    classification_ar: string;
+2414-    classification_en: string;
+2415-  }) => {
+2416-    if (!whaleTradingEnabled || !canTrade) return;
+2417-
+2418-    // Reject low-value whale signals from auto-trading (min $100k USD)
+2419-    if (signal.usdValue < 100000) return;
+2420-
+2421-    // Cooldown check (prevent placing 20 trades in 2 seconds)
+2422-    const nowLocal = Date.now();
+2423-    if (nowLocal - lastWhaleTradeTimeRef.current < 8000) return;
+2424-
+2425-    // Find if we have a matching pair in our listed pairs (the list of coins in manual trading / system pairs)
+2426-    const availablePairs = pairs.length > 0 ? pairs : INITIAL_PAIRS;
+2427-    const matchedPair = availablePairs.find(p => p.symbol.startsWith(signal.symbol + '/'));
+2428-    if (!matchedPair) return;
+2429-
+2430-    // Map: OUTFLOW (whales withdrawing, accumulation) -> BUY
+2431-    // Map: INFLOW (whales depositing, sell pressure) -> SELL
+2432-    const tradeSide = signal.type === 'OUTFLOW' ? 'BUY' : 'SELL';
+2433-
+2434-    // Calculate budget amount: we aim to trade a secure fraction (e.g., $10-$25)
+2435-    let sizeInUsdt = 25.0;
+2436-    if (portfolio.usdt < sizeInUsdt) {
+2437-      sizeInUsdt = Math.max(0.5, parseFloat((portfolio.usdt * 0.35).toFixed(2)));
+2438-    }
+2439-
+2440-    if (portfolio.usdt < 0.5) return; // not enough simulated funds
+2441-
+2442-    const coinPrice = matchedPair.currentPrice;
+2443-    const finalAmount = parseFloat((sizeInUsdt / coinPrice).toFixed(coinPrice < 5 ? 2 : 4));
+2444-
+2445-    if (finalAmount <= 0) return;
+2446-
+2447-    lastWhaleTradeTimeRef.current = nowLocal;
+2448-
+2449-    // Place the order!
+2450-    try {
+2451-      await handleAddNewOrder({
+2452-        symbol: matchedPair.symbol,
+2453-        side: tradeSide,
+2454-        type: "MARKET",
+2455-        price: coinPrice,
+2456-        amount: finalAmount,
+2457-        total: parseFloat((coinPrice * finalAmount).toFixed(2)),
+2458-        leverage: 1,
+2459-        originType: "BOT", // robotic auto trading marker
+2460-      });
+2461-
+2462-      // Dispatch visual feedback
+2463-      handleTriggerToast({
+2464-        id: `whale-autotrade-${Date.now()}`,
+2465-        botId: "whale-tracker-bot",
+2466-        botType: "DCA",
+2467-        symbol: matchedPair.symbol,
+2468-        profit: 0,
+2469-        timestamp: Date.now(),
+2470-        isVolatilityWarning: true,
+2471-        aiExplanationAr: `🐳 [رادار صفقات الحيتان] صفقة تلقائية! تم رصد حركة حوت ذكية (${signal.type === 'OUTFLOW' ? 'تجميع وتخزين' : 'تسييل وتوريد'}) لعملة ${signal.symbol} بقيمة $${signal.usdValue.toLocaleString()}، وقامت خوارزمية الربط بالدخول الفوري في صفقة ${tradeSide === 'BUY' ? 'شراء 📈' : 'بيع 📉'} بقيمة $${sizeInUsdt} بسعر $${coinPrice}.`,
+2472-        aiExplanationEn: `🐳 [Whale radar system] Auto-Trade! Detected whale activity (${signal.type === 'OUTFLOW' ? 'Accumulation' : 'Inflow Distribution'}) on ${signal.symbol} valued at $${signal.usdValue.toLocaleString()}. Automated link engine instantly triggered a ${tradeSide} order of $${sizeInUsdt} at entry $${coinPrice}.`,
+2473-      });
+2474-    } catch (err: any) {
+2475-      console.warn("Failed to dispatch automated whale-triggered trade:", err.message || err);
+2476-    }
+2477-  };
+2478-
+2479-  const lastScannedTradeTimeRef = useRef<number>(0);
+2480-
+2481-  // Background Watchlist Scanner of all manual trading pairs
+2482:  useEffect(() => {
+2483-    if (!manualWatchlistScannerEnabled || !canTrade) return;
+2484-
+2485-    const scannerInterval = setInterval(async () => {
+2486-      // Cooldown check (minimum 15 seconds between scanner automated trades to manage funds responsibly)
+2487-      const nowMs = Date.now();
+2488-      if (nowMs - lastScannedTradeTimeRef.current < 15000) return;
+2489-
+2490-      const availablePairs = pairs.length > 0 ? pairs : INITIAL_PAIRS;
+2491-      if (availablePairs.length === 0) return;
+2492-
+2493-      // Map each coin to its indicators and analyze opportunities
+2494-      const candidates = availablePairs.map((coin) => {
+2495-        // Calculate dynamic real-time simulated RSI & volatility indicators
+2496-        let baseRsi = 50 + (coin.change24h * 3.8);
+2497-        const hash = coin.symbol.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+2498-        const wave = Math.sin((Date.now() / 15000) + hash) * 4.5;
+2499-        const rsi = Math.min(Math.max(Math.round(baseRsi + wave), 14), 86);
+2500-
+2501-        const baseVol = Math.abs(coin.change24h) * 1.25 + 1.1;
+2502-        const waveVolByTime = Math.sin((Date.now() / 25000) + hash) * 0.35;
+2503-        const vol = parseFloat(Math.min(Math.max(baseVol + waveVolByTime, 0.6), 18.2).toFixed(2));
+2504-
+2505-        const isVolumeSpike = (Math.abs(coin.change24h) * 1.5 + (coin.volume24h % 100) / 10) > 6.0;
+2506-        
+2507-        const rsiDistance = Math.abs(50 - rsi);
+2508-        const volBonus = vol * 3.5;
+2509-        const spBonus = isVolumeSpike ? 15 : 0;
+2510-        const confidenceScore = Math.min(Math.max(Math.round(45 + rsiDistance * 1.5 + volBonus + spBonus), 35), 99);
+2511-
+2512-        // Optimal triggers:
+2513-        // Buy: if oversold (RSI < 42) or sudden bullish spike with high confidence
+2514-        // Sell/Short: if overbought (RSI > 58) with high confidence
+2515-        let suggestedSide: "BUY" | "SELL" | null = null;
+2516-        if (confidenceScore >= 86) {
+2517-          if (rsi < 42 || coin.change24h > 1.5) {
+2518-            suggestedSide = "BUY";
+2519-          } else if (rsi > 58 || coin.change24h < -1.5) {
+2520-            suggestedSide = "SELL";
+2521-          }
+2522-        }
+2523-
+2524-        return {
+2525-          pair: coin,
+2526-          rsi,
+2527-          volatility: vol,
+2528-          isVolumeSpike,
+2529-          confidenceScore,
+2530-          suggestedSide,
+2531-        };
+2532-      }).filter(c => c.suggestedSide !== null);
+2533-
+2534-      // Sort candidates by highest confidence score
+2535-      candidates.sort((a, b) => b.confidenceScore - a.confidenceScore);
+2536-
+2537-      if (candidates.length > 0) {
+2538-        const bestCandidate = candidates[0];
+2539-        const coin = bestCandidate.pair;
+2540-        const tradeSide = bestCandidate.suggestedSide!;
+2541-        
+2542-        // Ensure we don't spam duplicate orders on the same coin too close to each other
+2543-        const isDuplicate = orders.slice(0, 5).some(o => o.symbol === coin.symbol && o.side === tradeSide);
+2544-        if (isDuplicate) return;
+2545-
+2546-        // Trade sizing
+2547-        let sizeInUsdt = 20.0;
+2548-        if (portfolio.usdt < sizeInUsdt) {
+2549-          sizeInUsdt = Math.max(0.5, parseFloat((portfolio.usdt * 0.3).toFixed(2)));
+2550-        }
+2551-
+2552-        if (portfolio.usdt < 0.5) return;
+2553-
+2554-        const coinPrice = coin.currentPrice;
+2555-        const finalAmount = parseFloat((sizeInUsdt / coinPrice).toFixed(coinPrice < 5 ? 2 : 4));
+2556-
+2557-        if (finalAmount <= 0) return;
+2558-
+2559-        lastScannedTradeTimeRef.current = nowMs;
+2560-
+2561-        try {
+2562-          await handleAddNewOrder({
+2563-            symbol: coin.symbol,
+2564-            side: tradeSide,
+2565-            type: "MARKET",
+2566-            price: coinPrice,
+2567-            amount: finalAmount,
+2568-            total: parseFloat((coinPrice * finalAmount).toFixed(2)),
+2569-            leverage: 1,
+2570-            originType: "BOT",
+2571-          });
+2572-
+2573-          // Dispatch premium notification
+2574-          handleTriggerToast({
+2575-            id: `scan-autotrade-${Date.now()}`,
+2576-            botId: "sweep-scanner-bot",
+2577-            botType: "GRID",
+2578-            symbol: coin.symbol,
+2579-            profit: 0,
+2580-            timestamp: Date.now(),
+2581-            isVolatilityWarning: true,
+2582-            aiExplanationAr: `🔍 [مستكشف صفقات التداول اليدوي] صفقة تلقائية! قام البوت بمسح شامل لكافة عملات التداول اليدوي ورصد فرصة دخول ذهبية لعملة ${coin.symbol} (معدل ثقة ${bestCandidate.confidenceScore}% | RSI: ${bestCandidate.rsi}). تم تنفيذ أمر ${tradeSide === 'BUY' ? 'شراء 📈' : 'بيع 📉'} فوري بقيمة $${sizeInUsdt} بسعر $${coinPrice}.`,
+--
+2595:  useEffect(() => {
+2596-    const lastOnlineStr = localStorage.getItem("almoharif_last_online");
+2597-    if (lastOnlineStr) {
+2598-      const lastOnline = parseInt(lastOnlineStr, 10);
+2599-      const now = Date.now();
+2600-      const elapsedMs = now - lastOnline;
+2601-
+2602-      // If offline for more than 30 seconds
+2603-      if (elapsedMs > 30000 && activeBots.length > 0) {
+2604-        const elapsedMinutes = elapsedMs / 60000;
+2605-        let simulatedOfflineProfit = 0;
+2606-
+2607-        setActiveBots((prev) =>
+2608-          prev.map((bot) => {
+2609-            if (bot.status !== "RUNNING" || !simulationsEnabledRef.current)
+2610-              return bot;
+2611-            // Simulate about 0.05% to 0.15% profit per minute for bots
+2612-            const profitRatePerMin = Math.random() * 0.001 + 0.0005;
+2613-            const invest =
+2614-              bot.type === "GRID"
+2615-                ? (bot.config as any).investmentAmount
+2616-                : bot.type === "DCA"
+2617-                  ? (bot.config as any).totalInvestment
+2618-                  : (bot.config as any).tradeAmount;
+2619-
+2620-            const minProfit =
+2621-              (invest || 250) * profitRatePerMin * elapsedMinutes;
+2622-            simulatedOfflineProfit += minProfit;
+2623-
+2624-            return {
+2625-              ...bot,
+2626-              accumulatedProfit: bot.accumulatedProfit + minProfit,
+2627-            };
+2628-          }),
+2629-        );
+2630-
+2631-        if (simulatedOfflineProfit > 0) {
+2632-          setPortfolio((prev) => ({
+2633-            ...prev,
+2634-            usdt: parseFloat((prev.usdt + simulatedOfflineProfit).toFixed(2)),
+2635-          }));
+2636-          setTimeout(() => {
+2637-            const aiAr = `عملت بوتاتك أثناء إغلاقك للمنصة وحققت أرباحاً استثنائية!`;
+2638-            const aiEn = `Your bots worked while offline and netted great profits!`;
+2639-            handleTriggerToast({
+2640-              id: Date.now().toString(),
+2641-              symbol: "OFFLINE_PROFIT",
+2642-              botType: undefined,
+2643-              timestamp: Date.now(),
+2644-              isMilestone: true,
+2645-              profit: simulatedOfflineProfit,
+2646-              aiExplanationAr: aiAr,
+2647-              aiExplanationEn: aiEn,
+2648-            });
+2649-          }, 2000);
+2650-        }
+2651-      }
+2652-    }
+2653-
+2654-    // Heartbeat to save online time every 5 seconds
+2655-    const heartbeat = setInterval(() => {
+2656-      localStorage.setItem("almoharif_last_online", Date.now().toString());
+2657-    }, 5000);
+2658-
+2659-    return () => clearInterval(heartbeat);
+2660-  }, []);
+2661-  const openBots = activeBots.filter((bot) => bot.status === "RUNNING");
+2662-  const openBotsCount = openBots.length;
+2663-
+2664-  const totalBotInvestment = openBots.reduce((acc, bot) => {
+2665-    const invest =
+2666-      bot.type === "GRID"
+2667-        ? (bot.config as any).investmentAmount
+2668-        : bot.type === "DCA"
+2669-          ? (bot.config as any).totalInvestment
+2670-          : (bot.config as any).tradeAmount * 3;
+2671-    return acc + (invest || 0);
+2672-  }, 0);
+2673-
+2674-  const totalBotProfit = openBots.reduce(
+2675-    (acc, bot) => acc + (bot.accumulatedProfit || 0),
+2676-    0,
+2677-  );
+2678-
+2679-  // Average Cumulative Return on Investment (ROI) for all open bots
+2680-  const averageCumulativeRoi =
+2681-    openBotsCount > 0
+2682-      ? openBots.reduce((acc, bot) => acc + (bot.profitPercentage || 0), 0) /
+2683-        openBotsCount
+2684-      : 0;
+2685-
+2686-  // Weighted Portfolio ROI
+2687-  const weightedBotRoi =
+2688-    totalBotInvestment > 0 ? (totalBotProfit / totalBotInvestment) * 100 : 0;
+2689-
+2690-  // Derived sparkline data to ensure the absolute latest 'totalBotProfit' is mapped as the final point
+2691-  const sparklineData = profitHistory.map((pt, idx) => {
+2692-    if (idx === profitHistory.length - 1) {
+2693-      return {
+2694-        ...pt,
+2695-        profit: parseFloat(totalBotProfit.toFixed(2)),

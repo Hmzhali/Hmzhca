@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    
+    function isPlatformOwner() {
+      return isSignedIn() && (
+        request.auth.token.email == 'alamryhmzh7@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'OWNER' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'))
+      );
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isOwner(userId) || isPlatformOwner();
+      allow delete: if isPlatformOwner();
+    }
+
+    match /platform/wallet {
+      // Anyone can increment the wallet balance during their trades (using FieldValue.increment)
+      // but only owner can read it.
+      allow read: if isPlatformOwner();
+      allow update: if isSignedIn();
+      allow create: if isPlatformOwner();
+    }
+
+    match /support_tickets/{userId} {
+      allow read: if isOwner(userId) || isPlatformOwner();
+      allow write: if isOwner(userId) || isPlatformOwner();
+      
+      match /messages/{messageId} {
+         allow read: if isOwner(userId) || isPlatformOwner();
+         allow write: if isOwner(userId) || isPlatformOwner();
+      }
+    }
+
+    match /unresolved_queries/{queryId} {
+      allow read: if isPlatformOwner();
+      allow create: if isSignedIn();
+      allow update: if isPlatformOwner();
+      allow delete: if isPlatformOwner();
+    }
+
+    match /system/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isPlatformOwner();
+    }
+
+    match /settings/{docId} {
+      allow read, write: if true;
+    }
+
+    match /trades/{tradeId} {
+      allow read, write: if true;
+    }
+  }
+}

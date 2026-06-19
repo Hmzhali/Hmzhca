@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">حمزه كربيتو للتداول الذكي</string>
+    <string name="title_activity_main">حمزه كربيتو للتداول الذكي</string>
+    <string name="package_name">com.almoharif.cryptotrading</string>
+    <string name="custom_url_scheme">com.almoharif.cryptotrading</string>
+</resources>

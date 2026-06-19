@@ -1,0 +1,223 @@
+135-    const saved = localStorage.getItem("almoharif_lang");
+136-    return (saved === "ar" || saved === "en") ? saved : "ar";
+137:  });
+--
+145-    const saved = localStorage.getItem("almoharif_whale_trading_enabled");
+146-    return saved === null ? true : saved === "true";
+147:  });
+--
+150-    const saved = localStorage.getItem("almoharif_manual_watchlist_scanner");
+151-    return saved === null ? true : saved === "true";
+152:  });
+--
+161-    const saved = localStorage.getItem("almoharif_simulations_enabled");
+162-    return saved === null ? true : saved === "true"; // Defaults to true
+163:  });
+--
+183-    const saved = localStorage.getItem("almoharif_toasts_muted");
+184-    return saved === null ? true : saved === "true"; // Defaults to true
+185:  });
+--
+249-  const [isLiveTrading, setIsLiveTrading] = useState<boolean>(() => {
+250-    return localStorage.getItem("almoharif_is_live_trading") === "true";
+251:  });
+--
+274-        uniqueMap.set(p.symbol, p);
+275-      }
+276:    });
+277-    return Array.from(uniqueMap.values());
+278:  });
+--
+312-    }
+313-    return 0;
+314:  });
+--
+353-
+354-    return filteredOrders;
+355:  });
+--
+363-    const saved = localStorage.getItem("almoharif_active_bots");
+364-    return saved ? JSON.parse(saved) : [];
+365:  });
+--
+388-      bnb: 0,
+389-    };
+390:  });
+--
+417-        }
+418-        return updated;
+419:      });
+--
+440-        minute: "2-digit",
+441-        hour12: false,
+442:      });
+--
+445-    }
+446-    return data;
+447:  });
+--
+451-    captures: 14,
+452-    chances: 18,
+453:  });
+454-  const [isAggressiveRebound, setIsAggressiveRebound] = useState<boolean>(() => {
+455-    return localStorage.getItem("almoharif_is_aggressive_rebound") === "true";
+456:  });
+--
+488-      useTestnet: false,
+489-    };
+490:  });
+--
+523-    const saved = localStorage.getItem("almoharif_notifications_history");
+524-    return saved ? JSON.parse(saved) : [];
+525:  });
+--
+534-    const saved = localStorage.getItem("almoharif_price_alerts");
+535-    return saved ? JSON.parse(saved) : [];
+536:  });
+--
+583-            ? "⚠️ يرجى إدخال رمز العملة بشكل صحيح."
+584-            : "⚠️ Please enter a valid currency ticker.",
+585:      });
+--
+603-            ? `⚠️ العملة ${parsedSymbol} مضافة بالفعل في قائمة المراقبة.`
+604-            : `⚠️ The pair ${parsedSymbol} is already active on your watch-list.`,
+605:      });
+--
+683-        }
+684-        return [...prev, newPair];
+685:      });
+--
+691-            ? `✅ تم إضافة ${parsedSymbol} بنجاح إلى شاشات التداول!`
+692-            : `✅ Successfully added ${parsedSymbol} to the active watch-list!`,
+693:      });
+--
+700-        profit: 0.0,
+701-        timestamp: Date.now(),
+702:      });
+--
+708-            ? `❌ تعذر التحقق من العملة ${base}USDT على بينانس. تأكد من صحة الرمز العام.`
+709-            : `❌ Currency pairing ${base}USDT could not be validated on Binance. Confirm spelling.`,
+710:      });
+--
+725-        aiExplanationEn:
+726-          "⚠️ Please keep at least one active watch-list option.",
+727:      });
+--
+743-      profit: 0.0,
+744-      timestamp: Date.now(),
+745:    });
+--
+883-          message: finalMessage,
+884-        }),
+885:      });
+--
+904-        localStorage.setItem("almoharif_notifications_history", JSON.stringify(updated));
+905-        return updated;
+906:      });
+--
+941-          icon: "/favicon.ico",
+942-          tag: `alert-${symbol}-${value}`,
+943:        });
+--
+983-
+984-      return alert;
+985:    });
+--
+1005-                    lang: 'ar'
+1006-                })
+1007:            });
+--
+1037-          aiExplanationAr: `⚠️ ${alert.symbol} alert triggered!\n\n${aiAnalysis}`
+1038-        } as any);
+1039:      });
+--
+1106-                aiExplanationAr: data.explanation_ar,
+1107-                aiExplanationEn: data.explanation_en,
+1108:              });
+--
+1110-            .catch((err) => {
+1111-              console.error("Error generating AI volatility analysis:", err);
+1112:            });
+1113-        }
+1114-      }
+1115:    });
+--
+1353-    fetchInitialBaseline().then(() => {
+1354-      connectBinanceWS();
+1355:    });
+--
+1430-          useTestnet: apiConnection.useTestnet === true,
+1431-        }),
+1432:      });
+--
+1476-            sol: parseFloat(liveSol.toFixed(4)),
+1477-            bnb: parseFloat(liveBnb.toFixed(4)),
+1478:          });
+--
+1727-              amount: testAmount,
+1728-            }),
+1729:          });
+--
+1763-        aiExplanationEn,
+1764-        aiExplanationAr,
+1765:      });
+--
+1854-
+1855-        return bot;
+1856:      });
+--
+1877-              updateDoc(doc(db, "platform", "wallet"), {
+1878-                balanceUsdt: increment(commission),
+1879:              });
+--
+1896-            }
+1897-            return updated;
+1898:          });
+--
+1937-              price: newOrder.price,
+1938-            }),
+1939:          });
+--
+2008-        ...newAssets,
+2009-      };
+2010:    });
+--
+2080-      aiExplanationAr: phraseAr,
+2081-      aiExplanationEn: phraseEn,
+2082:    });
+--
+2257-              configUpdates[key] = updatedConfig[key];
+2258-            }
+2259:          });
+--
+2311-          bnb: 0,
+2312-        };
+2313:      });
+--
+2328-              useTestnet: apiConnection.useTestnet === true,
+2329-            }),
+2330:          });
+--
+2458-        leverage: 1,
+2459-        originType: "BOT", // robotic auto trading marker
+2460:      });
+--
+2471-        aiExplanationAr: `🐳 [رادار صفقات الحيتان] صفقة تلقائية! تم رصد حركة حوت ذكية (${signal.type === 'OUTFLOW' ? 'تجميع وتخزين' : 'تسييل وتوريد'}) لعملة ${signal.symbol} بقيمة $${signal.usdValue.toLocaleString()}، وقامت خوارزمية الربط بالدخول الفوري في صفقة ${tradeSide === 'BUY' ? 'شراء 📈' : 'بيع 📉'} بقيمة $${sizeInUsdt} بسعر $${coinPrice}.`,
+2472-        aiExplanationEn: `🐳 [Whale radar system] Auto-Trade! Detected whale activity (${signal.type === 'OUTFLOW' ? 'Accumulation' : 'Inflow Distribution'}) on ${signal.symbol} valued at $${signal.usdValue.toLocaleString()}. Automated link engine instantly triggered a ${tradeSide} order of $${sizeInUsdt} at entry $${coinPrice}.`,
+2473:      });
+--
+2569-            leverage: 1,
+2570-            originType: "BOT",
+2571:          });
+--
+2582-            aiExplanationAr: `🔍 [مستكشف صفقات التداول اليدوي] صفقة تلقائية! قام البوت بمسح شامل لكافة عملات التداول اليدوي ورصد فرصة دخول ذهبية لعملة ${coin.symbol} (معدل ثقة ${bestCandidate.confidenceScore}% | RSI: ${bestCandidate.rsi}). تم تنفيذ أمر ${tradeSide === 'BUY' ? 'شراء 📈' : 'بيع 📉'} فوري بقيمة $${sizeInUsdt} بسعر $${coinPrice}.`,
+2583-            aiExplanationEn: `🔍 [Manual Watchlist Scanner] Auto-Trade! Core bot scanned all manual trading digital assets and located a highly premium signal on ${coin.symbol} (Confidence ${bestCandidate.confidenceScore}% | RSI: ${bestCandidate.rsi}). Instantly triggered a ${tradeSide} order of $${sizeInUsdt} at entry $${coinPrice}.`,
+2584:          });
+--
+2646-              aiExplanationAr: aiAr,
+2647-              aiExplanationEn: aiEn,
+2648:            });
+--
+2698-    }
+2699-    return pt;
+2700:  });
