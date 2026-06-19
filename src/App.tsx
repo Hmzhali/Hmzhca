@@ -278,6 +278,13 @@ export default function App() {
 
   const handleAcknowledgeUpdate = (reset: boolean) => {
     if (reset) {
+      if (systemUpdate) {
+        localStorage.setItem(
+          "almoharif_seen_update_ver",
+          String(systemUpdate.version)
+        );
+      }
+      setSystemUpdate(null);
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -291,14 +298,9 @@ export default function App() {
         }
       }
       keysToRemove.forEach((k) => localStorage.removeItem(k));
-
-      if (systemUpdate) {
-        localStorage.setItem(
-          "almoharif_seen_update_ver",
-          String(systemUpdate.version)
-        );
-      }
-      window.location.reload();
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } else {
       if (systemUpdate) {
         localStorage.setItem(
