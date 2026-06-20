@@ -1,0 +1,7 @@
+{
+  "name": "almoharif-crypto",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react"
+}
