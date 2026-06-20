@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MarketPair, BotType, BacktestResult, Candlestick } from '../types';
-import { generateHistoricalData, simulateBacktest, ARABIC_DICT } from '../utils/marketData';
+import { generateHistoricalData, simulateBacktest, ARABIC_DICT } from '../utils/MarketData';
 import { Play, TrendingUp, BarChart2, Layers, AlertCircle, RefreshCw, Star } from 'lucide-react';
 
 interface BacktesterProps {

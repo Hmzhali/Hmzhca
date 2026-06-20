@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ARABIC_DICT, INITIAL_PAIRS } from '../utils/marketData';
+import { ARABIC_DICT, INITIAL_PAIRS } from '../utils/MarketData';
 import { 
   Cpu, Send, Sparkles, AlertTriangle, RefreshCw, Star, Info, MessageSquare,
   TrendingUp, TrendingDown, Award, Zap, Activity, BarChart3, HelpCircle 

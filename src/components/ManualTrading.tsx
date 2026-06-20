@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MarketPair, OrderType, OrderSide, TradeOrder } from '../types';
-import { generateOrderBook, ARABIC_DICT } from '../utils/marketData';
+import { generateOrderBook, ARABIC_DICT } from '../utils/MarketData';
 import { ArrowDownRight, ArrowUpLeft, AlertTriangle, Play, HelpCircle, CheckCircle2, Download } from 'lucide-react';
 import LeverageRiskCalculator from './LeverageRiskCalculator';
 

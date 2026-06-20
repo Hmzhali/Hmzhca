@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import BotTradesHistory from './BotTradesHistory';
 import { MarketPair, TradingBot, BotType, GridBotConfig, DcaBotConfig } from '../types';
-import { ARABIC_DICT, INITIAL_PAIRS } from '../utils/marketData';
+import { ARABIC_DICT, INITIAL_PAIRS } from '../utils/MarketData';
 import { Play, Pause, Trash2, Cpu, Sparkles, TrendingUp, DollarSign, Layers, Wallet, Percent, ShieldAlert, AlertTriangle, TrendingDown, BarChart3, Sliders, Search, Activity, Zap, CheckCircle2, Compass, Crosshair, Award } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
 

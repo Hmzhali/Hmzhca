@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Candlestick, MarketPair } from '../types';
-import { generateHistoricalData } from '../utils/marketData';
+import { generateHistoricalData } from '../utils/MarketData';
 import { TrendingUp, TrendingDown, Layers, ChartBar, Contrast } from 'lucide-react';
 
 interface InteractiveChartProps {

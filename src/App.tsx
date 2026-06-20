@@ -14,7 +14,7 @@ import {
   PriceAlert,
   OrderStatus,
 } from "./types";
-import { INITIAL_PAIRS, ARABIC_DICT } from "./utils/marketData";
+import { INITIAL_PAIRS, ARABIC_DICT } from "./utils/MarketData";
 import Header from "./components/Header";
 import InteractiveChart from "./components/InteractiveChart";
 import ManualTrading from "./components/ManualTrading";

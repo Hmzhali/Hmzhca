@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ApiConnection } from '../types';
-import { ARABIC_DICT } from '../utils/marketData';
+import { ARABIC_DICT } from '../utils/MarketData';
 import { Shield, Lock, AlertTriangle, CheckCircle, Server, RefreshCw, ShieldCheck, ShieldAlert, Check, X, KeyRound, Fingerprint, Send, MessageSquare, Bot, BookOpen, ChevronDown, ChevronUp, Info, Terminal, Activity } from 'lucide-react';
 
 interface SecurityManagerProps {

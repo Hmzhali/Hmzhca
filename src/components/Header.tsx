@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Shield, Coins, Cpu, Wallet, Languages, Activity, Smartphone, X, LogOut, User, Camera, Trash2, Bell, Sparkles, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
-import { ARABIC_DICT } from '../utils/marketData';
+import { ARABIC_DICT } from '../utils/MarketData';
 import { auth, logout } from '../lib/firebase';
 import { updateProfile } from 'firebase/auth';
 import { ToastNotification } from '../types';
