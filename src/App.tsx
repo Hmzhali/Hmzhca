@@ -25,6 +25,7 @@ import AIAnalyst from "./components/AIAnalyst";
 import OwnerDashboard from "./components/OwnerDashboard";
 import ToastList from "./components/ToastList";
 import HybridTrading from "./components/HybridTrading";
+import MarketGauge from "./components/MarketGauge";
 import PriceAlertManager from "./components/PriceAlertManager";
 import MarketSentimentIndicator from "./components/MarketSentimentIndicator";
 import OrderHistory from "./components/OrderHistory";
@@ -4301,6 +4302,7 @@ export default function App() {
                   <InteractiveChart lang={lang} activePair={activePair} />
                 </div>
                 <div className="lg:col-span-1 flex flex-col gap-6">
+                  <MarketGauge lang={lang} activePair={activePair} />
                   <PriceAlertManager
                     lang={lang}
                     activePair={activePair}
