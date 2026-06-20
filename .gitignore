@@ -4,3 +4,5 @@ coverage/
 *.log
 .env*
 !.env.example
+bot_state.json
+bot_trades.json
