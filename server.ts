@@ -2365,7 +2365,7 @@ Communication Guidelines:
     });
   } else {
     // Production serving static dist build
-    const distPath = path.join(process.cwd(), 'dist/public');
+    const distPath = path.join(process.cwd(), 'www');
     app.use(express.static(distPath));
     app.get('*', (req, res, next) => {
       if (req.originalUrl.startsWith('/api')) {
