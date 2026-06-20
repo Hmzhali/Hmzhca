@@ -25,7 +25,6 @@ import AIAnalyst from "./components/AIAnalyst";
 import OwnerDashboard from "./components/OwnerDashboard";
 import ToastList from "./components/ToastList";
 import HybridTrading from "./components/HybridTrading";
-import MarketGauge from "./components/MarketGauge";
 import PriceAlertManager from "./components/PriceAlertManager";
 import MarketSentimentIndicator from "./components/MarketSentimentIndicator";
 import OrderHistory from "./components/OrderHistory";
@@ -934,13 +933,13 @@ export default function App() {
     const finalMessage = `${title}\n\n${body}\n\n${asciiChart}\n\n🤖 <i>إشعار آلي آمن ومباشر من خدمة الأمان لـ المحترف Al-Moharif</i>`;
 
     try {
-      await fetch("/api/telegram/send", {
+      await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          botToken: telegramBotToken,
-          chatId: telegramChatId,
-          message: finalMessage,
+          chat_id: telegramChatId,
+          text: finalMessage,
+          parse_mode: 'HTML'
         }),
       });
     } catch (err) {
@@ -4302,7 +4301,6 @@ export default function App() {
                   <InteractiveChart lang={lang} activePair={activePair} />
                 </div>
                 <div className="lg:col-span-1 flex flex-col gap-6">
-                  <MarketGauge lang={lang} activePair={activePair} />
                   <PriceAlertManager
                     lang={lang}
                     activePair={activePair}

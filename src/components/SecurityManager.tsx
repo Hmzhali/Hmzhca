@@ -241,13 +241,13 @@ export default function SecurityManager({
         ? `🔔 <b>بوابة أمان التداول الهجين (Al-Moharif Emergency Portal)</b>\n\n✅ تم تفعيل اتصال البوت وتأمينه بنجاح!\n⏱️ تفاصيل الإرسال: <code>${new Date().toISOString()}</code>\n🔒 نظام الحماية: <b>نشط ويعمل بالكامل</b>`
         : `🔔 <b>Hybrid Bot Security Portal (Al-Moharif Emergency Portal)</b>\n\n✅ Bot connection has been initialized and secured successfully!\n⏱️ Dispatch time: <code>${new Date().toISOString()}</code>\n🔒 Protection Shield: <b>ACTIVE & FUNCTIONAL</b>`;
 
-      const response = await fetch('/api/telegram/send', {
+      const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          botToken: telegramBotToken,
-          chatId: telegramChatId,
-          message: messageText
+          chat_id: telegramChatId,
+          text: messageText,
+          parse_mode: 'HTML'
         })
       });
 
