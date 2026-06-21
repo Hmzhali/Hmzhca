@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
 import { initializeFirestore, doc, setDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -12,10 +12,31 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const loginWithGoogle = async () => {
   try {
-    const res = await signInWithPopup(auth, googleProvider);
-    await initUserProfile(res.user);
-  } catch (error) {
+    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNative;
+    if (isNative) {
+      // In native apps, use redirect instead of popup
+      await signInWithRedirect(auth, googleProvider);
+      return; // The app will reload and we need to handle getRedirectResult()
+    } else {
+      const res = await signInWithPopup(auth, googleProvider);
+      await initUserProfile(res.user);
+      return res;
+    }
+  } catch (error: any) {
     console.error("Login failed:", error);
+    throw error;
+  }
+};
+
+export const handleRedirectResult = async () => {
+  try {
+    const res = await getRedirectResult(auth);
+    if (res?.user) {
+      await initUserProfile(res.user);
+    }
+    return res;
+  } catch (err) {
+    console.error("Redirect login result failed:", err);
   }
 };
 

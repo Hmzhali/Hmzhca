@@ -4,8 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import PortfolioGrowthChart from './PortfolioGrowthChart';
-import ProfitAnalytics from './ProfitAnalytics';
+// removed components
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -415,8 +414,7 @@ export default function PortfolioOverview({
         )}
       </div>
 
-      <PortfolioGrowthChart lang={lang} />
-      <ProfitAnalytics lang={lang} />
+
 
       {/* Main Grid: Chart & Converted assets */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">

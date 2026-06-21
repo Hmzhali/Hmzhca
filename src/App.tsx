@@ -28,7 +28,7 @@ import HybridTrading from "./components/HybridTrading";
 import MarketGauge from "./components/MarketGauge";
 import PriceAlertManager from "./components/PriceAlertManager";
 import MarketSentimentIndicator from "./components/MarketSentimentIndicator";
-import OrderHistory from "./components/OrderHistory";
+
 import PortfolioOverview from "./components/PortfolioOverview";
 
 import FuturesTrading from "./components/FuturesTrading";
@@ -56,11 +56,12 @@ import {
 import { useAuthState } from "react-firebase-hooks/auth";
 import {
   auth,
-  loginWithGoogle,
   logout,
   db,
   registerWithEmail,
   loginWithEmailProvider,
+  loginWithGoogle,
+  handleRedirectResult,
   resetPassword,
 } from "./lib/firebase";
 import {
@@ -92,6 +93,7 @@ export default function App() {
   const [userData, setUserData] = useState<any>(null);
   const [emailForSignIn, setEmailForSignIn] = useState<string>("");
   const [passwordForSignIn, setPasswordForSignIn] = useState<string>("");
+  const [confirmPasswordForSignIn, setConfirmPasswordForSignIn] = useState<string>("");
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">(
     "login",
   );
@@ -100,6 +102,21 @@ export default function App() {
   const [mathA, setMathA] = useState(Math.floor(Math.random() * 10) + 1);
   const [mathB, setMathB] = useState(Math.floor(Math.random() * 10) + 1);
   const [mathAnswer, setMathAnswer] = useState("");
+
+  useEffect(() => {
+    handleRedirectResult().catch((err) => {
+      console.error("Failed handling redirect:", err);
+      let msg = err.message || "Google Authentication error";
+      if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
+         msg = "تم إغلاق نافذة تسجيل الدخول.";
+      } else if (msg.includes("auth/operation-not-allowed")) {
+         msg = "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم.";
+      } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
+         msg = "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها.";
+      }
+      setAuthError(msg);
+    });
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -934,15 +951,19 @@ export default function App() {
     const finalMessage = `${title}\n\n${body}\n\n${asciiChart}\n\n🤖 <i>إشعار آلي آمن ومباشر من خدمة الأمان لـ المحترف Al-Moharif</i>`;
 
     try {
-      await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+      const res = await fetch(`/api/telegram/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          token: telegramBotToken,
           chat_id: telegramChatId,
           text: finalMessage,
           parse_mode: 'HTML'
         }),
       });
+      if (!res.ok) {
+         console.error("[Telegram Guard] Server proxy error.", await res.text());
+      }
     } catch (err) {
       console.error(
         "[Telegram Guard] Failed to issue alert telegram message:",
@@ -3309,7 +3330,16 @@ export default function App() {
           return;
         }
 
+        if (passwordForSignIn.length < 6) {
+          setAuthError(lang === "ar" ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل" : "Password must be at least 6 characters");
+          return;
+        }
+
         if (authMode === "register") {
+          if (passwordForSignIn !== confirmPasswordForSignIn) {
+            setAuthError(lang === "ar" ? "كلمتا المرور غير متطابقتين" : "Passwords do not match");
+            return;
+          }
           const expectedAnswer = (mathA + mathB).toString();
           if (mathAnswer !== expectedAnswer) {
             setAuthError(
@@ -3322,26 +3352,28 @@ export default function App() {
             setMathAnswer("");
             return;
           }
-          await registerWithEmail(emailForSignIn, passwordForSignIn);
+          await registerWithEmail(emailForSignIn.trim(), passwordForSignIn);
           // Wait to see if user logs in automatically, usually they do
         } else {
           // Login
-          await loginWithEmailProvider(emailForSignIn, passwordForSignIn);
+          await loginWithEmailProvider(emailForSignIn.trim(), passwordForSignIn);
         }
       } catch (err: any) {
-        console.error("Auth failed:", err);
+        console.error("Auth failed: " + err.message);
         let msg = err.message || "Authentication error";
-        if (msg.includes("auth/invalid-credential"))
-          msg =
-            lang === "ar" ? "أوراق الاعتماد غير صالحة" : "Invalid credentials";
-        if (msg.includes("auth/email-already-in-use"))
-          msg =
-            lang === "ar"
-              ? "البريد الإلكتروني مستخدم بالفعل"
-              : "Email already in use";
-        if (msg.includes("auth/weak-password"))
-          msg =
-            lang === "ar" ? "كلمة المرور ضعيفة جدًا" : "Password is too weak";
+        if (msg.includes("auth/error-code:-26")) {
+          msg = lang === "ar" ? "تعذر الاتصال بخادم المصادقة. يرجى التحقق من اتصالك بالإنترنت والمحاولة مجدداً." : "Could not connect to auth server. Please check your internet connection.";
+        } else if (msg.includes("auth/invalid-credential") || msg.includes("auth/invalid-email")) {
+          msg = lang === "ar" ? "البريد الإلكتروني أو كلمة المرور غير صالحة" : "Invalid email or credentials";
+        } else if (msg.includes("auth/email-already-in-use")) {
+          msg = lang === "ar" ? "البريد الإلكتروني مستخدم بالفعل" : "Email already in use";
+        } else if (msg.includes("auth/weak-password")) {
+          msg = lang === "ar" ? "كلمة المرور ضعيفة جدًا" : "Password is too weak";
+        } else if (msg.includes("auth/operation-not-allowed")) {
+          msg = lang === "ar" ? "تسجيل الدخول بالبريد الإلكتروني غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Email/Password authentication is not enabled in Firebase.";
+        } else if (msg.includes("auth/too-many-requests")) {
+          msg = lang === "ar" ? "تم حظر الحساب مؤقتاً بسبب العديد من المحاولات الفاشلة. يرجى المحاولة لاحقاً أو إعادة تعيين كلمة المرور." : "Access to this account has been temporarily disabled due to many failed login attempts.";
+        }
         setAuthError(msg);
       }
     };
@@ -3382,6 +3414,19 @@ export default function App() {
                 onChange={(e) => setPasswordForSignIn(e.target.value)}
                 placeholder={
                   lang === "ar" ? "كلمة المرور المشفرة" : "Secure Password"
+                }
+                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm text-center"
+                required
+              />
+            )}
+
+            {authMode === "register" && (
+              <input
+                type="password"
+                value={confirmPasswordForSignIn}
+                onChange={(e) => setConfirmPasswordForSignIn(e.target.value)}
+                placeholder={
+                  lang === "ar" ? "تأكيد كلمة المرور" : "Confirm Password"
                 }
                 className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm text-center"
                 required
@@ -3445,6 +3490,7 @@ export default function App() {
                   setAuthMode("login");
                   setAuthError("");
                   setAuthSuccess("");
+                  setConfirmPasswordForSignIn("");
                 }}
                 className="hover:text-indigo-400 transition"
               >
@@ -3460,6 +3506,7 @@ export default function App() {
                   setAuthMode("register");
                   setAuthError("");
                   setAuthSuccess("");
+                  setConfirmPasswordForSignIn("");
                 }}
                 className="hover:text-amber-400 transition"
               >
@@ -3473,6 +3520,7 @@ export default function App() {
                   setAuthMode("forgot");
                   setAuthError("");
                   setAuthSuccess("");
+                  setConfirmPasswordForSignIn("");
                 }}
                 className="hover:text-slate-300 transition"
               >
@@ -3490,7 +3538,22 @@ export default function App() {
           </div>
 
           <button
-            onClick={loginWithGoogle}
+            onClick={async () => {
+              try {
+                setAuthError("");
+                await loginWithGoogle();
+              } catch (err: any) {
+                let msg = err.message || "Google Authentication error";
+                if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
+                   msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
+                } else if (msg.includes("auth/operation-not-allowed")) {
+                   msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Google Sign-In is not enabled in Firebase Authentication settings.";
+                } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
+                   msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها في Firebase." : "Google Login settings require adding your domain to Authorized Domains in Firebase.";
+                }
+                setAuthError(msg);
+              }
+            }}
             className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
           >
             <ShieldAlert className="w-4 h-4" />
@@ -4402,12 +4465,9 @@ export default function App() {
           )}
 
           {activeTab === "history" && (
-            <OrderHistory
-              lang={lang}
-              connection={apiConnection}
-              isLiveTrading={isLiveTrading}
-              localOrders={orders}
-            />
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-slate-400">
+               {lang === "ar" ? "تاريخ الصفقات غير متوفر حالياً" : "Order History currently unavailable."}
+            </div>
           )}
 
           {activeTab === "notifications" && (
