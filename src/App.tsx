@@ -3312,7 +3312,7 @@ export default function App() {
 
       try {
         if (authMode === "forgot") {
-          await resetPassword(emailForSignIn);
+          await resetPassword(emailForSignIn.trim());
           setAuthSuccess(
             lang === "ar"
               ? "تم إرسال رابط استعادة كلمة المرور إلى بريدك"
@@ -3359,7 +3359,7 @@ export default function App() {
           await loginWithEmailProvider(emailForSignIn.trim(), passwordForSignIn);
         }
       } catch (err: any) {
-        console.error("Auth failed: " + err.message);
+        console.warn("Auth failed: " + err.message);
         let msg = err.message || "Authentication error";
         if (msg.includes("auth/error-code:-26")) {
           msg = lang === "ar" ? "تعذر الاتصال بخادم المصادقة. يرجى التحقق من اتصالك بالإنترنت والمحاولة مجدداً." : "Could not connect to auth server. Please check your internet connection.";
@@ -3373,6 +3373,8 @@ export default function App() {
           msg = lang === "ar" ? "تسجيل الدخول بالبريد الإلكتروني غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Email/Password authentication is not enabled in Firebase.";
         } else if (msg.includes("auth/too-many-requests")) {
           msg = lang === "ar" ? "تم حظر الحساب مؤقتاً بسبب العديد من المحاولات الفاشلة. يرجى المحاولة لاحقاً أو إعادة تعيين كلمة المرور." : "Access to this account has been temporarily disabled due to many failed login attempts.";
+        } else if (msg.includes("auth/user-not-found") || msg.includes("auth/invalid-email")) {
+          msg = lang === "ar" ? "لا يوجد حساب مسجل بهذا البريد الإلكتروني" : "No user found with this email";
         }
         setAuthError(msg);
       }
@@ -3529,36 +3531,40 @@ export default function App() {
             )}
           </div>
 
-          <div className="w-full flex items-center justify-center gap-3 mb-6">
-            <div className="h-px bg-slate-800 flex-1"></div>
-            <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
-              {lang === "ar" ? "أو" : "OR"}
-            </span>
-            <div className="h-px bg-slate-800 flex-1"></div>
-          </div>
+          {!(typeof window !== "undefined" && (window as any).Capacitor?.isNative) && (
+            <>
+              <div className="w-full flex items-center justify-center gap-3 mb-6">
+                <div className="h-px bg-slate-800 flex-1"></div>
+                <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+                  {lang === "ar" ? "أو" : "OR"}
+                </span>
+                <div className="h-px bg-slate-800 flex-1"></div>
+              </div>
 
-          <button
-            onClick={async () => {
-              try {
-                setAuthError("");
-                await loginWithGoogle();
-              } catch (err: any) {
-                let msg = err.message || "Google Authentication error";
-                if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
-                   msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
-                } else if (msg.includes("auth/operation-not-allowed")) {
-                   msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Google Sign-In is not enabled in Firebase Authentication settings.";
-                } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
-                   msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها في Firebase." : "Google Login settings require adding your domain to Authorized Domains in Firebase.";
-                }
-                setAuthError(msg);
-              }
-            }}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
-          >
-            <ShieldAlert className="w-4 h-4" />
-            {lang === "ar" ? "تسجيل الدخول عبر Google" : "Log In via Google"}
-          </button>
+              <button
+                onClick={async () => {
+                  try {
+                    setAuthError("");
+                    await loginWithGoogle();
+                  } catch (err: any) {
+                    let msg = err.message || "Google Authentication error";
+                    if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
+                       msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
+                    } else if (msg.includes("auth/operation-not-allowed")) {
+                       msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Google Sign-In is not enabled in Firebase Authentication settings.";
+                    } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
+                       msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها في Firebase." : "Google Login settings require adding your domain to Authorized Domains in Firebase.";
+                    }
+                    setAuthError(msg);
+                  }
+                }}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                {lang === "ar" ? "تسجيل الدخول عبر Google" : "Log In via Google"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     );

@@ -23,7 +23,7 @@ export const loginWithGoogle = async () => {
       return res;
     }
   } catch (error: any) {
-    console.error("Login failed:", error);
+    console.warn("Login failed:", error);
     throw error;
   }
 };
@@ -36,7 +36,7 @@ export const handleRedirectResult = async () => {
     }
     return res;
   } catch (err) {
-    console.error("Redirect login result failed:", err);
+    console.warn("Redirect login result failed:", err);
   }
 };
 
