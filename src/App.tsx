@@ -3531,40 +3531,38 @@ export default function App() {
             )}
           </div>
 
-          {!(typeof window !== "undefined" && (window as any).Capacitor?.isNative) && (
-            <>
-              <div className="w-full flex items-center justify-center gap-3 mb-6">
-                <div className="h-px bg-slate-800 flex-1"></div>
-                <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
-                  {lang === "ar" ? "أو" : "OR"}
-                </span>
-                <div className="h-px bg-slate-800 flex-1"></div>
-              </div>
+          <>
+            <div className="w-full flex items-center justify-center gap-3 mb-6">
+              <div className="h-px bg-slate-800 flex-1"></div>
+              <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
+                {lang === "ar" ? "أو" : "OR"}
+              </span>
+              <div className="h-px bg-slate-800 flex-1"></div>
+            </div>
 
-              <button
-                onClick={async () => {
-                  try {
-                    setAuthError("");
-                    await loginWithGoogle();
-                  } catch (err: any) {
-                    let msg = err.message || "Google Authentication error";
-                    if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
-                       msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
-                    } else if (msg.includes("auth/operation-not-allowed")) {
-                       msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Google Sign-In is not enabled in Firebase Authentication settings.";
-                    } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
-                       msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها في Firebase." : "Google Login settings require adding your domain to Authorized Domains in Firebase.";
-                    }
-                    setAuthError(msg);
+            <button
+              onClick={async () => {
+                try {
+                  setAuthError("");
+                  await loginWithGoogle();
+                } catch (err: any) {
+                  let msg = err.message || "Google Authentication error";
+                  if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
+                     msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
+                  } else if (msg.includes("auth/operation-not-allowed")) {
+                     msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Google Sign-In is not enabled in Firebase Authentication settings.";
+                  } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
+                     msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها في Firebase." : "Google Login settings require adding your domain to Authorized Domains in Firebase.";
                   }
-                }}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
-              >
-                <ShieldAlert className="w-4 h-4" />
-                {lang === "ar" ? "تسجيل الدخول عبر Google" : "Log In via Google"}
-              </button>
-            </>
-          )}
+                  setAuthError(msg);
+                }
+              }}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              {lang === "ar" ? "تسجيل الدخول عبر Google" : "Log In via Google"}
+            </button>
+          </>
         </div>
       </div>
     );
