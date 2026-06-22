@@ -54,6 +54,9 @@ import {
   X,
 } from "lucide-react";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+
 import {
   auth,
   logout,
@@ -3540,19 +3543,29 @@ export default function App() {
               <div className="h-px bg-slate-800 flex-1"></div>
             </div>
 
-            <button
+              <button
               onClick={async () => {
                 try {
                   setAuthError("");
-                  await loginWithGoogle();
+                  // الكود الذكي الجديد: الفحص هل النظام هاتف أم متصفح ويب؟
+                  if (Capacitor.isNativePlatform()) {
+                    // 📱 فتح نافذة حسابات جوجل الأصلية داخل تطبيق الأندرويد
+                    await FirebaseAuthentication.signInWithGoogle();
+                  } else {
+                    // 🌐 تشغيل نافذة جوجل المنبثقة إذا كان المستخدم في المتصفح
+                    await loginWithGoogle();
+                  }
                 } catch (err: any) {
                   let msg = err.message || "Google Authentication error";
-                  if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
-                     msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
+                  // إضافة كود (12501) الخاص بتراجع المستخدم في نظام أندرويد لتجنب الأخطاء
+                  if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request") || msg.includes("12501")) {
+                     msg = lang === "ar" ? "تم التراجع أو إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
                   } else if (msg.includes("auth/operation-not-allowed")) {
-                     msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Google Sign-In is not enabled in Firebase Authentication settings.";
+                     msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase." : "Google Sign-In is not enabled.";
                   } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
-                     msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها في Firebase." : "Google Login settings require adding your domain to Authorized Domains in Firebase.";
+                     msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك." : "Domain not authorized.";
+                  } else {
+                     msg = lang === "ar" ? "حدث خطأ أثناء الاتصال بجوجل: " + msg : msg;
                   }
                   setAuthError(msg);
                 }
@@ -3562,8 +3575,7 @@ export default function App() {
               <ShieldAlert className="w-4 h-4" />
               {lang === "ar" ? "تسجيل الدخول عبر Google" : "Log In via Google"}
             </button>
-          </>
-        </div>
+         </div>
       </div>
     );
   }
