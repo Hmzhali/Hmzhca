@@ -3315,8 +3315,8 @@ export default function App() {
           await resetPassword(emailForSignIn.trim());
           setAuthSuccess(
             lang === "ar"
-              ? "تم إرسال رابط استعادة كلمة المرور إلى بريدك"
-              : "Password reset link sent to your email",
+              ? "تم إرسال رابط استعادة كلمة المرور. يرجى التحقق من صندوق الوارد (وكذلك مجلد البريد المزعج / Spam). ملاحظة: لن يصل الرابط إلا إذا كان البريد مسجلاً مسبقاً."
+              : "Password reset link sent to your email. Please check your inbox and Spam folder (only registered emails will receive a link)."
           );
           return;
         }
