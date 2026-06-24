@@ -57,11 +57,12 @@ import {
   auth,
   logout,
   db,
-  registerWithEmail,
-  loginWithEmailProvider,
+  setupRecaptcha,
+  sendPhoneCode,
+  confirmPhoneCode,
   loginWithGoogle,
-  handleRedirectResult,
-  resetPassword,
+  loginWithEmailProvider,
+  registerWithEmail
 } from "./lib/firebase";
 import {
   doc,
@@ -90,32 +91,29 @@ export const formatPrecision = (qty: number, symbol: string, p: number) => {
 export default function App() {
   const [user, loading] = useAuthState(auth);
   const [userData, setUserData] = useState<any>(null);
-  const [emailForSignIn, setEmailForSignIn] = useState<string>("");
-  const [passwordForSignIn, setPasswordForSignIn] = useState<string>("");
-  const [confirmPasswordForSignIn, setConfirmPasswordForSignIn] = useState<string>("");
-  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">(
-    "login",
-  );
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [verificationCode, setVerificationCode] = useState<string>("");
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [authError, setAuthError] = useState<string>("");
   const [authSuccess, setAuthSuccess] = useState<string>("");
-  const [mathA, setMathA] = useState(Math.floor(Math.random() * 10) + 1);
-  const [mathB, setMathB] = useState(Math.floor(Math.random() * 10) + 1);
-  const [mathAnswer, setMathAnswer] = useState("");
+  const [authMode, setAuthMode] = useState<"phone" | "email" | "register">("phone");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isProcessingAuth, setIsProcessingAuth] = useState(false);
 
   useEffect(() => {
-    handleRedirectResult().catch((err) => {
-      console.error("Failed handling redirect:", err);
-      let msg = err.message || "Google Authentication error";
-      if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
-         msg = "تم إغلاق نافذة تسجيل الدخول.";
-      } else if (msg.includes("auth/operation-not-allowed")) {
-         msg = "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم.";
-      } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
-         msg = "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها.";
-      }
-      setAuthError(msg);
-    });
-  }, []);
+    if (!loading && !user) {
+      setTimeout(() => {
+        try {
+          setupRecaptcha("recaptcha-container");
+        } catch (e) {
+          console.warn("Could not setup recaptcha immediately", e);
+        }
+      }, 500);
+    }
+  }, [loading, user]);
 
   const [sessionUid, setSessionUid] = useState(localStorage.getItem("almoharif_user_uid"));
 
@@ -3295,273 +3293,283 @@ export default function App() {
   }
 
   if (!user) {
-    const handleAuthSubmit = async (e: React.FormEvent) => {
+    const handleGoogleLogin = async () => {
+      setAuthError("");
+      setIsProcessingAuth(true);
+      try {
+        await loginWithGoogle();
+      } catch (err: any) {
+        console.warn("Google Login failed", err);
+        setAuthError(err.message || "Google Login failed");
+      } finally {
+        setIsProcessingAuth(false);
+      }
+    };
+
+    const handleEmailAuth = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setAuthError("");
+      setIsProcessingAuth(true);
+      try {
+        if (authMode === "register") {
+          await registerWithEmail(email, password);
+        } else {
+          await loginWithEmailProvider(email, password);
+        }
+      } catch (err: any) {
+        console.warn("Email Auth failed", err);
+        let msg = err.message || "Authentication error";
+        if (msg.includes("auth/invalid-credential")) {
+          msg = lang === "ar" ? "بيانات الدخول غير صحيحة." : "Invalid credentials.";
+        } else if (msg.includes("auth/email-already-in-use")) {
+          msg = lang === "ar" ? "البريد الإلكتروني مستخدم بالفعل." : "Email already in use.";
+        }
+        setAuthError(msg);
+      } finally {
+        setIsProcessingAuth(false);
+      }
+    };
+
+    const handleSendCode = async (e: React.FormEvent) => {
       e.preventDefault();
       setAuthError("");
       setAuthSuccess("");
-
-      if (!emailForSignIn) {
-        setAuthError(
-          lang === "ar"
-            ? "الرجاء إدخال البريد الإلكتروني"
-            : "Please enter your email",
-        );
-        return;
-      }
-
+      setIsSendingCode(true);
       try {
-        if (authMode === "forgot") {
-          await resetPassword(emailForSignIn.trim());
-          setAuthSuccess(
-            lang === "ar"
-              ? "تم إرسال رابط استعادة كلمة المرور. يرجى التحقق من صندوق الوارد (وكذلك مجلد البريد المزعج / Spam). ملاحظة: لن يصل الرابط إلا إذا كان البريد مسجلاً مسبقاً."
-              : "Password reset link sent to your email. Please check your inbox and Spam folder (only registered emails will receive a link)."
-          );
-          return;
+        let cleanPhone = phoneNumber.replace(/[\s\-()]/g, "");
+        if (!cleanPhone.startsWith("+")) {
+          cleanPhone = "+" + cleanPhone;
         }
-
-        if (!passwordForSignIn) {
-          setAuthError(
-            lang === "ar"
-              ? "الرجاء إدخال كلمة المرور"
-              : "Please enter your password",
-          );
-          return;
-        }
-
-        if (passwordForSignIn.length < 6) {
-          setAuthError(lang === "ar" ? "كلمة المرور يجب أن تكون 6 أحرف على الأقل" : "Password must be at least 6 characters");
-          return;
-        }
-
-        if (authMode === "register") {
-          if (passwordForSignIn !== confirmPasswordForSignIn) {
-            setAuthError(lang === "ar" ? "كلمتا المرور غير متطابقتين" : "Passwords do not match");
-            return;
-          }
-          const expectedAnswer = (mathA + mathB).toString();
-          if (mathAnswer !== expectedAnswer) {
-            setAuthError(
-              lang === "ar"
-                ? "إجابة التحقق البشري خاطئة"
-                : "Incorrect human verification answer",
-            );
-            setMathA(Math.floor(Math.random() * 10) + 1);
-            setMathB(Math.floor(Math.random() * 10) + 1);
-            setMathAnswer("");
-            return;
-          }
-          await registerWithEmail(emailForSignIn.trim(), passwordForSignIn);
-          // Wait to see if user logs in automatically, usually they do
+        const id = await sendPhoneCode(cleanPhone);
+        if (id === "completed") {
+          setAuthSuccess(lang === "ar" ? "تم تسجيل الدخول بنجاح!" : "Signed in successfully!");
         } else {
-          // Login
-          await loginWithEmailProvider(emailForSignIn.trim(), passwordForSignIn);
+          setVerificationId(id);
+          setAuthSuccess(lang === "ar" ? "تم إرسال رمز التحقق!" : "Verification code sent!");
         }
       } catch (err: any) {
-        console.warn("Auth failed: " + err.message);
+        console.warn("Phone Auth failed: ", err);
         let msg = err.message || "Authentication error";
-        if (msg.includes("auth/error-code:-26")) {
-          msg = lang === "ar" ? "تعذر الاتصال بخادم المصادقة. يرجى التحقق من اتصالك بالإنترنت والمحاولة مجدداً." : "Could not connect to auth server. Please check your internet connection.";
-        } else if (msg.includes("auth/invalid-credential") || msg.includes("auth/invalid-email")) {
-          msg = lang === "ar" ? "البريد الإلكتروني أو كلمة المرور غير صالحة" : "Invalid email or credentials";
-        } else if (msg.includes("auth/email-already-in-use")) {
-          msg = lang === "ar" ? "البريد الإلكتروني مستخدم بالفعل" : "Email already in use";
-        } else if (msg.includes("auth/weak-password")) {
-          msg = lang === "ar" ? "كلمة المرور ضعيفة جدًا" : "Password is too weak";
-        } else if (msg.includes("auth/operation-not-allowed")) {
-          msg = lang === "ar" ? "تسجيل الدخول بالبريد الإلكتروني غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Email/Password authentication is not enabled in Firebase.";
+        if (msg.includes("auth/invalid-phone-number")) {
+           msg = lang === "ar" ? "رقم الهاتف غير صالح. يرجى إدخال رمز الدولة (مثال: +9665...)" : "Invalid phone number. Include country code (e.g. +1...)";
         } else if (msg.includes("auth/too-many-requests")) {
-          msg = lang === "ar" ? "تم حظر الحساب مؤقتاً بسبب العديد من المحاولات الفاشلة. يرجى المحاولة لاحقاً أو إعادة تعيين كلمة المرور." : "Access to this account has been temporarily disabled due to many failed login attempts.";
-        } else if (msg.includes("auth/user-not-found") || msg.includes("auth/invalid-email")) {
-          msg = lang === "ar" ? "لا يوجد حساب مسجل بهذا البريد الإلكتروني" : "No user found with this email";
+           msg = lang === "ar" ? "تم حظر المحاولات مؤقتاً بسبب العديد من المحاولات." : "Too many requests. Please try again later.";
         }
         setAuthError(msg);
+      } finally {
+        setIsSendingCode(false);
+      }
+    };
+
+    const handleVerifyCode = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!verificationId) return;
+      setAuthError("");
+      setIsVerifyingCode(true);
+      try {
+        await confirmPhoneCode(verificationId, verificationCode.trim());
+      } catch (err: any) {
+        console.warn("Verification failed:", err);
+        let msg = err.message || "Verification failed";
+        if (msg.includes("auth/invalid-verification-code")) {
+           msg = lang === "ar" ? "رمز التحقق غير صحيح." : "Invalid verification code.";
+        }
+        setAuthError(msg);
+      } finally {
+        setIsVerifyingCode(false);
       }
     };
 
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+        <div id="recaptcha-container" className="mb-4"></div>
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center">
-          <Activity className="w-16 h-16 text-indigo-500 mb-6 animate-pulse" />
+          <Activity className="w-16 h-16 text-emerald-500 mb-6 animate-pulse" />
           <h1 className="text-2xl font-black text-white mb-2 font-mono">
             Al-Moharif AI
           </h1>
           <p className="text-slate-400 text-sm mb-6 max-w-sm">
             {lang === "ar"
               ? "قم بتسجيل الدخول بأمان إلى منصتك الاحترافية"
-              : "Sign in securely to access your professional trading platform"}
+              : "Sign in securely to your professional platform"}
           </p>
 
-          <form
-            onSubmit={handleAuthSubmit}
-            className="w-full space-y-3 mb-4"
-            dir={lang === "ar" ? "rtl" : "ltr"}
-          >
-            <input
-              type="email"
-              value={emailForSignIn}
-              onChange={(e) => setEmailForSignIn(e.target.value)}
-              placeholder={
-                lang === "ar" ? "البريد الإلكتروني" : "Email Address"
-              }
-              className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm text-center"
-              required
-            />
-
-            {authMode !== "forgot" && (
-              <input
-                type="password"
-                value={passwordForSignIn}
-                onChange={(e) => setPasswordForSignIn(e.target.value)}
-                placeholder={
-                  lang === "ar" ? "كلمة المرور المشفرة" : "Secure Password"
-                }
-                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm text-center"
-                required
-              />
-            )}
-
-            {authMode === "register" && (
-              <input
-                type="password"
-                value={confirmPasswordForSignIn}
-                onChange={(e) => setConfirmPasswordForSignIn(e.target.value)}
-                placeholder={
-                  lang === "ar" ? "تأكيد كلمة المرور" : "Confirm Password"
-                }
-                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm text-center"
-                required
-              />
-            )}
-
-            {authMode === "register" && (
-              <div className="bg-slate-950/50 border border-slate-800 p-3 rounded-xl space-y-2">
-                <label className="block text-xs font-bold text-slate-400">
-                  {lang === "ar"
-                    ? "للتحقق أنك لست روبوت، أجب:"
-                    : "Anti-bot verification: Answer this:"}{" "}
-                  {mathA} + {mathB} = ?
-                </label>
-                <input
-                  type="number"
-                  value={mathAnswer}
-                  onChange={(e) => setMathAnswer(e.target.value)}
-                  placeholder={lang === "ar" ? "الإجابة" : "Answer"}
-                  className="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-100 text-center focus:border-indigo-500"
-                  required
-                />
-              </div>
-            )}
-
-            {authError && (
-              <div className="text-rose-400 text-xs font-bold p-2 bg-rose-500/10 rounded-lg border border-rose-500/20">
-                {authError}
-              </div>
-            )}
-
-            {authSuccess && (
-              <div className="text-emerald-400 text-xs font-bold p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                {authSuccess}
-              </div>
-            )}
-
+          <div className="flex w-full mb-6 bg-slate-950 p-1 rounded-xl">
             <button
-              type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2"
+              onClick={() => { setAuthMode("phone"); setAuthError(""); }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${authMode === "phone" ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"}`}
             >
-              {authMode === "login"
-                ? lang === "ar"
-                  ? "تسجيل الدخول"
-                  : "Sign In"
-                : authMode === "register"
-                  ? lang === "ar"
-                    ? "إنشاء حساب جديد وتفعيل البريد"
-                    : "Create Account & Verify"
-                  : lang === "ar"
-                    ? "استعادة كلمة المرور"
-                    : "Reset Password"}
+              {lang === "ar" ? "رقم الهاتف" : "Phone"}
             </button>
-          </form>
-
-          <div className="w-full flex justify-between px-2 mb-6 text-xs font-bold text-slate-400">
-            {authMode !== "login" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode("login");
-                  setAuthError("");
-                  setAuthSuccess("");
-                  setConfirmPasswordForSignIn("");
-                }}
-                className="hover:text-indigo-400 transition"
-              >
-                {lang === "ar"
-                  ? "لدي حساب بالفعل"
-                  : "I already have an account"}
-              </button>
-            )}
-            {authMode !== "register" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode("register");
-                  setAuthError("");
-                  setAuthSuccess("");
-                  setConfirmPasswordForSignIn("");
-                }}
-                className="hover:text-amber-400 transition"
-              >
-                {lang === "ar" ? "إنشاء حساب لأول مرة" : "Create a new account"}
-              </button>
-            )}
-            {authMode !== "forgot" && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode("forgot");
-                  setAuthError("");
-                  setAuthSuccess("");
-                  setConfirmPasswordForSignIn("");
-                }}
-                className="hover:text-slate-300 transition"
-              >
-                {lang === "ar" ? "نسيت كلمة المرور؟" : "Forgot password?"}
-              </button>
-            )}
+            <button
+              onClick={() => { setAuthMode("email"); setAuthError(""); }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${authMode === "email" ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"}`}
+            >
+              {lang === "ar" ? "تسجيل دخول" : "Login"}
+            </button>
+            <button
+              onClick={() => { setAuthMode("register"); setAuthError(""); }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${authMode === "register" ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"}`}
+            >
+              {lang === "ar" ? "حساب جديد" : "Register"}
+            </button>
           </div>
 
-          <>
-            <div className="w-full flex items-center justify-center gap-3 mb-6">
-              <div className="h-px bg-slate-800 flex-1"></div>
-              <span className="text-slate-500 text-xs font-bold uppercase tracking-widest">
-                {lang === "ar" ? "أو" : "OR"}
-              </span>
-              <div className="h-px bg-slate-800 flex-1"></div>
-            </div>
+          {authMode === "phone" ? (
+            !verificationId ? (
+              <form
+                onSubmit={handleSendCode}
+                className="w-full space-y-4 mb-4"
+                dir="ltr"
+              >
+                <div>
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+966 50 123 4567"
+                    className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 text-lg tracking-widest text-center"
+                    required
+                  />
+                </div>
 
-            <button
-              onClick={async () => {
-                try {
-                  setAuthError("");
-                  await loginWithGoogle();
-                } catch (err: any) {
-                  let msg = err.message || "Google Authentication error";
-                  if (msg.includes("auth/popup-closed-by-user") || msg.includes("auth/cancelled-popup-request")) {
-                     msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Popup closed by user.";
-                  } else if (msg.includes("auth/operation-not-allowed")) {
-                     msg = lang === "ar" ? "تسجيل الدخول عبر Google غير مفعل في Firebase. يرجى تفعيله من لوحة التحكم." : "Google Sign-In is not enabled in Firebase Authentication settings.";
-                  } else if (msg.includes("auth/unauthorized-domain") || msg.includes("invalid")) {
-                     msg = lang === "ar" ? "إعدادات تسجيل الدخول في جوجل تتطلب إضافة نطاقك إلى النطاقات المصرح بها في Firebase." : "Google Login settings require adding your domain to Authorized Domains in Firebase.";
-                  }
-                  setAuthError(msg);
+                {authError && (
+                  <div className="text-rose-400 text-xs font-bold p-2 bg-rose-500/10 rounded-lg border border-rose-500/20" dir={lang === "ar" ? "rtl" : "ltr"}>
+                    {authError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSendingCode || !phoneNumber}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2"
+                >
+                  {isSendingCode 
+                     ? (lang === "ar" ? "جاري الإرسال..." : "Sending...")
+                     : (lang === "ar" ? "إرسال رمز التحقق" : "Send SMS Code")}
+                </button>
+              </form>
+            ) : (
+              <form
+                onSubmit={handleVerifyCode}
+                className="w-full space-y-4 mb-4"
+                dir="ltr"
+              >
+                <div>
+                  <label className="block text-slate-400 text-xs font-bold mb-2 uppercase tracking-widest" dir={lang === "ar" ? "rtl" : "ltr"}>
+                    {lang === "ar" ? "أدخل الرمز المرسل لجوالك" : "Enter Verification Code"}
+                  </label>
+                  <input
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    placeholder="123456"
+                    className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-emerald-400 font-mono focus:outline-none focus:border-emerald-500 text-2xl tracking-[0.5em] text-center"
+                    required
+                    maxLength={6}
+                  />
+                </div>
+
+                {authError && (
+                  <div className="text-rose-400 text-xs font-bold p-2 bg-rose-500/10 rounded-lg border border-rose-500/20" dir={lang === "ar" ? "rtl" : "ltr"}>
+                    {authError}
+                  </div>
+                )}
+
+                {authSuccess && (
+                  <div className="text-emerald-400 text-xs font-bold p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20" dir={lang === "ar" ? "rtl" : "ltr"}>
+                    {authSuccess}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isVerifyingCode || verificationCode.length < 6}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2"
+                >
+                  {isVerifyingCode
+                     ? (lang === "ar" ? "جاري التحقق..." : "Verifying...")
+                     : (lang === "ar" ? "تأكيد وتسجيل الدخول" : "Verify & Sign In")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVerificationId(null);
+                    setVerificationCode("");
+                    setAuthError("");
+                    setAuthSuccess("");
+                  }}
+                  className="w-full mt-2 text-slate-400 hover:text-slate-200 text-xs font-bold transition py-2"
+                >
+                  {lang === "ar" ? "العودة لتعديل الرقم" : "Back to change number"}
+                </button>
+              </form>
+            )
+          ) : (
+            <form onSubmit={handleEmailAuth} className="w-full space-y-4 mb-4">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder={lang === "ar" ? "البريد الإلكتروني" : "Email address"}
+                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                required
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={lang === "ar" ? "كلمة المرور" : "Password"}
+                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                required
+                minLength={6}
+              />
+              
+              {authError && (
+                <div className="text-rose-400 text-xs font-bold p-2 bg-rose-500/10 rounded-lg border border-rose-500/20" dir={lang === "ar" ? "rtl" : "ltr"}>
+                  {authError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isProcessingAuth}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition text-sm"
+              >
+                {isProcessingAuth 
+                  ? (lang === "ar" ? "جاري المعالجة..." : "Processing...") 
+                  : (authMode === "register" 
+                    ? (lang === "ar" ? "إنشاء حساب" : "Create Account")
+                    : (lang === "ar" ? "تسجيل الدخول" : "Sign In"))
                 }
-              }}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
-            >
-              <ShieldAlert className="w-4 h-4" />
-              {lang === "ar" ? "تسجيل الدخول عبر Google" : "Log In via Google"}
-            </button>
-          </>
+              </button>
+
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-slate-800"></div>
+                <span className="flex-shrink-0 mx-4 text-slate-500 text-xs">
+                  {lang === "ar" ? "أو" : "OR"}
+                </span>
+                <div className="flex-grow border-t border-slate-800"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={isProcessingAuth}
+                className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2 border border-slate-700"
+              >
+                <svg viewBox="0 0 24 24" className="w-5 h-5">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                {lang === "ar" ? "المتابعة باستخدام Google" : "Continue with Google"}
+              </button>
+            </form>
+          )}
+
         </div>
       </div>
     );

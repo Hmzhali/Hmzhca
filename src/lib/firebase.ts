@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, signInWithCredential } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, signInWithCredential, RecaptchaVerifier, signInWithPhoneNumber as webSignInWithPhoneNumber } from 'firebase/auth';
 import { initializeFirestore, doc, setDoc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
@@ -9,6 +9,102 @@ const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+    confirmationResult: any;
+  }
+}
+
+export const setupRecaptcha = (containerId: string) => {
+  if (!Capacitor.isNativePlatform()) {
+    if (!window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+          size: 'invisible'
+        });
+        console.log("RecaptchaVerifier initialized successfully");
+      } catch (err) {
+        console.error("Error initializing RecaptchaVerifier:", err);
+      }
+    }
+  }
+};
+
+export const sendPhoneCode = async (phoneNumber: string): Promise<string> => {
+  if (Capacitor.isNativePlatform()) {
+    return new Promise(async (resolve, reject) => {
+      let resolved = false;
+
+      const sentSub = await FirebaseAuthentication.addListener('phoneCodeSent', (event) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(event.verificationId);
+          sentSub.remove();
+        }
+      });
+
+      const compSub = await FirebaseAuthentication.addListener('phoneVerificationCompleted', async (event) => {
+        if (!resolved) {
+          resolved = true;
+          resolve("completed");
+          compSub.remove();
+        }
+      });
+
+      const failSub = await FirebaseAuthentication.addListener('phoneVerificationFailed', (event) => {
+        if (!resolved) {
+          resolved = true;
+          reject(new Error(event.message));
+          failSub.remove();
+        }
+      });
+
+      try {
+        await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber });
+      } catch (err: any) {
+        if (!resolved) {
+          resolved = true;
+          reject(err);
+        }
+      }
+    });
+  } else {
+    try {
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+    } catch (e) {
+      console.warn("Error clearing old recaptcha", e);
+      window.recaptchaVerifier = null;
+    }
+    setupRecaptcha("recaptcha-container");
+    const appVerifier = window.recaptchaVerifier;
+    if (!appVerifier) {
+      throw new Error("Recaptcha failed to initialize. Please check your connection and try again.");
+    }
+    const confirmationResult = await webSignInWithPhoneNumber(auth, phoneNumber, appVerifier);
+    window.confirmationResult = confirmationResult;
+    return "web";
+  }
+};
+
+export const confirmPhoneCode = async (verificationId: string, code: string) => {
+  if (Capacitor.isNativePlatform()) {
+    const result = await FirebaseAuthentication.confirmVerificationCode({
+      verificationId,
+      verificationCode: code
+    });
+    if (result.user) await initUserProfile(result.user);
+    return result;
+  } else {
+    const result = await window.confirmationResult.confirm(code);
+    if (result.user) await initUserProfile(result.user);
+    return result;
+  }
+};
 
 export const loginWithGoogle = async () => {
   try {
