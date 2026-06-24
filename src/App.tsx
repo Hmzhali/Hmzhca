@@ -62,7 +62,8 @@ import {
   confirmPhoneCode,
   loginWithGoogle,
   loginWithEmailProvider,
-  registerWithEmail
+  registerWithEmail,
+  resetPassword
 } from "./lib/firebase";
 import {
   doc,
@@ -101,6 +102,8 @@ export default function App() {
   const [authMode, setAuthMode] = useState<"phone" | "email" | "register">("phone");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [isProcessingAuth, setIsProcessingAuth] = useState(false);
 
   useEffect(() => {
@@ -3309,9 +3312,18 @@ export default function App() {
     const handleEmailAuth = async (e: React.FormEvent) => {
       e.preventDefault();
       setAuthError("");
+      setAuthSuccess("");
       setIsProcessingAuth(true);
       try {
-        if (authMode === "register") {
+        if (isForgotPassword) {
+          await resetPassword(email);
+          setAuthSuccess(lang === "ar" ? "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني." : "Password reset link sent to your email.");
+          setIsForgotPassword(false);
+        } else if (authMode === "register") {
+          if (password !== confirmPassword) {
+            setAuthError(lang === "ar" ? "كلمات المرور غير متطابقة." : "Passwords do not match.");
+            return;
+          }
           await registerWithEmail(email, password);
         } else {
           await loginWithEmailProvider(email, password);
@@ -3323,6 +3335,8 @@ export default function App() {
           msg = lang === "ar" ? "بيانات الدخول غير صحيحة." : "Invalid credentials.";
         } else if (msg.includes("auth/email-already-in-use")) {
           msg = lang === "ar" ? "البريد الإلكتروني مستخدم بالفعل." : "Email already in use.";
+        } else if (msg.includes("auth/user-not-found")) {
+          msg = lang === "ar" ? "المستخدم غير موجود." : "User not found.";
         }
         setAuthError(msg);
       } finally {
@@ -3396,19 +3410,19 @@ export default function App() {
 
           <div className="flex w-full mb-6 bg-slate-950 p-1 rounded-xl">
             <button
-              onClick={() => { setAuthMode("phone"); setAuthError(""); }}
+              onClick={() => { setAuthMode("phone"); setAuthError(""); setAuthSuccess(""); setIsForgotPassword(false); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${authMode === "phone" ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"}`}
             >
               {lang === "ar" ? "رقم الهاتف" : "Phone"}
             </button>
             <button
-              onClick={() => { setAuthMode("email"); setAuthError(""); }}
+              onClick={() => { setAuthMode("email"); setAuthError(""); setAuthSuccess(""); setIsForgotPassword(false); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${authMode === "email" ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"}`}
             >
               {lang === "ar" ? "تسجيل دخول" : "Login"}
             </button>
             <button
-              onClick={() => { setAuthMode("register"); setAuthError(""); }}
+              onClick={() => { setAuthMode("register"); setAuthError(""); setAuthSuccess(""); setIsForgotPassword(false); }}
               className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${authMode === "register" ? "bg-slate-800 text-white" : "text-slate-500 hover:text-slate-300"}`}
             >
               {lang === "ar" ? "حساب جديد" : "Register"}
@@ -3516,19 +3530,38 @@ export default function App() {
                 className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
                 required
               />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={lang === "ar" ? "كلمة المرور" : "Password"}
-                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-                required
-                minLength={6}
-              />
+              {!isForgotPassword && (
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={lang === "ar" ? "كلمة المرور" : "Password"}
+                  className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                  required
+                  minLength={6}
+                />
+              )}
+              {authMode === "register" && !isForgotPassword && (
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder={lang === "ar" ? "تأكيد كلمة المرور" : "Confirm Password"}
+                  className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                  required
+                  minLength={6}
+                />
+              )}
               
               {authError && (
                 <div className="text-rose-400 text-xs font-bold p-2 bg-rose-500/10 rounded-lg border border-rose-500/20" dir={lang === "ar" ? "rtl" : "ltr"}>
                   {authError}
+                </div>
+              )}
+
+              {authSuccess && (
+                <div className="text-emerald-400 text-xs font-bold p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20" dir={lang === "ar" ? "rtl" : "ltr"}>
+                  {authSuccess}
                 </div>
               )}
 
@@ -3539,11 +3572,29 @@ export default function App() {
               >
                 {isProcessingAuth 
                   ? (lang === "ar" ? "جاري المعالجة..." : "Processing...") 
-                  : (authMode === "register" 
-                    ? (lang === "ar" ? "إنشاء حساب" : "Create Account")
-                    : (lang === "ar" ? "تسجيل الدخول" : "Sign In"))
+                  : isForgotPassword
+                    ? (lang === "ar" ? "إرسال رابط إعادة التعيين" : "Send Reset Link")
+                    : (authMode === "register" 
+                      ? (lang === "ar" ? "إنشاء حساب" : "Create Account")
+                      : (lang === "ar" ? "تسجيل الدخول" : "Sign In"))
                 }
               </button>
+
+              {authMode === "email" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(!isForgotPassword);
+                    setAuthError("");
+                    setAuthSuccess("");
+                  }}
+                  className="w-full text-slate-400 hover:text-slate-200 text-xs font-bold transition py-2"
+                >
+                  {isForgotPassword 
+                    ? (lang === "ar" ? "العودة لتسجيل الدخول" : "Back to Sign In")
+                    : (lang === "ar" ? "هل نسيت كلمة المرور؟" : "Forgot Password?")}
+                </button>
+              )}
 
               <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-slate-800"></div>
