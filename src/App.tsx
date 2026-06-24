@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   MarketPair,
@@ -16,28 +16,27 @@ import {
 } from "./types";
 import { INITIAL_PAIRS, ARABIC_DICT } from "./utils/MarketData";
 import Header from "./components/Header";
-import InteractiveChart from "./components/InteractiveChart";
-import ManualTrading from "./components/ManualTrading";
-import BotTrading from "./components/BotTrading";
-import Backtester from "./components/Backtester";
-import SecurityManager from "./components/SecurityManager";
-import AIAnalyst from "./components/AIAnalyst";
-import OwnerDashboard from "./components/OwnerDashboard";
 import ToastList from "./components/ToastList";
-import HybridTrading from "./components/HybridTrading";
-import MarketGauge from "./components/MarketGauge";
-import PriceAlertManager from "./components/PriceAlertManager";
-import MarketSentimentIndicator from "./components/MarketSentimentIndicator";
 
-import PortfolioOverview from "./components/PortfolioOverview";
+const InteractiveChart = lazy(() => import("./components/InteractiveChart"));
+const ManualTrading = lazy(() => import("./components/ManualTrading"));
+const BotTrading = lazy(() => import("./components/BotTrading"));
+const Backtester = lazy(() => import("./components/Backtester"));
+const SecurityManager = lazy(() => import("./components/SecurityManager"));
+const AIAnalyst = lazy(() => import("./components/AIAnalyst"));
+const OwnerDashboard = lazy(() => import("./components/OwnerDashboard"));
+const HybridTrading = lazy(() => import("./components/HybridTrading"));
+const MarketGauge = lazy(() => import("./components/MarketGauge"));
+const PriceAlertManager = lazy(() => import("./components/PriceAlertManager"));
+const MarketSentimentIndicator = lazy(() => import("./components/MarketSentimentIndicator"));
+const PortfolioOverview = lazy(() => import("./components/PortfolioOverview"));
+const FuturesTrading = lazy(() => import("./components/FuturesTrading"));
+const BinanceAIManager = lazy(() => import("./components/BinanceAIManager"));
+const WhaleTracker = lazy(() => import("./components/WhaleTracker"));
+const HamzaLiveMarkets = lazy(() => import("./components/HamzaLiveMarkets"));
+const EducationHub = lazy(() => import("./components/EducationHub"));
+const NotificationCenter = lazy(() => import("./components/NotificationCenter"));
 
-import FuturesTrading from "./components/FuturesTrading";
-import BinanceAIManager from "./components/BinanceAIManager";
-import WhaleTracker from "./components/WhaleTracker";
-import HamzaLiveMarkets from "./components/HamzaLiveMarkets";
-import EducationHub from "./components/EducationHub";
-
-import NotificationCenter from "./components/NotificationCenter";
 import {
   TrendingUp,
   Award,
@@ -118,10 +117,11 @@ export default function App() {
     });
   }, []);
 
+  const [sessionUid, setSessionUid] = useState(localStorage.getItem("almoharif_user_uid"));
+
   useEffect(() => {
     if (user) {
-      const storedUid = localStorage.getItem("almoharif_user_uid");
-      if (storedUid !== user.uid) {
+      if (sessionUid !== user.uid) {
         // User switched or fresh login! Clear all local preferences/API keys to start from zero
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -136,7 +136,7 @@ export default function App() {
         }
         keysToRemove.forEach((k) => localStorage.removeItem(k));
         localStorage.setItem("almoharif_user_uid", user.uid);
-        return;
+        setSessionUid(user.uid);
       }
 
       const unsub = onSnapshot(
@@ -3228,8 +3228,7 @@ export default function App() {
     return pt;
   });
 
-  const isTransitioningSession =
-    user && localStorage.getItem("almoharif_user_uid") !== user.uid;
+  const isTransitioningSession = user && sessionUid !== user.uid;
 
   const renderTradingSuspended = () => (
     <div className="flex flex-col items-center justify-center p-12 bg-slate-900 border border-slate-800 rounded-xl my-6 shadow-xl w-full">
@@ -3591,6 +3590,7 @@ export default function App() {
       />
 
       {/* Main scrolling content frame */}
+      <Suspense fallback={<div className="flex-1 flex flex-col items-center justify-center p-12 bg-slate-950"><div className="w-12 h-12 border-4 border-slate-800 border-t-emerald-500 rounded-full animate-spin mb-4"></div><p className="text-slate-400 font-bold">{lang === "ar" ? "جاري التحميل..." : "Loading..."}</p></div>}>
       <main
         className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6"
         id="primary-view-container"
@@ -4502,6 +4502,7 @@ export default function App() {
           </div>
         </div>
       </main>
+      </Suspense>
 
       {/* Dynamic Coin selection and search Management Modal Dialog */}
       <AnimatePresence>
