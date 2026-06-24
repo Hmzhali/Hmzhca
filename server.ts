@@ -1977,6 +1977,16 @@ Communication Guidelines:
 
       if (!balanceResponse.ok) {
         const errorData = await balanceResponse.json().catch(() => ({}));
+        // If API key is valid but lacks Futures permissions or IP whitelisting
+        if (errorData.code === -2015 || errorData.msg?.includes("Invalid API-key, IP, or permissions for action")) {
+           return res.json({
+             success: true,
+             usdtBalance: 0,
+             positions: [],
+             openOrders: [],
+             warning: 'API Key lacks Futures permissions or IP whitelisting is required. Please enable Futures trading.'
+           });
+        }
         throw new Error(errorData.msg || `Binance Futures API balance query failed with HTTP status ${balanceResponse.status}`);
       }
       

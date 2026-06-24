@@ -440,8 +440,25 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (user && userData?.orders) {
+      setOrders(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(userData.orders)) {
+          return userData.orders;
+        }
+        return prev;
+      });
+    }
+  }, [user, userData?.orders]);
+
+  useEffect(() => {
     localStorage.setItem("almoharif_manual_orders", JSON.stringify(orders));
-  }, [orders]);
+    
+    if (user && !loading) {
+      updateDoc(doc(db, "users", user.uid), {
+        orders: orders
+      }).catch(err => console.warn("Failed to sync orders", err));
+    }
+  }, [orders, user, loading]);
 
   // Active Automated Bots list (defaults to empty [] to prevent fake spammy startup bots)
   const [activeBots, setActiveBots] = useState<TradingBot[]>(() => {
@@ -450,8 +467,25 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (user && userData?.activeBots) {
+      setActiveBots(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(userData.activeBots)) {
+          return userData.activeBots;
+        }
+        return prev;
+      });
+    }
+  }, [user, userData?.activeBots]);
+
+  useEffect(() => {
     localStorage.setItem("almoharif_active_bots", JSON.stringify(activeBots));
-  }, [activeBots]);
+
+    if (user && !loading) {
+      updateDoc(doc(db, "users", user.uid), {
+        activeBots: activeBots
+      }).catch(err => console.warn("Failed to sync bots", err));
+    }
+  }, [activeBots, user, loading]);
 
   // Wallet Portfolio Balances
   const [portfolio, setPortfolio] = useState(() => {
@@ -475,8 +509,26 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (user && userData?.portfolio) {
+      setPortfolio(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(userData.portfolio)) {
+          return userData.portfolio;
+        }
+        return prev;
+      });
+    }
+  }, [user, userData?.portfolio]);
+
+  useEffect(() => {
     localStorage.setItem("almoharif_portfolio", JSON.stringify(portfolio));
-  }, [portfolio]);
+    
+    // Cloud Sync: Save portfolio to Firestore
+    if (user && !loading) {
+      updateDoc(doc(db, "users", user.uid), {
+        portfolio: portfolio
+      }).catch(err => console.warn("Failed to sync portfolio", err));
+    }
+  }, [portfolio, user, loading]);
 
   const handleFuturesUpdatePortfolio = useCallback((incUsdt: number, incBtc: number) => {
     setTimeout(() => {
@@ -561,6 +613,20 @@ export default function App() {
 
   useEffect(() => {
     if (loading) return;
+    
+    // Cloud Sync: If the user is logged in, try fetching their config from userData
+    if (user && userData?.apiConnection) {
+      setApiConnection(prev => {
+        // Only update if it's actually different to avoid infinite loops
+        if (JSON.stringify(prev) !== JSON.stringify(userData.apiConnection)) {
+          return userData.apiConnection;
+        }
+        return prev;
+      });
+      setIsApiConnectionLoaded(true);
+      return;
+    }
+
     const key = `almoharif_api_connection_${user?.uid || "guest"}`;
     const saved = localStorage.getItem(key) || localStorage.getItem("almoharif_api_connection");
     if (saved) {
@@ -591,7 +657,7 @@ export default function App() {
       });
     }
     setIsApiConnectionLoaded(true);
-  }, [user, loading]);
+  }, [user, loading, userData?.apiConnection]);
 
   // State to track manual live balance synchronization
   const [isSyncingBalances, setIsSyncingBalances] = useState<boolean>(false);
@@ -616,7 +682,14 @@ export default function App() {
     if (!isApiConnectionLoaded) return;
     const key = `almoharif_api_connection_${user?.uid || "guest"}`;
     localStorage.setItem(key, JSON.stringify(apiConnection));
-  }, [apiConnection, user, isApiConnectionLoaded]);
+    
+    // Cloud Sync: Save API connection to Firestore
+    if (user && !loading) {
+      updateDoc(doc(db, "users", user.uid), {
+        apiConnection: apiConnection
+      }).catch(err => console.warn("Failed to sync api connection", err));
+    }
+  }, [apiConnection, user, isApiConnectionLoaded, loading]);
 
   // Toast notifications active storage
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
