@@ -302,7 +302,16 @@ export default function SecurityManager({
         })
       });
 
-      const resData = await response.json();
+      let resData;
+      try {
+        resData = await response.json();
+      } catch (parseError: any) {
+        if (parseError.message.includes("Unexpected token '<'") || parseError.message.includes("is not valid JSON")) {
+          throw new Error(lang === 'ar' ? 'الخادم الداخلي لا يستجيب ببيانات JSON صالحة. هل تحاول الاتصال من التطبيق في بيئة خاصة؟ تأكد من مشاركة التطبيق للعامة لكي يعمل خادم API.' : 'Server responded with HTML instead of JSON. Ensure the backend is publicly accessible if you are testing via Native App.');
+        }
+        throw parseError;
+      }
+      
       if (response.ok && resData.success) {
         setDiagnosticData(resData);
       } else {

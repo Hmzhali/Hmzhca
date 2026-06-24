@@ -6,6 +6,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
@@ -69,6 +70,9 @@ async function startServer() {
 
   // JSON Body Parser
   app.use(express.json());
+
+  // CORS config for Native App connections
+  app.use(cors({ origin: true, credentials: true }));
 
   // Logging middleware
   app.use((req, res, next) => {
@@ -2365,6 +2369,56 @@ Communication Guidelines:
   });
 
   // Explicitly serve static files from the public folder to guarantee PWA assets
+  app.post('/api/ai/calculate-smart-sl', async (req, res) => {
+    const { symbol, side, entryPrice, currentPrice, klines } = req.body;
+    try {
+      // Basic ATR calculation (simplified)
+      // 14 periods lookback
+      const period = 14;
+      if (!klines || klines.length < period) {
+        return res.json({ slPrice: side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05, reason: 'Not enough data for ATR' });
+      }
+
+      // Calculate true ranges
+      let trSum = 0;
+      for (let i = klines.length - period; i < klines.length; i++) {
+        const h = parseFloat(klines[i][2]);
+        const l = parseFloat(klines[i][3]);
+        const c = parseFloat(klines[i][4]);
+        const prevC = parseFloat(klines[i-1][4]);
+        trSum += Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
+      }
+      const atr = trSum / period;
+      
+      const prompt = `You are a professional crypto trading expert.
+      Calculate an optimal stop-loss (SL) level for a ${side} position.
+      Entry: ${entryPrice}, Current: ${currentPrice}.
+      ATR (14): ${atr.toFixed(4)}.
+      Use ATR to calculate a safe base stop-loss, then adjust it dynamically based on the current market trend.
+      CRITICAL: If the current trend is strong (based on entry vs current price), be patient and hold the position. Only close if the rebound trend has clearly and fully reversed.
+      
+      Output ONLY a valid JSON object:
+      {
+        "slPrice": number,
+        "reason": string
+      }
+      `;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+      
+      res.json(JSON.parse(response.text!));
+    } catch (error) {
+      console.error('Smart SL Calculation Error:', error);
+      res.status(500).json({ slPrice: side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05, reason: 'Calculation failed, default fallback.' });
+    }
+  });
+
   // (manifest.json, sw.js, icons) are always served in both dev and production.
   app.use(express.static(path.join(process.cwd(), 'public')));
 
@@ -2417,56 +2471,6 @@ Communication Guidelines:
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server initiated. Routing port: ${PORT}`);
-  });
-
-  app.post('/api/ai/calculate-smart-sl', async (req, res) => {
-    const { symbol, side, entryPrice, currentPrice, klines } = req.body;
-    try {
-      // Basic ATR calculation (simplified)
-      // 14 periods lookback
-      const period = 14;
-      if (!klines || klines.length < period) {
-        return res.json({ slPrice: side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05, reason: 'Not enough data for ATR' });
-      }
-
-      // Calculate true ranges
-      let trSum = 0;
-      for (let i = klines.length - period; i < klines.length; i++) {
-        const h = parseFloat(klines[i][2]);
-        const l = parseFloat(klines[i][3]);
-        const c = parseFloat(klines[i][4]);
-        const prevC = parseFloat(klines[i-1][4]);
-        trSum += Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
-      }
-      const atr = trSum / period;
-      
-      const prompt = `You are a professional crypto trading expert.
-      Calculate an optimal stop-loss (SL) level for a ${side} position.
-      Entry: ${entryPrice}, Current: ${currentPrice}.
-      ATR (14): ${atr.toFixed(4)}.
-      Use ATR to calculate a safe base stop-loss, then adjust it dynamically based on the current market trend.
-      CRITICAL: If the current trend is strong (based on entry vs current price), be patient and hold the position. Only close if the rebound trend has clearly and fully reversed.
-      
-      Output ONLY a valid JSON object:
-      {
-        "slPrice": number,
-        "reason": string
-      }
-      `;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
-      
-      res.json(JSON.parse(response.text!));
-    } catch (error) {
-      console.error('Smart SL Calculation Error:', error);
-      res.status(500).json({ slPrice: side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05, reason: 'Calculation failed, default fallback.' });
-    }
   });
 }
 
