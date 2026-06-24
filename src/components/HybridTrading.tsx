@@ -32,6 +32,7 @@ interface HybridTradingProps {
   portfolio: { usdt: number; btc: number };
   onUpdatePortfolio: (incrementUsdt: number, incrementBtc: number) => void;
   onTriggerToast: (toast: any) => void;
+  apiConnection?: any;
 }
 
 interface ScannedAsset {
@@ -70,6 +71,7 @@ export default function HybridTrading({
   portfolio,
   onUpdatePortfolio,
   onTriggerToast,
+  apiConnection,
 }: HybridTradingProps) {
   // Autopilot Master Switch
   const [autopilot, setAutopilot] = useState<boolean>(() => {
@@ -311,18 +313,7 @@ export default function HybridTrading({
   }, []);
 
   // API Connection tracking state
-  const [apiConn, setApiConn] = useState<{ apiKey: string; apiSecret: string; useTestnet: boolean; isConnected: boolean } | null>(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("almoharif_api_connection");
-    if (saved) {
-      try {
-        setApiConn(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error reading api keys");
-      }
-    }
-  }, [isLiveTrading]);
+  const apiConn = apiConnection;
 
   // Ref for frequent updates to avoid recreating interval
   const isLiveTradingRef = useRef(isLiveTrading);
@@ -381,8 +372,7 @@ export default function HybridTrading({
 
     if (isLiveTradingRef.current) {
       // Execute REAL Binance Futures order to CLOSE the position (opposite side)
-      const savedConnection = localStorage.getItem("almoharif_api_connection");
-      const connection = savedConnection ? JSON.parse(savedConnection) : { apiKey: "", apiSecret: "" };
+      const connection = apiConn || { apiKey: "", apiSecret: "", useTestnet: false };
 
       if (!connection.apiKey || !connection.apiSecret) {
         console.error("No API keys configured for live close trade");
@@ -745,8 +735,7 @@ export default function HybridTrading({
 
               if (isLiveTradingRef.current) {
                 // Real Trading - Dispatch to Backend
-                const savedConnection = localStorage.getItem("almoharif_api_connection");
-                const connection = savedConnection ? JSON.parse(savedConnection) : { apiKey: "", apiSecret: "" };
+                const connection = apiConn || { apiKey: "", apiSecret: "", useTestnet: false };
 
                 if (!connection.apiKey || !connection.apiSecret) {
                   console.error("No API keys found in localStorage");

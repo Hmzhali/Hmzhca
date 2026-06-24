@@ -543,38 +543,55 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("almoharif_is_aggressive_rebound", String(isAggressiveRebound));
   }, [isAggressiveRebound]);
-  const [apiConnection, setApiConnection] = useState<ApiConnection>(() => {
-    const saved = localStorage.getItem("almoharif_api_connection");
+  const [apiConnection, setApiConnection] = useState<ApiConnection>({
+    exchange: "Binance",
+    apiKey: "",
+    apiSecret: "",
+    ipWhitelisting: false,
+    withdrawalDisabled: true,
+    readOnly: true,
+    tradingEnabled: false,
+    isConnected: false,
+    lastTested: 0,
+    telegramBotToken: "",
+    telegramChatId: "",
+    useTestnet: false,
+  });
+  const [isApiConnectionLoaded, setIsApiConnectionLoaded] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    const key = `almoharif_api_connection_${user?.uid || "guest"}`;
+    const saved = localStorage.getItem(key) || localStorage.getItem("almoharif_api_connection");
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Clear default telegram keys if they match the previous hardcoded defaults
         if (parsed.telegramBotToken === "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms") {
           parsed.telegramBotToken = "";
         }
         if (parsed.telegramChatId === "5450846071") {
           parsed.telegramChatId = "";
         }
-        return parsed;
-      } catch (e) {
-        // ignore JSON parse errors and fallback
-      }
+        setApiConnection(parsed);
+      } catch (e) {}
+    } else {
+      setApiConnection({
+        exchange: "Binance",
+        apiKey: "",
+        apiSecret: "",
+        ipWhitelisting: false,
+        withdrawalDisabled: true,
+        readOnly: true,
+        tradingEnabled: false,
+        isConnected: false,
+        lastTested: 0,
+        telegramBotToken: "",
+        telegramChatId: "",
+        useTestnet: false,
+      });
     }
-    return {
-      exchange: "Binance",
-      apiKey: "",
-      apiSecret: "",
-      ipWhitelisting: false,
-      withdrawalDisabled: true,
-      readOnly: true,
-      tradingEnabled: false,
-      isConnected: false,
-      lastTested: 0,
-      telegramBotToken: "",
-      telegramChatId: "",
-      useTestnet: false,
-    };
-  });
+    setIsApiConnectionLoaded(true);
+  }, [user, loading]);
 
   // State to track manual live balance synchronization
   const [isSyncingBalances, setIsSyncingBalances] = useState<boolean>(false);
@@ -596,11 +613,10 @@ export default function App() {
   } | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(
-      "almoharif_api_connection",
-      JSON.stringify(apiConnection),
-    );
-  }, [apiConnection]);
+    if (!isApiConnectionLoaded) return;
+    const key = `almoharif_api_connection_${user?.uid || "guest"}`;
+    localStorage.setItem(key, JSON.stringify(apiConnection));
+  }, [apiConnection, user, isApiConnectionLoaded]);
 
   // Toast notifications active storage
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
