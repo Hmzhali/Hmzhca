@@ -37,8 +37,8 @@ export default function SecurityManager({
   const [tradingEnabled, setTradingEnabled] = useState<boolean>(connection.tradingEnabled);
   
   // Telegram Integration State
-  const [telegramBotToken, setTelegramBotToken] = useState<string>(connection.telegramBotToken || '7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms');
-  const [telegramChatId, setTelegramChatId] = useState<string>(connection.telegramChatId || '5450846071');
+  const [telegramBotToken, setTelegramBotToken] = useState<string>(connection.telegramBotToken || '');
+  const [telegramChatId, setTelegramChatId] = useState<string>(connection.telegramChatId || '');
   const [telegramTesting, setTelegramTesting] = useState<boolean>(false);
   const [telegramFeedback, setTelegramFeedback] = useState<string | null>(null);
 

@@ -164,7 +164,8 @@ export default function Header({
     { id: 'education', label_ar: 'أكاديمية حمزة 🎓', label_en: 'Education Academy 🎓' },
   ];
 
-  if (userData?.role === 'OWNER' || userData?.email === 'alamryhmzh7@gmail.com') {
+  const isOwner = userData?.role === 'OWNER' || userData?.email === 'alamryhmzh7@gmail.com' || auth.currentUser?.email === 'alamryhmzh7@gmail.com';
+  if (isOwner) {
     tabs.push({ id: 'owner', label_ar: 'إدارة المنصة (المالك) 👑', label_en: 'Owner Admin 👑' });
   }
 

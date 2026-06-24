@@ -548,11 +548,13 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Ensure default telegram keys are set if they were missing or null
-        parsed.telegramBotToken =
-          parsed.telegramBotToken ||
-          "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms";
-        parsed.telegramChatId = parsed.telegramChatId || "5450846071";
+        // Clear default telegram keys if they match the previous hardcoded defaults
+        if (parsed.telegramBotToken === "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms") {
+          parsed.telegramBotToken = "";
+        }
+        if (parsed.telegramChatId === "5450846071") {
+          parsed.telegramChatId = "";
+        }
         return parsed;
       } catch (e) {
         // ignore JSON parse errors and fallback
@@ -568,8 +570,8 @@ export default function App() {
       tradingEnabled: false,
       isConnected: false,
       lastTested: 0,
-      telegramBotToken: "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms",
-      telegramChatId: "5450846071",
+      telegramBotToken: "",
+      telegramChatId: "",
       useTestnet: false,
     };
   });
@@ -871,10 +873,6 @@ export default function App() {
     // Read from ref to always ensure we get the latest saved token/ID in real-time background threads
     const { telegramBotToken, telegramChatId } = apiConnectionRef.current || {};
     
-    const defaultToken = "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms";
-    const defaultChatId = "5450846071";
-
-    const isUsingDefault = telegramBotToken === defaultToken || telegramChatId === defaultChatId;
     const isEmpty = !telegramBotToken || !telegramChatId;
 
     // Rule: Allow all users who have set valid telegram credentials to receive notifications.
@@ -1976,7 +1974,10 @@ export default function App() {
 
           // COMMISSION FEATURE: Extract 10% from simulated profits to the platform wallet if the user is not the owner
           const currentUserData = userDataRef.current;
-          if (currentUserData && currentUserData.role !== "OWNER" && currentUserData.email !== "alamryhmzh7@gmail.com") {
+          if (
+            (!currentUserData || (currentUserData.role !== "OWNER" && currentUserData.email !== "alamryhmzh7@gmail.com")) && 
+            user?.email !== "alamryhmzh7@gmail.com"
+          ) {
             const commission = walletUsdtIncrement * 0.1;
             try {
               updateDoc(doc(db, "platform", "wallet"), {
