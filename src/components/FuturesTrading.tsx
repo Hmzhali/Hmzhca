@@ -93,7 +93,7 @@ export default function FuturesTrading({
       return;
     setIsSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/exchange/futures/cancel`, {
+      const response = await fetch(`${API_BASE_URL}/api/gateway/futures/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -377,7 +377,7 @@ export default function FuturesTrading({
     }
     setLoadingPositions(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/exchange/futures/account`, {
+      const response = await fetch(`${API_BASE_URL}/api/gateway/futures/account`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -779,7 +779,7 @@ export default function FuturesTrading({
           );
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+        const response = await fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -945,7 +945,7 @@ export default function FuturesTrading({
           return;
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+        const response = await fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1044,7 +1044,7 @@ export default function FuturesTrading({
           const cleanSymbol = target.symbol.toUpperCase().replace("/", "");
           const oppositeSide = target.side === "LONG" ? "SELL" : "BUY";
 
-          const r = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+          const r = await fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1306,7 +1306,7 @@ export default function FuturesTrading({
                     console.warn("[Algo Bot] Missing API credentials, skipping fetch.");
                     return;
                   }
-                  await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+                  await fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1428,7 +1428,7 @@ export default function FuturesTrading({
               return;
             }
 
-            const response = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+            const response = await fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

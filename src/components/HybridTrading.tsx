@@ -406,7 +406,7 @@ export default function HybridTrading({
       };
 
       try {
-        const res = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+        const res = await fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -766,7 +766,7 @@ export default function HybridTrading({
                     apiSecret: connection.apiSecret
                 };
 
-                fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+                fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload)

@@ -93,6 +93,7 @@ export const formatPrecision = (qty: number, symbol: string, p: number) => {
 export default function App() {
   const [user, loading] = useAuthState(auth);
   const [userData, setUserData] = useState<any>(null);
+  const [isUserDataLoaded, setIsUserDataLoaded] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [verificationCode, setVerificationCode] = useState<string>("");
   const [verificationId, setVerificationId] = useState<string | null>(null);
@@ -147,6 +148,7 @@ export default function App() {
           if (docRef.exists()) {
             setUserData(docRef.data());
           }
+          setIsUserDataLoaded(true);
         },
         (error) => {
           console.warn("User data snapshot error:", error);
@@ -155,6 +157,7 @@ export default function App() {
       return () => unsub();
     } else {
       setUserData(null);
+      setIsUserDataLoaded(true);
     }
   }, [user]);
 
@@ -454,12 +457,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("almoharif_manual_orders", JSON.stringify(orders));
     
-    if (user && !loading) {
+    if (user && !loading && isUserDataLoaded) {
       updateDoc(doc(db, "users", user.uid), {
         orders: orders
       }).catch(err => console.warn("Failed to sync orders", err));
     }
-  }, [orders, user, loading]);
+  }, [orders, user, loading, isUserDataLoaded]);
 
   // Active Automated Bots list (defaults to empty [] to prevent fake spammy startup bots)
   const [activeBots, setActiveBots] = useState<TradingBot[]>(() => {
@@ -481,12 +484,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("almoharif_active_bots", JSON.stringify(activeBots));
 
-    if (user && !loading) {
+    if (user && !loading && isUserDataLoaded) {
       updateDoc(doc(db, "users", user.uid), {
         activeBots: activeBots
       }).catch(err => console.warn("Failed to sync bots", err));
     }
-  }, [activeBots, user, loading]);
+  }, [activeBots, user, loading, isUserDataLoaded]);
 
   // Wallet Portfolio Balances
   const [portfolio, setPortfolio] = useState(() => {
@@ -524,12 +527,12 @@ export default function App() {
     localStorage.setItem("almoharif_portfolio", JSON.stringify(portfolio));
     
     // Cloud Sync: Save portfolio to Firestore
-    if (user && !loading) {
+    if (user && !loading && isUserDataLoaded) {
       updateDoc(doc(db, "users", user.uid), {
         portfolio: portfolio
       }).catch(err => console.warn("Failed to sync portfolio", err));
     }
-  }, [portfolio, user, loading]);
+  }, [portfolio, user, loading, isUserDataLoaded]);
 
   const handleFuturesUpdatePortfolio = useCallback((incUsdt: number, incBtc: number) => {
     setTimeout(() => {
@@ -633,12 +636,6 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.telegramBotToken === "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms") {
-          parsed.telegramBotToken = "";
-        }
-        if (parsed.telegramChatId === "5450846071") {
-          parsed.telegramChatId = "";
-        }
         setApiConnection(parsed);
       } catch (e) {}
     } else {
@@ -685,12 +682,12 @@ export default function App() {
     localStorage.setItem(key, JSON.stringify(apiConnection));
     
     // Cloud Sync: Save API connection to Firestore
-    if (user && !loading) {
+    if (user && !loading && isUserDataLoaded) {
       updateDoc(doc(db, "users", user.uid), {
         apiConnection: apiConnection
       }).catch(err => console.warn("Failed to sync api connection", err));
     }
-  }, [apiConnection, user, isApiConnectionLoaded, loading]);
+  }, [apiConnection, user, isApiConnectionLoaded, loading, isUserDataLoaded]);
 
   // Toast notifications active storage
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
@@ -1381,7 +1378,7 @@ export default function App() {
         const stringified = JSON.stringify(symbolList);
 
         // Try local server-side proxy (bypasses browser CORS completely)
-        const proxyResponse = await fetch(`${API_BASE_URL}/api/exchange/prices?symbols=${encodeURIComponent(stringified)}`,
+        const proxyResponse = await fetch(`${API_BASE_URL}/api/gateway/prices?symbols=${encodeURIComponent(stringified)}`,
         );
         if (proxyResponse.ok) {
           const contentType = proxyResponse.headers.get("content-type") || "";
@@ -1610,7 +1607,7 @@ export default function App() {
       setBalanceSyncError(null);
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/api/exchange/test`, {
+      const response = await fetch(`${API_BASE_URL}/api/gateway/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1906,7 +1903,7 @@ export default function App() {
         const testAmount = formatPrecision(computedAmount, resolvedSymbol, liveCoinPrice);
 
         try {
-          const binResponse = await fetch(`${API_BASE_URL}/api/exchange/execute`, {
+          const binResponse = await fetch(`${API_BASE_URL}/api/gateway/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2194,7 +2191,7 @@ export default function App() {
         apiConnection.apiSecret
       ) {
         try {
-          const response = await fetch(`${API_BASE_URL}/api/exchange/execute`, {
+          const response = await fetch(`${API_BASE_URL}/api/gateway/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2746,7 +2743,7 @@ export default function App() {
           apiConnection.apiSecret
         ) {
           // 2. Call the backend proxy endpoint to cancel all open orders in Binance
-          const response = await fetch(`${API_BASE_URL}/api/exchange/cancel-all`, {
+          const response = await fetch(`${API_BASE_URL}/api/gateway/cancel-all`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2901,7 +2898,7 @@ export default function App() {
     // Place the order!
     try {
       if (isLiveTrading && apiConnection.isConnected && apiConnection.apiKey) {
-        const response = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
+        const response = await fetch(`${API_BASE_URL}/api/gateway/futures/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

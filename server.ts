@@ -207,7 +207,7 @@ app.post('/api/log', express.json(), (req, res) => {
   });
 
   // API Route: Server dynamic outbound egress IP detection
-  app.get('/api/exchange/outbound-ip', async (req, res) => {
+  app.get('/api/gateway/outbound-ip', async (req, res) => {
     try {
       const response = await fetch('https://api.ipify.org?format=json');
       if (response.ok) {
@@ -236,8 +236,8 @@ app.post('/api/log', express.json(), (req, res) => {
   const PRICE_CACHE_TTL_MS = 3000;
 
   // New endpoint to aggregate real-time prices directly from Binance REST API (24h tickers)
-  app.get('/api/exchange/prices', async (req, res) => {
-    console.log('[DEBUG] /api/exchange/prices hit');
+  app.get('/api/gateway/prices', async (req, res) => {
+    console.log('[DEBUG] /api/gateway/prices hit');
     try {
       let symbolsArray = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT"];
       const symbolsQuery = req.query.symbols;
@@ -343,7 +343,7 @@ app.post('/api/log', express.json(), (req, res) => {
   });
 
   // New endpoint to fetch live candlestick chart histories for charts
-  app.get('/api/exchange/klines', async (req, res) => {
+  app.get('/api/gateway/klines', async (req, res) => {
     try {
       const { symbol, interval = '1D', limit = '100' } = req.query;
       if (!symbol) {
@@ -408,7 +408,7 @@ app.post('/api/log', express.json(), (req, res) => {
   });
 
   // New endpoint to fetch live order book levels
-  app.get('/api/exchange/depth', async (req, res) => {
+  app.get('/api/gateway/depth', async (req, res) => {
     try {
       const { symbol, limit = '8' } = req.query;
       if (!symbol) {
@@ -1363,7 +1363,7 @@ Communication Guidelines:
   }
 
   // API Route: Securely fetch all Spot or Futures open orders via the getOpenOrders helper
-  app.post('/api/exchange/open-orders', async (req, res) => {
+  app.post('/api/gateway/open-orders', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet, isFutures } = req.body;
       if (!apiKey || !apiSecret) {
@@ -1383,7 +1383,7 @@ Communication Guidelines:
   });
 
   // API Route: Secure Binance connection validation via HMAC-SHA256 signing
-  app.post('/api/exchange/test', async (req, res) => {
+  app.post('/api/gateway/test', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet } = req.body;
       if (!apiKey || !apiSecret) {
@@ -1413,7 +1413,7 @@ Communication Guidelines:
       const testContentType = fetchResponse.headers.get("content-type") || "";
       if (!testContentType.includes("application/json")) {
         const text = await fetchResponse.text().catch(() => "");
-        console.error("[/api/exchange/test] Non-JSON payload response received:", text);
+        console.error("[/api/gateway/test] Non-JSON payload response received:", text);
         res.status(502).json({
           success: false,
           error: `Binance authentication server returned an HTML/non-JSON error response (HTTP ${fetchResponse.status}). Environment or IP restrictions might be blocking communication. Response snippet: ${text.slice(0, 100)}`
@@ -1479,7 +1479,7 @@ Communication Guidelines:
   });
 
   // API Route: Smart API Credentials Deep Diagnostic Analyzer
-  app.post('/api/exchange/diagnose', async (req, res) => {
+  app.post('/api/gateway/diagnose', async (req, res) => {
     try {
       const { apiKey, apiSecret } = req.body;
       if (!apiKey || !apiSecret) {
@@ -1622,7 +1622,7 @@ Communication Guidelines:
   });
 
   // Secure API Route: Fetch live Binance balance and filter holds
-  app.post('/api/exchange/balance', async (req, res) => {
+  app.post('/api/gateway/balance', async (req, res) => {
     try {
       const { apiKey, secretKey, apiSecret, useTestnet } = req.body;
       const finalApiKey = apiKey;
@@ -1656,7 +1656,7 @@ Communication Guidelines:
       const balanceContentType = response.headers.get("content-type") || "";
       if (!balanceContentType.includes("application/json")) {
         const text = await response.text().catch(() => "");
-        console.error("[/api/exchange/balance] Non-JSON payload response received:", text);
+        console.error("[/api/gateway/balance] Non-JSON payload response received:", text);
         res.status(502).json({
           error: `بينانس أرسلت رداً غير متوقع (صفحة HTML) بدلاً من بيانات JSON (HTTP ${response.status}). يرجى التحقق من قيود الإقليم، تفعيل الفيوتشرز، أو تطابق الشبكة. مقتطف: ${text.slice(0, 100)}`
         });
@@ -1699,7 +1699,7 @@ Communication Guidelines:
   });
 
   // API Route: Secure Binance Order Placement Proxy
-  app.post('/api/exchange/execute', async (req, res) => {
+  app.post('/api/gateway/execute', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, isFutures } = req.body;
       if (!apiKey || !apiSecret || !symbol || !side || !type || !amount) {
@@ -1761,7 +1761,7 @@ Communication Guidelines:
   });
 
   // API Route: Secure Binance Emergency Kill Switch (Cancel All Pending Orders)
-  app.post('/api/exchange/cancel-all', async (req, res) => {
+  app.post('/api/gateway/cancel-all', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet } = req.body;
       if (!apiKey || !apiSecret) {
@@ -1820,7 +1820,7 @@ Communication Guidelines:
   });
 
   // API Route: Secure Binance historical order book aggregator
-  app.post('/api/exchange/order-history', async (req, res) => {
+  app.post('/api/gateway/order-history', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet, limit = 100 } = req.body;
       if (!apiKey || !apiSecret) {
@@ -1903,7 +1903,9 @@ Communication Guidelines:
   // API Route: Secure Telegram message transmission route
   app.post('/api/telegram/send', async (req, res) => {
     try {
-      const { botToken, chatId, message } = req.body;
+      const botToken = req.body.botToken || req.body.token;
+      const chatId = req.body.chatId || req.body.chat_id;
+      const message = req.body.message || req.body.text;
       if (!botToken || !chatId || !message) {
         res.status(400).json({ success: false, error: 'Telegram credentials and message are required.' });
         return;
@@ -1933,7 +1935,7 @@ Communication Guidelines:
   });
 
   // API Route: Secure Binance Futures account details (Balance & Open Position risk)
-  app.post('/api/exchange/futures/account', async (req, res) => {
+  app.post('/api/gateway/futures/account', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet } = req.body;
       if (!apiKey || !apiSecret) {
@@ -2099,7 +2101,7 @@ Communication Guidelines:
   });
 
   // API Route: Cancel a SPECIFIC open order on Binance Spot
-  app.post('/api/exchange/cancel-order', async (req, res) => {
+  app.post('/api/gateway/cancel-order', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet, symbol, orderId } = req.body;
       if (!apiKey || !apiSecret || !symbol || !orderId) {
@@ -2152,7 +2154,7 @@ Communication Guidelines:
   });
 
   // API Route: Cancel a SPECIFIC open order on Binance Futures
-  app.post('/api/exchange/futures/cancel', async (req, res) => {
+  app.post('/api/gateway/futures/cancel', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet, symbol, orderId } = req.body;
       if (!apiKey || !apiSecret || !symbol || !orderId) {
@@ -2205,7 +2207,7 @@ Communication Guidelines:
   });
 
   // API Route: Secure Binance Futures Order Dispatch Proxy (updates marginType + leverage first, then places order)
-  app.post('/api/exchange/futures/execute', async (req, res) => {
+  app.post('/api/gateway/futures/execute', async (req, res) => {
     try {
       const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, leverage, marginType } = req.body;
       console.log('--- Incoming order request (raw body) ---', req.body);
