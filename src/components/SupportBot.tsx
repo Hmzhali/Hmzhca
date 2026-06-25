@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Bot, User, HelpCircle } from 'lucide-react';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, setDoc, doc } from 'firebase/firestore';
@@ -54,7 +55,7 @@ export default function SupportBot({ lang, userId, owner }: { lang: 'ar'|'en', u
 
     try {
       // Fetch AI response
-      const res = await fetch('/api/gemini/support', {
+      const res = await fetch(`${API_BASE_URL}/api/gemini/support`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: userMsg, lang })

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 import React, { useEffect, useState } from 'react';
 import { History, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 
@@ -22,7 +23,7 @@ export default function BotTradesHistory({ lang }: BotTradesHistoryProps) {
   const [botEnabled, setBotEnabled] = useState(true);
 
   useEffect(() => {
-    fetch('/api/health')
+    fetch(`${API_BASE_URL}/api/health`)
       .then(r => r.text())
       .then(text => {
         if (text.startsWith('<!') || text.includes('Rate exceeded')) return;
@@ -37,7 +38,7 @@ export default function BotTradesHistory({ lang }: BotTradesHistoryProps) {
   useEffect(() => {
     const fetchTrades = async () => {
       try {
-        const response = await fetch('/api/bot/trades');
+        const response = await fetch(`${API_BASE_URL}/api/bot/trades`);
         if (!response.ok) return;
         const text = await response.text();
         if (text.startsWith('<!') || text.includes('Rate exceeded')) return;
@@ -58,7 +59,7 @@ export default function BotTradesHistory({ lang }: BotTradesHistoryProps) {
 
   const toggleScalper = async () => {
     try {
-      const resp = await fetch('/api/bot/toggle', { method: 'POST' });
+      const resp = await fetch(`${API_BASE_URL}/api/bot/toggle`, { method: 'POST' });
       if (!resp.ok) return;
       const text = await resp.text();
       if (text.startsWith('<!') || text.includes('Rate exceeded')) return;

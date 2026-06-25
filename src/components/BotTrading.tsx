@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -312,7 +313,7 @@ export default function BotTrading({
   const [botEnabled, setBotEnabled] = useState(true);
   const toggleScalper = async () => {
     try {
-      const resp = await fetch('/api/bot/toggle', { method: 'POST' });
+      const resp = await fetch(`${API_BASE_URL}/api/bot/toggle`, { method: 'POST' });
       const text = await resp.text();
       if (text.startsWith('<!') || text.includes('Rate exceeded')) return;
       const data = JSON.parse(text);
@@ -323,7 +324,7 @@ export default function BotTrading({
   };
   
   useEffect(() => {
-    fetch('/api/health')
+    fetch(`${API_BASE_URL}/api/health`)
       .then(r => r.text())
       .then(text => {
         if (text.startsWith('<!') || text.includes('Rate exceeded')) return;

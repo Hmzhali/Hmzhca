@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -526,7 +527,7 @@ export default function WhaleTracker({ lang, pairs, onWhaleSignal }: WhaleTracke
     setAiLoading(true);
     try {
       // Standard fetch call to the server endpoint we'll define or extend
-      const response = await fetch('/api/gemini/whale-analysis', {
+      const response = await fetch(`${API_BASE_URL}/api/gemini/whale-analysis`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -405,7 +406,7 @@ export default function HybridTrading({
       };
 
       try {
-        const res = await fetch(`${window.location.origin}/api/binance/futures/execute`, {
+        const res = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -765,7 +766,7 @@ export default function HybridTrading({
                     apiSecret: connection.apiSecret
                 };
 
-                fetch(`${window.location.origin}/api/binance/futures/execute`, {
+                fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(payload)
@@ -975,7 +976,7 @@ export default function HybridTrading({
 قدم تقريراً مالياً صارماً مع توعية إدارة المخاطر وتنبيه السحب الآمن، وبيّن ما إذا كان يجب الدخول في صفقة شراء أم بيع مع تحديد مستويات جني الأرباح (TP) ووقف الخسارة (SL) الملائمة ماليًا لحماية رأس المال.`;
 
     try {
-      const response = await fetch("/api/gemini/analysis", {
+      const response = await fetch(`${API_BASE_URL}/api/gemini/analysis`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: queryPrompt, lang }),

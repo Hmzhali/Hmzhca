@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -47,7 +48,7 @@ export default function MarketSentimentIndicator({ lang, activePair }: MarketSen
     const loadAISentiment = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/gemini/sentiment', {
+        const response = await fetch(`${API_BASE_URL}/api/gemini/sentiment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ symbol: activePair.symbol, lang }),

@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -58,7 +59,7 @@ export default function SecurityManager({
   const fetchOutboundIp = async () => {
     setLoadingIp(true);
     try {
-      const res = await fetch('/api/binance/outbound-ip');
+      const res = await fetch(`${API_BASE_URL}/api/exchange/outbound-ip`);
       if (res.ok) {
         const body = await res.json();
         if (body.success) {
@@ -118,7 +119,7 @@ export default function SecurityManager({
     }
 
     try {
-      const response = await fetch('/api/binance/test', {
+      const response = await fetch(`${API_BASE_URL}/api/exchange/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey, apiSecret, useTestnet }),
@@ -201,9 +202,11 @@ export default function SecurityManager({
         lastTested: Date.now(),
       });
       setFeedback(
-        lang === 'ar'
-          ? `❌ فشل الاتصال بالشبكة لحفظ مفاتيح التداول ومحاولة الربط. يرجى مراجعة إعدادات الاتصال بالإنترنت والمحاولة مجدداً.`
-          : `❌ Network connection failed while trying to link API. Please verify internet access and try again.`
+        err.message === 'Failed to fetch'
+          ? (lang === 'ar' ? '❌ خطأ في الاتصال (Failed to fetch). قد يكون السبب: 1. إضافة مانع إعلانات (AdBlocker) تحظر الطلب، 2. الخادم قيد إعادة التشغيل، 3. انقطاع الإنترنت. يرجى تعطيل مانع الإعلانات والمحاولة مرة أخرى.' : '❌ Failed to fetch. This may be caused by an AdBlocker blocking the request, the server restarting, or a network drop. Please disable AdBlockers and try again.')
+          : (lang === 'ar'
+            ? `❌ فشل الاتصال بالشبكة لحفظ مفاتيح التداول ومحاولة الربط. يرجى مراجعة إعدادات الاتصال بالإنترنت والمحاولة مجدداً. (${err.message})`
+            : `❌ Network connection failed while trying to link API. Please verify internet access and try again. (${err.message})`)
       );
     }
   };
@@ -293,7 +296,7 @@ export default function SecurityManager({
     setDiagnosticData(null);
 
     try {
-      const response = await fetch('/api/binance/diagnose', {
+      const response = await fetch(`${API_BASE_URL}/api/exchange/diagnose`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -319,7 +322,10 @@ export default function SecurityManager({
         setDiagnosticData(resData); // preserve error JSON body for full thorough inspection
       }
     } catch (err: any) {
-      setDiagnosticError(err.message || 'Fatal network crash or CORS policy blocking the fetch connection.');
+      setDiagnosticError(err.message === 'Failed to fetch' 
+        ? (lang === 'ar' ? 'خطأ في الاتصال (Failed to fetch). قد يكون السبب: 1. إضافة مانع إعلانات (AdBlocker) تحظر الطلب، 2. الخادم قيد إعادة التشغيل، 3. انقطاع الإنترنت. يرجى تعطيل مانع الإعلانات والمحاولة مرة أخرى.' : 'Failed to fetch. This may be caused by an AdBlocker blocking the request, the server restarting, or a network drop. Please disable AdBlockers and try again.')
+        : err.message || 'Fatal network crash or CORS policy blocking the fetch connection.'
+      );
     } finally {
       setDiagnosing(false);
     }
@@ -1058,8 +1064,8 @@ export default function SecurityManager({
               </span>
               <p className="text-[10px] text-slate-400 leading-normal">
                 {lang === 'ar'
-                  ? 'يقوم هذا الإجراء باستدعاء مسار (/api/binance/balance) بالصيغة التامة وعرض مصفوفة الأرصدة الخام وسجل تتبع الاستجابة.'
-                  : 'Triggers request to /api/binance/balance using your current configured parameters and renders payload.'}
+                  ? 'يقوم هذا الإجراء باستدعاء مسار (/api/exchange/balance) بالصيغة التامة وعرض مصفوفة الأرصدة الخام وسجل تتبع الاستجابة.'
+                  : 'Triggers request to /api/exchange/balance using your current configured parameters and renders payload.'}
               </p>
             </div>
             <button

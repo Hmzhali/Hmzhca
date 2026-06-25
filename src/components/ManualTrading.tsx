@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -47,10 +48,10 @@ export default function ManualTrading({
   const [useAiStopLoss, setUseAiStopLoss] = useState(false);
   const calculateSmartSL = React.useCallback(async () => {
     try {
-      const klineResp = await fetch(`/api/binance/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
+      const klineResp = await fetch(`${API_BASE_URL}/api/exchange/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
       const klines = await klineResp.json();
       
-      const response = await fetch('/api/ai/calculate-smart-sl', {
+      const response = await fetch(`${API_BASE_URL}/api/ai/calculate-smart-sl`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -101,7 +102,7 @@ export default function ManualTrading({
       setIsLiveBookLoading(true);
       try {
         const querySymbol = activePair.symbol;
-        const response = await fetch(`/api/binance/depth?symbol=${encodeURIComponent(querySymbol)}&limit=8`);
+        const response = await fetch(`${API_BASE_URL}/api/exchange/depth?symbol=${encodeURIComponent(querySymbol)}&limit=8`);
         if (!response.ok) {
           throw new Error('Local fallback cascade.');
         }

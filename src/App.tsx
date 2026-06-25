@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.5
@@ -1039,7 +1040,7 @@ export default function App() {
     const finalMessage = `${title}\n\n${body}\n\n${asciiChart}\n\n🤖 <i>إشعار آلي آمن ومباشر من خدمة الأمان لـ المحترف Al-Moharif</i>`;
 
     try {
-      const res = await fetch(`/api/telegram/send`, {
+      const res = await fetch(`${API_BASE_URL}/api/telegram/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1169,7 +1170,7 @@ export default function App() {
         
         let aiAnalysis = "";
         try {
-            const resp = await fetch('/api/gemini/alert-analysis', {
+            const resp = await fetch(`${API_BASE_URL}/api/gemini/alert-analysis`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -1269,7 +1270,7 @@ export default function App() {
           playAlertChime();
 
           // Fetch highly structured AI explanatory analysis from server-side secure Gemini proxy
-          fetch("/api/gemini/volatility-analysis", {
+          fetch(`${API_BASE_URL}/api/gemini/volatility-analysis`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1380,8 +1381,7 @@ export default function App() {
         const stringified = JSON.stringify(symbolList);
 
         // Try local server-side proxy (bypasses browser CORS completely)
-        const proxyResponse = await fetch(
-          `/api/binance/prices?symbols=${encodeURIComponent(stringified)}`,
+        const proxyResponse = await fetch(`${API_BASE_URL}/api/exchange/prices?symbols=${encodeURIComponent(stringified)}`,
         );
         if (proxyResponse.ok) {
           const contentType = proxyResponse.headers.get("content-type") || "";
@@ -1610,7 +1610,7 @@ export default function App() {
       setBalanceSyncError(null);
     }
     try {
-      const response = await fetch("/api/binance/test", {
+      const response = await fetch(`${API_BASE_URL}/api/exchange/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1906,7 +1906,7 @@ export default function App() {
         const testAmount = formatPrecision(computedAmount, resolvedSymbol, liveCoinPrice);
 
         try {
-          const binResponse = await fetch("/api/binance/execute", {
+          const binResponse = await fetch(`${API_BASE_URL}/api/exchange/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2194,7 +2194,7 @@ export default function App() {
         apiConnection.apiSecret
       ) {
         try {
-          const response = await fetch("/api/binance/execute", {
+          const response = await fetch(`${API_BASE_URL}/api/exchange/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2746,7 +2746,7 @@ export default function App() {
           apiConnection.apiSecret
         ) {
           // 2. Call the backend proxy endpoint to cancel all open orders in Binance
-          const response = await fetch("/api/binance/cancel-all", {
+          const response = await fetch(`${API_BASE_URL}/api/exchange/cancel-all`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2901,7 +2901,7 @@ export default function App() {
     // Place the order!
     try {
       if (isLiveTrading && apiConnection.isConnected && apiConnection.apiKey) {
-        const response = await fetch("/api/binance/futures/execute", {
+        const response = await fetch(`${API_BASE_URL}/api/exchange/futures/execute`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

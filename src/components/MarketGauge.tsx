@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.5
@@ -22,7 +23,7 @@ export default function MarketGauge({ lang, activePair }: MarketGaugeProps) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/gemini/sentiment', {
+      const response = await fetch(`${API_BASE_URL}/api/gemini/sentiment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: activePair.symbol, lang }),

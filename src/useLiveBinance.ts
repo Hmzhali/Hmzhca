@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "./config";
 import { useState, useEffect } from 'react';
 
 export interface LiveCoin {
@@ -23,7 +24,7 @@ export function useLiveBinance(pairs: { symbol: string; [key: string]: any }[] =
 
     const fetchPrices = async () => {
       try {
-        const response = await fetch(`/api/binance/prices?symbols=${encodeURIComponent(symbolsJson)}`);
+        const response = await fetch(`${API_BASE_URL}/api/exchange/prices?symbols=${encodeURIComponent(symbolsJson)}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }

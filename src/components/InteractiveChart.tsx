@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -38,7 +39,7 @@ export default function InteractiveChart({ lang, activePair }: InteractiveChartP
       setIsLoadingCandles(true);
       try {
         const querySymbol = activePair.symbol;
-        const response = await fetch(`/api/binance/klines?symbol=${encodeURIComponent(querySymbol)}&interval=${interval}&limit=${days}`);
+        const response = await fetch(`${API_BASE_URL}/api/exchange/klines?symbol=${encodeURIComponent(querySymbol)}&interval=${interval}&limit=${days}`);
         if (!response.ok) {
           throw new Error('Local fallback cascade.');
         }

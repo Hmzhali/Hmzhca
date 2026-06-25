@@ -1,3 +1,4 @@
+import { API_BASE_URL } from "../config";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -110,7 +111,7 @@ export default function AIAnalyst({ lang, activeBots = [], allPairs = [] }: AIAn
 
     try {
       // Stream or POST request to backend server proxy
-      const response = await fetch('/api/gemini/analysis', {
+      const response = await fetch(`${API_BASE_URL}/api/gemini/analysis`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
