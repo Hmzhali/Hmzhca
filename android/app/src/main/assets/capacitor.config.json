@@ -4,6 +4,8 @@
 	"webDir": "www",
 	"bundledWebRuntime": false,
 	"server": {
+		"url": "https://ais-pre-u7un6hh2e475uaiehqhwxn-395727155540.europe-west2.run.app",
+		"cleartext": true,
 		"androidScheme": "https"
 	},
 	"plugins": {
