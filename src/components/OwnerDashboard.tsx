@@ -91,11 +91,15 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
       (err) => console.warn("unresQ error:", err),
     );
 
-    const usersQ = query(collection(db, "users"), limit(100));
+    const usersQ = query(
+      collection(db, "users"),
+      limit(1000)
+    );
     const unsubUsers = onSnapshot(
       usersQ,
       (snap) => {
         const fetched = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        fetched.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
         setUsersList(fetched);
       },
       (err) => console.warn("usersQ error:", err),
@@ -144,7 +148,7 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
         "permissions.canAccess": !currentStatus,
       });
     } catch (err) {
-      console.error("Failed to toggle user access:", err);
+      console.warn("Failed to toggle user access:", err);
     }
   };
 
@@ -154,7 +158,7 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
         "permissions.canTrade": !currentStatus,
       });
     } catch (err) {
-      console.error("Failed to toggle user trading:", err);
+      console.warn("Failed to toggle user trading:", err);
     }
   };
 
@@ -177,7 +181,7 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
           : "Update notification broadcasted to all users successfully!",
       );
     } catch (err) {
-      console.error(err);
+      console.warn(err);
       alert("Failed to publish update notification.");
     }
   };
@@ -337,19 +341,30 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
 
                           <button
                             onClick={async () => {
-                              if (confirm(lang === 'ar' ? "هل أنت متأكد من حذف هذا المستخدم؟" : "Are you sure you want to delete this user?")) {
+                              if (confirm(lang === 'ar' ? "هل أنت متأكد من تصفير حساب هذا المستخدم؟ (سيفقد جميع أمواله وصفقاته)" : "Are you sure you want to reset this user's account?")) {
                                 try {
-                                  await deleteDoc(doc(db, "users", usr.id));
+                                  await updateDoc(doc(db, "users", usr.id), {
+                                    portfolio: {
+                                      usdt: 15000,
+                                      futuresUsdt: 0,
+                                      btc: 0,
+                                      eth: 0,
+                                      sol: 0,
+                                      bnb: 0,
+                                    },
+                                    orders: [],
+                                    activeBots: []
+                                  });
                                 } catch (err) {
-                                  console.error("Failed to delete user:", err);
-                                  alert(lang === 'ar' ? "فشل حذف المستخدم" : "Failed to delete user");
+                                  console.warn("Failed to reset user:", err);
+                                  alert(lang === 'ar' ? "فشل تصفير الحساب" : "Failed to reset account");
                                 }
                               }
                             }}
-                            className="flex items-center gap-1 px-2 py-1 rounded border bg-red-950/30 border-red-900/50 text-red-400 hover:bg-red-900/50 transition"
-                            title={lang === "ar" ? "حذف المستخدم" : "Delete User"}
+                            className="flex items-center gap-1 px-2 py-1 rounded border bg-amber-950/30 border-amber-900/50 text-amber-400 hover:bg-amber-900/50 transition"
+                            title={lang === "ar" ? "تصفير الحساب" : "Reset Account"}
                           >
-                             {lang === 'ar' ? "حذف" : "Delete"}
+                             {lang === 'ar' ? "تصفير" : "Reset"}
                           </button>
                         </div>
                       )}

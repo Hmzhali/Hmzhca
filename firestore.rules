@@ -19,8 +19,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isPlatformOwner();
-      allow create: if isSignedIn();
-      allow update: if isOwner(userId) || isPlatformOwner();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isPlatformOwner() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions']));
       allow delete: if isPlatformOwner();
     }
 
@@ -55,11 +55,11 @@ service cloud.firestore {
     }
 
     match /settings/{docId} {
-      allow read, write: if true;
+      allow read, write: if isOwner(docId) || isPlatformOwner();
     }
 
     match /trades/{tradeId} {
-      allow read, write: if true;
+      allow read, write: if isSignedIn();
     }
   }
 }

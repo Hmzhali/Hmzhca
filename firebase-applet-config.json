@@ -1,10 +1,10 @@
 {
   "projectId": "hmzh-karbeto",
-  "appId": "1:84252961:web:d6ee999efe1ab3c4fb0660",
+  "appId": "1:84252961:web:4772b03d83c38b42fb0660",
   "apiKey": "AIzaSyCboKqO_V4fPWGYPi6f7qfMd8CDGMmsep0",
   "authDomain": "hmzh-karbeto.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
+  "firestoreDatabaseId": "ai-studio-remixcryptotradi-42f6bf37-038a-4b9d-b18c-88e8a2938e58",
   "storageBucket": "hmzh-karbeto.firebasestorage.app",
   "messagingSenderId": "84252961",
-  "measurementId": "G-7JMWVD8KW6"
+  "measurementId": ""
 }
