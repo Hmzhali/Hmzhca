@@ -185,26 +185,6 @@ app.post('/api/log', express.json(), (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), botEnabled });
   });
 
-  // API to proxy telegram message
-  app.post('/api/telegram/send', async (req, res) => {
-    try {
-      const { token, chat_id, text, parse_mode } = req.body;
-      if (!token || !chat_id || !text) {
-        res.status(400).json({ error: 'Missing parameters' });
-        return;
-      }
-      const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id, text, parse_mode })
-      });
-      const data = await response.json();
-      res.status(response.status).json(data);
-    } catch (err: any) {
-      console.error('[Telegram Proxy] Error:', err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
 
   // API Route: Server dynamic outbound egress IP detection
   app.get('/api/gateway/outbound-ip', async (req, res) => {
