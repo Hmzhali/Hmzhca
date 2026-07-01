@@ -1,0 +1,22 @@
+187:  const handleDismissToast = useCallback((id: string) => {
+231:  const handleAcknowledgeUpdate = (reset: boolean) => {
+295:  const handleAddPair = (symbol: string) => {
+405:  const handleFuturesUpdatePortfolio = useCallback((incUsdt: number, incBtc: number) => {
+414:  const handleAIUpdatePortfolio = useCallback((incUsdt: number, incAsset: number, assetName?: string) => {
+432:  const handleAIReboundCapture = useCallback(() => {
+506:  const handleSetFuturesApiError = useCallback((err: string | null) => {
+536:  const handleClearNotificationsHistory = () => {
+584:  const handleAddCustomCoin = async (tokenSymbol: string) => {
+724:  const handleRemoveCoin = (idxToRemove: number) => {
+904:  const handleTriggerToast = useCallback((toast: ToastNotification) => {
+1127:  const handleAddPriceAlert = (
+1144:  const handleDeletePriceAlert = (id: string) => {
+1919:  const handleAddNewOrder = async (
+2162:  const handleCreateBot = (newBotData: any) => {
+2220:  const handleDeleteBot = (id: string) => {
+2240:  const handleToggleBotStatus = (id: string) => {
+2254:  const handleResumeAllBots = () => {
+2268:  const handleUpdateBotConfig = (id: string, updatedConfig: any) => {
+2395:  const handleEmergencyKillSwitch = () => {
+2430:  const handleWhaleSignal = async (signal: {
+2876:    const handleAuthSubmit = async (e: React.FormEvent) => {
