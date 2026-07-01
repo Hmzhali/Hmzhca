@@ -38,7 +38,7 @@ export default function InteractiveChart({ lang, activePair }: InteractiveChartP
       setIsLoadingCandles(true);
       try {
         const querySymbol = activePair.symbol;
-        const response = await fetch(`/api/binance/klines?symbol=${encodeURIComponent(querySymbol)}&interval=${interval}&limit=${days}`);
+        const response = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(querySymbol)}&interval=${interval}&limit=${days}`);
         if (!response.ok) {
           throw new Error('Local fallback cascade.');
         }

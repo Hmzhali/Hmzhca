@@ -101,7 +101,7 @@ export default function HamzaLiveMarkets({ lang, pairs = [], onAddPair }: HamzaL
 
       {/* Top Opportunities Module */}
       {showTopOpportunities && (
-        <TopOpportunities lang={lang} livePrices={livePricesMap} />
+        <TopOpportunities lang={lang} livePrices={livePricesMap} pairs={pairs} />
       )}
 
       {isLoading ? (

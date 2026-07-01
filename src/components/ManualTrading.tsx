@@ -47,7 +47,7 @@ export default function ManualTrading({
   const [useAiStopLoss, setUseAiStopLoss] = useState(false);
   const calculateSmartSL = React.useCallback(async () => {
     try {
-      const klineResp = await fetch(`/api/binance/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
+      const klineResp = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
       const klines = await klineResp.json();
       
       const response = await fetch('/api/ai/calculate-smart-sl', {
@@ -101,7 +101,7 @@ export default function ManualTrading({
       setIsLiveBookLoading(true);
       try {
         const querySymbol = activePair.symbol;
-        const response = await fetch(`/api/binance/depth?symbol=${encodeURIComponent(querySymbol)}&limit=8`);
+        const response = await fetch(`/api/gateway/depth?symbol=${encodeURIComponent(querySymbol)}&limit=8`);
         if (!response.ok) {
           throw new Error('Local fallback cascade.');
         }

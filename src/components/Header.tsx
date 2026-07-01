@@ -150,19 +150,15 @@ export default function Header({
 
   const tabs = [
     { id: 'dashboard', label_ar: 'أسواق حمزة الحية 🚀', label_en: 'Hamza Live Markets 🚀' },
-    { id: 'market', label_ar: d.manualTrading, label_en: 'Manual Trade' },
-    { id: 'futures', label_ar: 'العقود الآجلة 📈', label_en: 'Futures Trading 📈' },
-    { id: 'binance-ai', label_ar: 'مساعد بينانس الفني 🤖', label_en: 'Binance AI Copilot 🤖' },
-    { id: 'hybrid', label_ar: 'التداول الهجين ⚡', label_en: 'Hybrid Algo Trade ⚡' },
-    { id: 'bots', label_ar: d.botTrading, label_en: 'Automated Bots' },
-    { id: 'whales', label_ar: 'رادار الحيتان 🐋', label_en: 'Whale Radar 🐋' },
+    { id: 'spot', label_ar: 'التداول الفوري ⚡', label_en: 'Spot Trading ⚡' },
+        { id: 'futures', label_ar: 'العقود الآجلة 📈', label_en: 'Futures Trading 📈' },
+                { id: 'whales', label_ar: 'رادار الحيتان 🐋', label_en: 'Whale Radar 🐋' },
     { id: 'backtest', label_ar: d.backtesting, label_en: 'Backtesting' },
     { id: 'history', label_ar: 'سجل الطلبات 📜', label_en: 'Order History 📜' },
     { id: 'notifications', label_ar: 'مركز التنبيهات 🔔', label_en: 'Alert Center 🔔' },
     { id: 'security', label_ar: d.apiSecurity, label_en: 'API Security' },
     { id: 'ai', label_ar: d.aiAdvisor, label_en: 'AI Advisor' },
-    { id: 'education', label_ar: 'أكاديمية حمزة 🎓', label_en: 'Education Academy 🎓' },
-  ];
+      ];
 
   if (userData?.role === 'OWNER' || userData?.email === 'alamryhmzh7@gmail.com') {
     tabs.push({ id: 'owner', label_ar: 'إدارة المنصة (المالك) 👑', label_en: 'Owner Admin 👑' });

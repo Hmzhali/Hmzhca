@@ -23,7 +23,7 @@ export function useLiveBinance(pairs: { symbol: string; [key: string]: any }[] =
 
     const fetchPrices = async () => {
       try {
-        const response = await fetch(`/api/binance/prices?symbols=${encodeURIComponent(symbolsJson)}`);
+        const response = await fetch(`/api/gateway/prices?symbols=${encodeURIComponent(symbolsJson)}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -62,12 +62,14 @@ export function useLiveBinance(pairs: { symbol: string; [key: string]: any }[] =
           .map((sym) => sym.replace('/', '').toLowerCase() + '@ticker')
           .join('/');
 
-        ws = new WebSocket(`wss://stream.binance.com:9443/ws/${streamNames}`);
+        ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streamNames}`);
 
         ws.onmessage = (event) => {
           if (!isMounted) return;
           try {
-            const rawData = JSON.parse(event.data);
+            const parsedEvent = JSON.parse(event.data);
+            const rawData = parsedEvent.data || parsedEvent;
+            
             if (rawData && rawData.s) {
               const wsSymbol = rawData.s; // 'BTCUSDT'
               

@@ -58,7 +58,7 @@ export default function SecurityManager({
   const fetchOutboundIp = async () => {
     setLoadingIp(true);
     try {
-      const res = await fetch('/api/binance/outbound-ip');
+      const res = await fetch('/api/gateway/outbound-ip');
       if (res.ok) {
         const body = await res.json();
         if (body.success) {
@@ -118,7 +118,7 @@ export default function SecurityManager({
     }
 
     try {
-      const response = await fetch('/api/binance/test', {
+      const response = await fetch('/api/gateway/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey, apiSecret, useTestnet }),
@@ -293,7 +293,7 @@ export default function SecurityManager({
     setDiagnosticData(null);
 
     try {
-      const response = await fetch('/api/binance/diagnose', {
+      const response = await fetch('/api/gateway/diagnose', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1049,8 +1049,8 @@ export default function SecurityManager({
               </span>
               <p className="text-[10px] text-slate-400 leading-normal">
                 {lang === 'ar'
-                  ? 'يقوم هذا الإجراء باستدعاء مسار (/api/binance/balance) بالصيغة التامة وعرض مصفوفة الأرصدة الخام وسجل تتبع الاستجابة.'
-                  : 'Triggers request to /api/binance/balance using your current configured parameters and renders payload.'}
+                  ? 'يقوم هذا الإجراء باستدعاء مسار (/api/gateway/balance) بالصيغة التامة وعرض مصفوفة الأرصدة الخام وسجل تتبع الاستجابة.'
+                  : 'Triggers request to /api/gateway/balance using your current configured parameters and renders payload.'}
               </p>
             </div>
             <button

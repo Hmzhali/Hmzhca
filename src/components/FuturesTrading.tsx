@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import ActivePositionsList from "./ActivePositionsList";
 import { MarketPair, ApiConnection, FuturesPosition } from "../types";
+import { evaluateTradeDecision, EngineInputs } from "../engine";
 
 interface FuturesTradingProps {
   lang: "ar" | "en";
@@ -92,7 +93,7 @@ export default function FuturesTrading({
       return;
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/binance/futures/cancel", {
+      const response = await fetch("/api/gateway/futures/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -376,7 +377,7 @@ export default function FuturesTrading({
     }
     setLoadingPositions(true);
     try {
-      const response = await fetch("/api/binance/futures/account", {
+      const response = await fetch("/api/gateway/futures/account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -778,7 +779,7 @@ export default function FuturesTrading({
           );
         }
 
-        const response = await fetch("/api/binance/futures/execute", {
+        const response = await fetch("/api/gateway/futures/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -944,7 +945,7 @@ export default function FuturesTrading({
           return;
         }
 
-        const response = await fetch("/api/binance/futures/execute", {
+        const response = await fetch("/api/gateway/futures/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1043,7 +1044,7 @@ export default function FuturesTrading({
           const cleanSymbol = target.symbol.toUpperCase().replace("/", "");
           const oppositeSide = target.side === "LONG" ? "SELL" : "BUY";
 
-          const r = await fetch("/api/binance/futures/execute", {
+          const r = await fetch("/api/gateway/futures/execute", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1159,61 +1160,39 @@ export default function FuturesTrading({
                 ? allPairs[Math.floor(Math.random() * allPairs.length)]
                 : activePair;
 
-            const tradeSide =
-              algoSide === "NEUTRAL"
-                ? Math.random() > 0.5
-                  ? "LONG"
-                  : "SHORT"
-                : algoSide;
+            const inputs: EngineInputs = {
+              symbol: targetPair.symbol,
+              currentPrice: targetPair.currentPrice,
+              hist5m: [], // We don't have historical data here, fallback to RSI
+              hist15m: [],
+              volume24h: targetPair.volume24h || 0,
+              change24h: targetPair.change24h || 0,
+              rsi: targetPair.rsi,
+              sentimentScore: targetPair.sentimentScore,
+            };
 
-            // 1. PREVENT BAD DOT-LIKE WATERFALLS (مصفاة الحماية من صفقات الانهيار كـ DOT)
-            const symbolUpper = targetPair.symbol.toUpperCase();
-            const changeVal = targetPair.change24h || 0;
-            const rsiVal = targetPair.rsi || 50;
+            const decision = evaluateTradeDecision(inputs);
 
-            if (tradeSide === "LONG") {
-              if (changeVal < -7 && rsiVal < 30) {
-                if (changeVal < -12 || symbolUpper.includes("DOT")) {
-                  if (onTriggerToast) {
-                    onTriggerToast({
-                      id: `algo-avoid-${targetPair.symbol}-${Date.now()}`,
-                      symbol: targetPair.symbol,
-                      timestamp: Date.now(),
-                      isVolatilityWarning: true,
-                      aiExplanationAr: `🚨 **[الحماية من خطأ DOT]:** تم حظر صفقة شراء لزوج **${targetPair.symbol}**. السبب: هبوط مستمر (${changeVal.toFixed(1)}%) و RSI منخفض جداً (${rsiVal.toFixed(0)}) يشير لشلال سقوط حر. يتجنب البوت الشراء المبكر بناءً على تجربة DOT السابقة لحماية أرصدتكم البديلة.`,
-                      aiExplanationEn: `🚨 **[DOT Prevention Link]:** Blocked automated LONG on ${targetPair.symbol} due to a massive bleeding dump (${changeVal.toFixed(1)}%) with low RSI (${rsiVal.toFixed(0)}). Avoided a falling knife following user feedback.`,
-                    });
-                  }
-                  return updatedPrev; // Skip trade!
-                }
-              }
-              if (changeVal < -15) {
-                return updatedPrev; // Skip waterfall
-              }
-            } else {
-              // Prevent dangerous short squeezes
-              if (changeVal > 12 && rsiVal > 75) {
-                return updatedPrev; // Skip trade!
-              }
+            // Filter out non-actionable decisions or low scores based on threshold
+            if (decision.score < 75 || decision.action === 'HOLD') {
+              return updatedPrev; // Skip trade!
             }
 
-            // 2. BOOST LEVERAGE TO 50x FOR SOLID TRADES (إذا الصفقة قوية ارفعها 50)
-            let isHighlyStrongTrade = false;
-            if (tradeSide === "LONG" && rsiVal >= 30 && rsiVal <= 45 && changeVal >= -4 && changeVal <= 3) {
-              isHighlyStrongTrade = true;
+            // Enforce manual algo side if it's explicitly set and doesn't match AI recommendation
+            if (algoSide !== "NEUTRAL" && ((algoSide === "LONG" && decision.action === "SELL") || (algoSide === "SHORT" && decision.action === "BUY"))) {
+              return updatedPrev; // Skip if user strictly wants a specific side and AI disagrees
             }
-            if (tradeSide === "SHORT" && rsiVal >= 58 && rsiVal <= 72 && changeVal >= -3 && changeVal <= 5) {
-              isHighlyStrongTrade = true;
-            }
+            
+            const tradeSide = decision.action === "BUY" ? "LONG" : "SHORT";
 
             let currentLev = smartRiskPilot
               ? Math.max(2, Math.floor(algoLeverage / 2))
               : algoLeverage;
 
-            if (isHighlyStrongTrade) {
-              currentLev = 50; // Dynamic 50x for extremely solid indicators!
+            if (decision.score >= 85) {
+              currentLev = Math.min(50, algoLeverage * 2); // Boost leverage up to 50x for strong/exceptional trades
             }
-
+            
             const investAmt = parseFloat(algoInvestment);
 
             const maxUsableUsdt = portfolio?.usdt || 0;
@@ -1305,7 +1284,7 @@ export default function FuturesTrading({
                     console.warn("[Algo Bot] Missing API credentials, skipping fetch.");
                     return;
                   }
-                  await fetch("/api/binance/futures/execute", {
+                  await fetch("/api/gateway/futures/execute", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1338,59 +1317,35 @@ export default function FuturesTrading({
                 ? allPairs[Math.floor(Math.random() * allPairs.length)]
                 : activePair;
 
-            let tradeSide =
-              algoSide === "NEUTRAL"
-                ? Math.random() > 0.5
-                  ? "LONG"
-                  : "SHORT"
-                : algoSide;
+            const inputs: EngineInputs = {
+              symbol: targetPair.symbol,
+              currentPrice: targetPair.currentPrice,
+              hist5m: [],
+              hist15m: [],
+              volume24h: targetPair.volume24h || 0,
+              change24h: targetPair.change24h || 0,
+              rsi: targetPair.rsi,
+              sentimentScore: targetPair.sentimentScore,
+            };
 
-            // 1. PREVENT BAD DOT-LIKE WATERFALLS (مصفاة الحماية من صفقات الانهيار كـ DOT)
-            const symbolUpper = targetPair.symbol.toUpperCase();
-            const changeVal = targetPair.change24h || 0;
-            const rsiVal = targetPair.rsi || 50;
+            const decision = evaluateTradeDecision(inputs);
 
-            if (tradeSide === "LONG") {
-              if (changeVal < -7 && rsiVal < 30) {
-                if (changeVal < -12 || symbolUpper.includes("DOT")) {
-                  if (onTriggerToast) {
-                    onTriggerToast({
-                      id: `algo-avoid-live-${targetPair.symbol}-${Date.now()}`,
-                      symbol: targetPair.symbol,
-                      timestamp: Date.now(),
-                      isVolatilityWarning: true,
-                      aiExplanationAr: `🚨 **[درع حماية العقود الآجلة - تلافي خطأ DOT الحقيقي]:** تم استباق وحظر فتح صفقة حقيقية على منصة بينانس لزوج **${targetPair.symbol}**. السبب: تراجع متواصل حاد (${changeVal.toFixed(1)}%) ومؤشر RSI متدني (${rsiVal.toFixed(0)}) مما ينذر بانهيار مماثل لتجربتك في DOT وسيقوم البوت بانتظار تصحيح كلي وعفوي.`,
-                      aiExplanationEn: `🚨 **[Live DOT Safe-Shield]:** System proactively blocked open order on real binance for ${targetPair.symbol} due to severe bleeding values (${changeVal.toFixed(1)}%) in alignment with DOT-Mistake learning protocols.`,
-                    });
-                  }
-                  return; // Skip trade entry!
-                }
-              }
-              if (changeVal < -15) {
-                return; // Skip waterfall
-              }
-            } else {
-              // Avoid short squeeze
-              if (changeVal > 12 && rsiVal > 75) {
-                return; // Skip trade!
-              }
+            if (decision.score < 75 || decision.action === 'HOLD') {
+              return; // Skip trade!
             }
 
-            // 2. LEVERAGE BOOST TO 50x FOR SOLID TRADES (إذا الصفقة قوية ارفعها 50)
-            let isHighlyStrongTrade = false;
-            if (tradeSide === "LONG" && rsiVal >= 30 && rsiVal <= 45 && changeVal >= -4 && changeVal <= 3) {
-              isHighlyStrongTrade = true;
+            if (algoSide !== "NEUTRAL" && ((algoSide === "LONG" && decision.action === "SELL") || (algoSide === "SHORT" && decision.action === "BUY"))) {
+              return; 
             }
-            if (tradeSide === "SHORT" && rsiVal >= 58 && rsiVal <= 72 && changeVal >= -3 && changeVal <= 5) {
-              isHighlyStrongTrade = true;
-            }
+            
+            const tradeSide = decision.action === "BUY" ? "LONG" : "SHORT";
 
             let currentLev = smartRiskPilot
               ? Math.max(2, Math.floor(algoLeverage / 2))
               : algoLeverage;
 
-            if (isHighlyStrongTrade) {
-              currentLev = 50; // Dynamic 50x for extremely solid indicators!
+            if (decision.score >= 85) {
+              currentLev = Math.min(50, algoLeverage * 2); 
             }
 
             const investAmt = parseFloat(algoInvestment);
@@ -1427,7 +1382,7 @@ export default function FuturesTrading({
               return;
             }
 
-            const response = await fetch("/api/binance/futures/execute", {
+            const response = await fetch("/api/gateway/futures/execute", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({

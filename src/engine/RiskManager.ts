@@ -1,0 +1,30 @@
+export function evaluateRisk(
+  price: number,
+  direction: 'BUY' | 'SELL',
+  volatility: number = 2 // standard 2%
+): { passed: boolean, tp: number, sl: number, rr: number } {
+  
+  let stopLossRef = price;
+  let takeProfitRef = price;
+  let rr = 0;
+
+  if (direction === 'BUY') {
+    stopLossRef = price * (1 - (volatility / 100)); 
+    takeProfitRef = price * (1 + ((volatility * 2) / 100)); // TP = 2 * SL risk
+    rr = ((takeProfitRef - price) / price) / ((price - stopLossRef) / price);
+  } else {
+    stopLossRef = price * (1 + (volatility / 100));
+    takeProfitRef = price * (1 - ((volatility * 2) / 100));
+    rr = ((price - takeProfitRef) / price) / ((stopLossRef - price) / price);
+  }
+
+  // Target RR is 2.0 minimum
+  const passed = rr >= 1.5;
+
+  return {
+    passed,
+    tp: takeProfitRef,
+    sl: stopLossRef,
+    rr
+  };
+}

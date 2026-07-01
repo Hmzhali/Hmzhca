@@ -224,7 +224,7 @@ export default function OrderHistory({ lang, connection, isLiveTrading, localOrd
     // Fetch spot open orders concurrently/safely if live trading is set up
     if (isLiveTrading && connection.isConnected && connection.apiKey && connection.apiSecret) {
       try {
-        const testResp = await fetch('/api/binance/test', {
+        const testResp = await fetch('/api/gateway/test', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -247,7 +247,7 @@ export default function OrderHistory({ lang, connection, isLiveTrading, localOrd
     if (isLiveTrading && connection.isConnected && connection.apiKey && connection.apiSecret) {
       setLoading(true);
       try {
-        const response = await fetch('/api/binance/order-history', {
+        const response = await fetch('/api/gateway/order-history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -312,7 +312,7 @@ export default function OrderHistory({ lang, connection, isLiveTrading, localOrd
     if (!isLiveTrading || !connection.isConnected || !connection.apiKey) return;
     setCancellingOrderId(orderId);
     try {
-      const response = await fetch('/api/binance/cancel-order', {
+      const response = await fetch('/api/gateway/cancel-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -355,7 +355,7 @@ export default function OrderHistory({ lang, connection, isLiveTrading, localOrd
     
     try {
       for (const order of liveOpenOrders) {
-        const response = await fetch('/api/binance/cancel-order', {
+        const response = await fetch('/api/gateway/cancel-order', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

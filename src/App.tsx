@@ -17,14 +17,13 @@ import {
 import { INITIAL_PAIRS, ARABIC_DICT } from "./utils/marketData";
 import Header from "./components/Header";
 import InteractiveChart from "./components/InteractiveChart";
-import ManualTrading from "./components/ManualTrading";
-import BotTrading from "./components/BotTrading";
+import { evaluateTradeDecision, EngineInputs, recordTrade, TradeRecord } from "./engine";
+import SpotTrading from "./components/SpotTrading";
 import Backtester from "./components/Backtester";
 import SecurityManager from "./components/SecurityManager";
 import AIAnalyst from "./components/AIAnalyst";
 import OwnerDashboard from "./components/OwnerDashboard";
 import ToastList from "./components/ToastList";
-import HybridTrading from "./components/HybridTrading";
 import MarketGauge from "./components/MarketGauge";
 import PriceAlertManager from "./components/PriceAlertManager";
 import MarketSentimentIndicator from "./components/MarketSentimentIndicator";
@@ -32,10 +31,8 @@ import OrderHistory from "./components/OrderHistory";
 import PortfolioOverview from "./components/PortfolioOverview";
 
 import FuturesTrading from "./components/FuturesTrading";
-import BinanceAIManager from "./components/BinanceAIManager";
 import WhaleTracker from "./components/WhaleTracker";
 import HamzaLiveMarkets from "./components/HamzaLiveMarkets";
-import EducationHub from "./components/EducationHub";
 
 import NotificationCenter from "./components/NotificationCenter";
 import {
@@ -1273,7 +1270,7 @@ export default function App() {
 
         // Try local server-side proxy (bypasses browser CORS completely)
         const proxyResponse = await fetch(
-          `/api/binance/prices?symbols=${encodeURIComponent(stringified)}`,
+          `/api/gateway/prices?symbols=${encodeURIComponent(stringified)}`,
         );
         if (proxyResponse.ok) {
           const contentType = proxyResponse.headers.get("content-type") || "";
@@ -1364,11 +1361,11 @@ export default function App() {
       if (pairs.length === 0) return;
 
       try {
-        // Multi-symbol ticker socket stream
+        // Multi-symbol ticker socket stream (Combined Streams)
         const streams = pairs
           .map((p) => p.symbol.toLowerCase().replace("/", "") + "@ticker")
           .join("/");
-        ws = new WebSocket(`wss://stream.binance.com:9443/ws/${streams}`);
+        ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
 
         ws.onopen = () => {
           console.log(
@@ -1379,7 +1376,9 @@ export default function App() {
         ws.onmessage = (event) => {
           if (!isMounted) return;
           try {
-            const rawData = JSON.parse(event.data);
+            const parsedEvent = JSON.parse(event.data);
+            const rawData = parsedEvent.data || parsedEvent;
+            
             if (rawData && rawData.s) {
               const wsSymbol = rawData.s; // e.g., 'BTCUSDT'
               setPairs((prevPairs) =>
@@ -1446,35 +1445,7 @@ export default function App() {
     };
   }, [serializedSymbols]);
 
-  // Dynamic Market Ticker Fluctuations (Simulate live order book changes in-between server fetches)
-  useEffect(() => {
-    const t = setInterval(() => {
-      setPairs((prevPairs) =>
-        prevPairs.map((pair) => {
-          // Micro price moves (-0.05% to +0.05%)
-          const direction = Math.random() > 0.45 ? 1 : -1;
-          const fluctuationPercent = Math.random() * 0.0004;
-          const delta = pair.currentPrice * fluctuationPercent * direction;
-          const updatedPrice = parseFloat(
-            (pair.currentPrice + delta).toFixed(2),
-          );
-
-          // Compute new 24h limits
-          const high = Math.max(pair.high24h, updatedPrice);
-          const low = Math.min(pair.low24h, updatedPrice);
-
-          return {
-            ...pair,
-            currentPrice: updatedPrice,
-            high24h: parseFloat(high.toFixed(2)),
-            low24h: parseFloat(low.toFixed(2)),
-          };
-        }),
-      );
-    }, 3000);
-
-    return () => clearInterval(t);
-  }, []);
+  // Fake price fluctuations removed because we now have reliable websocket data
 
   const langRef = useRef<"ar" | "en">(lang);
   useEffect(() => {
@@ -1502,7 +1473,7 @@ export default function App() {
       setBalanceSyncError(null);
     }
     try {
-      const response = await fetch("/api/binance/test", {
+      const response = await fetch("/api/gateway/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1723,7 +1694,6 @@ export default function App() {
     ) => {
       const currentLang = langRef.current;
       
-      // Dynamic Asset Resolver: Target the absolute best market asset based on real-time market signals (highest confidence score)
       const availableOpportunities = getLiveScannerOpportunities();
       const topOpportunity = availableOpportunities[0] || { symbol: "BTC/USDT", pairObj: (pairs.length > 0 ? pairs[0] : INITIAL_PAIRS[0]), confidenceScore: 80 };
       
@@ -1732,52 +1702,26 @@ export default function App() {
       let botTradeAmount = bot.minTradeAmount !== undefined ? bot.minTradeAmount : 0.5;
       botTradeAmount = Math.max(0.5, botTradeAmount);
 
-      let chosenSide: "BUY" | "SELL" = Math.random() > 0.5 ? "BUY" : "SELL";
-      let aiExplanationEn = `🤖 [AI SIGNAL TARGETED] Simulated bot analyzed all active pairs and targeted ${resolvedSymbol} (Confidence: ${topOpportunity.confidenceScore}%) for standard spot arbitrage optimization.`;
-      let aiExplanationAr = `🤖 [تم رصد إشارة قوية بالذكاء] قام البوت بمسح كافة أزواج السوق واستهداف عملة ${resolvedSymbol} (بمستوى ثقة ${topOpportunity.confidenceScore}%) لتنفيذ صفقة تداول وموازنة تلقائية فنية.`;
+      const inputs: EngineInputs = {
+          symbol: resolvedSymbol,
+          currentPrice: targetPairObj.currentPrice,
+          hist5m: [],
+          hist15m: [],
+          volume24h: targetPairObj.volume24h,
+          change24h: targetPairObj.change24h,
+          rsi: targetPairObj.rsi || 50,
+          sentimentScore: targetPairObj.sentimentScore || 50,
+          whaleActivity: Math.random() * 100 
+      };
+      
+      const decision = evaluateTradeDecision(inputs);
+      
+      // If the unified engine rejects it or score is too low, bots can't force trades
+      if (decision.action === 'HOLD' || decision.score < 70) return; 
 
-      // Active Rebound Detection Strategy
-      if (bot.reboundFocusEnabled !== false) {
-        const timeframes = bot.reboundTimeframes && bot.reboundTimeframes.length > 0
-          ? bot.reboundTimeframes
-          : ["15m", "30m", "1h"];
-        
-        // Isolate one timeframe to mock analyzing
-        const chosenTf = timeframes[Math.floor(Math.random() * timeframes.length)];
-        const reboundSide = Math.random() > 0.5 ? "BUY" : "SELL";
-        chosenSide = reboundSide;
-
-        const simulatedPrcChange = (1.5 + Math.random() * 3.5).toFixed(2);
-        const simRsi = reboundSide === "BUY" ? (18 + Math.random() * 11).toFixed(1) : (71 + Math.random() * 19).toFixed(1);
-
-        if (reboundSide === "BUY") {
-          aiExplanationEn = `⏱️ [REBOUND ON ${chosenTf}] ${resolvedSymbol} fell sharply by -${simulatedPrcChange}% (RSI at ${simRsi}). Executed bottom rebound BUY of $${botTradeAmount} USDT. Expected duration: ~5-10 candles.`;
-          aiExplanationAr = `⏱️ [تم رصد ارتداد على فريم ${chosenTf}] انخفضت عملة ${resolvedSymbol} بشكل حاد بنسبة -${simulatedPrcChange}% (مؤشر القوة ${simRsi}). تم تنفيذ صفقة شراء ارتدادية عند القاع بقيمة ${botTradeAmount} USDT. المدة المتوقعة: ~5-10 شمعة.`;
-        } else {
-          aiExplanationEn = `⏱️ [REBOUND ON ${chosenTf}] ${resolvedSymbol} spiked by +${simulatedPrcChange}% (RSI at ${simRsi}). Executed overbought pullback SELL of $${botTradeAmount} USDT. Expected duration: ~5-10 candles.`;
-          aiExplanationAr = `⏱️ [تم رصد ارتداد على فريم ${chosenTf}] ارتفعت عملة ${resolvedSymbol} بقوة بنسبة +${simulatedPrcChange}% (مؤشر القوة ${simRsi}). تم تنفيذ صفقة بيع ارتدادية وجني الأرباح بقيمة ${botTradeAmount} USDT. المدة المتوقعة: ~5-10 شمعة.`;
-        }
-      } else if (bot.type === "RSI") {
-        const config = bot.config as any;
-        const oversold = config.oversoldThreshold || 30;
-        const overbought = config.overboughtThreshold || 70;
-
-        // Simulate a reactive RSI value hitting the user's defined extremes
-        const isOversold = Math.random() > 0.5;
-        const simulatedRsi = isOversold
-          ? oversold - Math.random() * 15 // Drops below threshold
-          : overbought + Math.random() * 15; // Rises above threshold
-
-        if (simulatedRsi <= oversold) {
-          chosenSide = "BUY";
-          aiExplanationEn = `RSI Oscillator for ${resolvedSymbol} hit ${simulatedRsi.toFixed(1)} (Below Oversold Threshold of ${oversold}). Executing algorithmic BUY.`;
-          aiExplanationAr = `تراجع مؤشر القوة النسبية (RSI) لعملة ${resolvedSymbol} إلى ${simulatedRsi.toFixed(1)} (أسفل حد الشراء ${oversold}). جاري تنفيذ الشراء التلقائي.`;
-        } else {
-          chosenSide = "SELL";
-          aiExplanationEn = `RSI Oscillator for ${resolvedSymbol} hit ${simulatedRsi.toFixed(1)} (Above Overbought Threshold of ${overbought}). Executing algorithmic SELL.`;
-          aiExplanationAr = `ارتفع مؤشر القوة النسبية (RSI) لعملة ${resolvedSymbol} إلى ${simulatedRsi.toFixed(1)} (أعلى من حد البيع ${overbought}). جاري تنفيذ البيع التلقائي لجني الأرباح.`;
-        }
-      }
+      let chosenSide: "BUY" | "SELL" = decision.action;
+      let aiExplanationEn = `🤖 [DECISION ENGINE] Score: ${decision.score}%. ${decision.aiCommentaryEn}`;
+      let aiExplanationAr = `🤖 [محرك القرار] التقييم: ${decision.score}%. ${decision.aiCommentaryAr}`;
 
       // Bypass Gemini sentiment analysis to make bots aggressive and fast
       // (User explicitly requested raw execution over AI analysis)
@@ -1798,7 +1742,7 @@ export default function App() {
         const testAmount = formatPrecision(computedAmount, resolvedSymbol, liveCoinPrice);
 
         try {
-          const binResponse = await fetch("/api/binance/execute", {
+          const binResponse = await fetch("/api/gateway/execute", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2083,7 +2027,7 @@ export default function App() {
         apiConnection.apiSecret
       ) {
         try {
-          const response = await fetch("/api/binance/execute", {
+          const response = await fetch("/api/gateway/execute", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2330,6 +2274,15 @@ export default function App() {
       };
       setQuickScalpScannerLog((prev) => [shieldLog, ...prev]);
     }
+
+    // Record trade in Self Learning system
+    recordTrade({
+      symbol: order.symbol,
+      reasons: ["Triggered by Quick Scalp/Shield", exitReason || "UNKNOWN"],
+      factors: { "pricePeak": savedPeak, "exitPrice": currentPrice, "entryPrice": order.price },
+      result: isProfit ? "PROFIT" : "LOSS",
+      pnlPercentage: ((currentPrice - order.price) / order.price) * 100 * (order.side === "BUY" ? 1 : -1)
+    });
 
     handleTriggerToast({
       id: `quick-scalp-shield-toast-${Date.now()}-${Math.random()}`,
@@ -2635,7 +2588,7 @@ export default function App() {
           apiConnection.apiSecret
         ) {
           // 2. Call the backend proxy endpoint to cancel all open orders in Binance
-          const response = await fetch("/api/binance/cancel-all", {
+          const response = await fetch("/api/gateway/cancel-all", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2790,7 +2743,7 @@ export default function App() {
     // Place the order!
     try {
       if (isLiveTrading && apiConnection.isConnected && apiConnection.apiKey) {
-        const response = await fetch("/api/binance/futures/execute", {
+        const response = await fetch("/api/gateway/futures/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -3027,132 +2980,122 @@ export default function App() {
         isScanningRef.current = false;
         return;
       }
-
+      
       const logsToBatch: any[] = [];
       
-      // Scan each watchlisted coin for 5-minute and 15-minute rebound starts
       for (const coin of availablePairs) {
         const hist5m = priceHistory5mRef.current[coin.symbol] || [];
         const hist15m = priceHistory15mRef.current[coin.symbol] || [];
-
-        if (hist5m.length < 2) continue;
-
-        // 1. Calculate 5-minute indicators (real-time sliding data)
-        const pCurrent = coin.currentPrice;
-        const prices5m = hist5m.map(h => h.price);
-        const pMin5m = Math.min(...prices5m);
-        const pMax5m = Math.max(...prices5m);
-
-        let change5m = 0;
-        if (hist5m.length > 1) {
-          const pOld = hist5m[0].price;
-          change5m = ((pCurrent - pOld) / pOld) * 100;
-        }
-        const rsi5m = Math.min(Math.max(Math.round(50 + change5m * 10), 10), 90);
-
-        // 2. Calculate 15-minute indicators (longer short-term metrics)
-        let rsi15m = 50;
-        let change15m = 0;
-        if (hist15m.length > 1) {
-          const pOld15m = hist15m[0].price;
-          change15m = ((pCurrent - pOld15m) / pOld15m) * 100;
-          rsi15m = Math.min(Math.max(Math.round(50 + change15m * 6), 15), 85);
-        } else {
-          rsi15m = Math.min(Math.max(Math.round(50 + (coin.change24h * 1)), 20), 80);
-        }
-
-        // Active rebound condition detection (Buy and Sell)
-        const isOversold = rsi5m < 46 || rsi15m < 50 || change5m < -0.15;
-        const reboundStart = pCurrent > pMin5m && ((pCurrent - pMin5m) / pMin5m * 100) >= 0.03;
+        if (hist5m.length < 2 || hist15m.length < 2) continue;
         
-        const isOverbought = rsi5m > 52 || rsi15m > 50 || change5m > 0.1;
-        const peakStart = pCurrent < pMax5m && ((pMax5m - pCurrent) / pMax5m * 100) >= 0.03;
+        const inputs: EngineInputs = {
+          symbol: coin.symbol,
+          currentPrice: coin.currentPrice,
+          hist5m,
+          hist15m,
+          volume24h: coin.volume24h,
+          change24h: coin.change24h,
+          whaleActivity: 50, // Simulated or real if available
+          btcCorrelation: 0.8,
+        };
+
+        const decision = evaluateTradeDecision(inputs);
         
+        // Filter out non-actionable decisions or low scores based on threshold
+        // User requested > 75 for normal, > 85 for strong, > 95 for exceptional.
+        if (decision.score < 75 || decision.action === 'HOLD') continue;
+
         const alreadyTradingThisCoin = ordersRef.current.some(o => o.symbol === coin.symbol && o.status === "FILLED" && !o.isClosedScalped);
+        if (alreadyTradingThisCoin) continue;
 
-        if ((isOversold && reboundStart || isOverbought && peakStart) && !alreadyTradingThisCoin) {
-          const side = isOversold ? "BUY" : "SELL";
-          let lev = manualLeverage;
-          let entryAmountUsdt = quickBuyAmountUsdt;
-          
-          // Ensure minimum notional value of $20 for Binance Futures
-          let notional = entryAmountUsdt * lev;
-          if (notional < 20) {
-            lev = Math.min(20, Math.ceil(20 / entryAmountUsdt));
-            notional = entryAmountUsdt * lev;
-          }
+        let lev = manualLeverage;
+        let entryAmountUsdt = quickBuyAmountUsdt;
+        
+        let notional = entryAmountUsdt * lev;
+        if (notional < 20) {
+          lev = Math.min(20, Math.ceil(20 / entryAmountUsdt));
+          notional = entryAmountUsdt * lev;
+        }
 
-          if (portfolioRef.current.usdt < (isLiveTrading ? 1.1 : 0.5)) {
-            logsToBatch.push({
-              id: `log-${now}-${Math.random()}`,
-              timestamp: now,
-              symbol: coin.symbol,
-              type: "WARNING",
-              msgAr: `⚠️ رصيد غير كافٍ أو مبلغ الصفقة أقل من حد بينانس. الرصيد الحالي $${portfolioRef.current.usdt} USDT. (قد تتطلب بينانس $5-$20 كحد أدنى للعقود الآجلة).`,
-              msgEn: `⚠️ Insufficient balance or trade amount below Binance minimum. Balance: $${portfolioRef.current.usdt} USDT. (Binance might require $5-$20 minimum for futures).`,
-              rsi5m,
-              rsi15m
-            });
-            continue;
-          }
+        if (portfolioRef.current.usdt < (isLiveTrading ? 1.1 : 0.5)) {
+          logsToBatch.push({
+            id: `log-${now}-${Math.random()}`,
+            timestamp: now,
+            symbol: coin.symbol,
+            type: "WARNING",
+            msgAr: `⚠️ رصيد غير كافٍ. الرصيد الحالي $${portfolioRef.current.usdt} USDT.`,
+            msgEn: `⚠️ Insufficient balance. Balance: $${portfolioRef.current.usdt} USDT.`,
+            rsi5m: decision.score,
+            rsi15m: decision.confidence,
+          });
+          continue;
+        }
 
-          const finalQty = formatPrecision(((entryAmountUsdt * lev) / pCurrent), coin.symbol, pCurrent);
-          if (finalQty <= 0) continue;
+        const finalQty = formatPrecision(((entryAmountUsdt * lev) / coin.currentPrice), coin.symbol, coin.currentPrice);
+        if (finalQty <= 0) continue;
 
-          try {
-            await handleAddNewOrder({
-              symbol: coin.symbol,
-              side: side,
-              type: "MARKET",
-              price: pCurrent,
-              amount: finalQty,
-              total: parseFloat((pCurrent * finalQty).toFixed(2)),
-              leverage: lev,
-              originType: "BOT",
-              isQuickBuy: true,
-              isFutures: true,
-            });
+        try {
+          await handleAddNewOrder({
+            symbol: coin.symbol,
+            side: decision.action,
+            type: "MARKET",
+            price: coin.currentPrice,
+            amount: finalQty,
+            total: parseFloat((coin.currentPrice * finalQty).toFixed(2)),
+            leverage: lev,
+            originType: "BOT",
+            isQuickBuy: true,
+            isFutures: true,
+            takeProfit: decision.takeProfitRef,
+            stopLoss: decision.stopLossRef
+          });
 
-            logsToBatch.push({
-              id: `log-${now}-${Math.random()}`,
-              timestamp: now,
-              symbol: coin.symbol,
-              type: "SUCCESS",
-              msgAr: `⚡ [دخل البوت السريع - ${side === "BUY" ? "شراء" : "بيع"}] رصد مستشعر فريم الـ 5 والـ 15 دقيقة ${isOversold ? "ارتداداً من القاع" : "انعكاساً من القمة"} للعملة ${coin.symbol}! تم التنفيذ فورياً (عملية ${side === "BUY" ? "شراء" : "بيع"}).`,
-              msgEn: `⚡ [Quick Bot Entered - ${side}] 5m & 15m scanner identified ${isOversold ? "rebound from bottom" : "reversal from peak"} on ${coin.symbol}! Executed ${side} order instantly.`,
-              rsi5m,
-              rsi15m,
-              price: pCurrent,
-              amount: finalQty,
-              leverage: lev
-            });
+          const label = decision.score >= 95 ? "استثنائية" : decision.score >= 85 ? "قوية" : "عادية";
 
-            handleTriggerToast({
-              id: `quick-scalp-scanner-${now}`,
-              botId: "quick-scalp-rebound-bot",
-              botType: "RSI",
-              symbol: coin.symbol,
-              profit: 0,
-              timestamp: now,
-              isVolatilityWarning: true,
-              aiExplanationAr: `📈 [مستشعر الارتداد السريع 5د / 15د] تم تشغيل البوت ${side === "BUY" ? "للشراء" : "للبيع"} بنجاح لعملة ${coin.symbol}!\n💵 **سعر التنفيذ:** $${pCurrent}\n📊 **RSI (5 دقيقة):** ${rsi5m} | **RSI (15 دقيقة):** ${rsi15m}\n🛡️ **الحماية:** حامي السنت وسحب الأرباح نشطين فورياً!`,
-              aiExplanationEn: `📈 [5m / 15m Rebound Watcher] Automated quick scalp bot triggered ${side === "BUY" ? "BUY" : "SELL"} for ${coin.symbol}!\n💵 **Exec Price:** $${pCurrent}\n📊 **RSI (5m):** ${rsi5m} | **RSI (15m):** ${rsi15m}\n🛡️ **Protection:** 1-Cent Quick Scalp Shield auto-activated!`,
-            });
-          } catch (er: any) {
-            console.warn("Rebound scanner order fail:", er.message);
-          }
+          logsToBatch.push({
+            id: `log-${now}-${Math.random()}`,
+            timestamp: now,
+            symbol: coin.symbol,
+            type: "SUCCESS",
+            msgAr: `⚡ [المحرك الذكي - ${label}] تم تنفيذ ${decision.action === 'BUY' ? 'شراء' : 'بيع'} للعملة ${coin.symbol}! الثقة: ${decision.score}%. السبب: ${decision.reasons.join(', ')}`,
+            msgEn: `⚡ [AI Engine - ${label}] Executed ${decision.action} on ${coin.symbol}! Confidence: ${decision.score}%. Reasons: ${decision.reasons.join(', ')}`,
+            rsi5m: decision.score,
+            rsi15m: decision.confidence,
+            price: coin.currentPrice,
+            amount: finalQty,
+            leverage: lev
+          });
+
+          handleTriggerToast({
+            id: `ai-engine-${now}`,
+            botId: "decision-engine",
+            botType: "RSI",
+            symbol: coin.symbol,
+            profit: 0,
+            timestamp: now,
+            isVolatilityWarning: decision.score >= 90,
+            aiExplanationAr: `🤖 [محرك القرار الذكي] 
+${decision.aiCommentaryAr}
+
+الأسباب:
+${decision.reasons.map(r => '• '+r).join('\n')}`,
+            aiExplanationEn: `🤖 [Smart Decision Engine] 
+${decision.aiCommentaryEn}
+
+Reasons:
+${decision.reasons.map(r => '• '+r).join('\n')}`,
+          });
+        } catch (er: any) {
+          console.warn("AI Engine order fail:", er.message);
         }
       }
       
-      // After loop:
       if (logsToBatch.length > 0) {
         setQuickScalpScannerLog(prev => [...logsToBatch, ...prev]);
       }
       
       isScanningRef.current = false;
     };
-
-
     const scanInterval = setInterval(scanAction, 4500);
 
     return () => clearInterval(scanInterval);
@@ -3552,12 +3495,9 @@ export default function App() {
         id="primary-view-container"
       >
         {/* Trading pair fast select strip (Visible in relevant screens) */}
-        {(activeTab === "market" ||
-          activeTab === "bots" ||
-          activeTab === "backtest" ||
-          activeTab === "hybrid" ||
-          activeTab === "binance-ai" ||
-          activeTab === "futures") && (
+        {(activeTab === "spot" ||
+          
+          activeTab === "backtest" || activeTab === "futures") && (
           <div
             className="mb-6 flex flex-col gap-2.5 font-sans"
             dir={lang === "ar" ? "rtl" : "ltr"}
@@ -3948,10 +3888,8 @@ export default function App() {
         )}
 
         {/* NEW SYSTEM-WIDE AUTOMATION STATS DECK */}
-        {(activeTab === "market" ||
-          activeTab === "bots" ||
-          activeTab === "backtest" ||
-          activeTab === "hybrid") && (
+        {(activeTab === "spot" ||
+           activeTab === "backtest") && (
           <div
             className="mb-4 bg-slate-900 border border-slate-800/80 rounded-xl p-3 shadow-md"
             id="global-automation-stats-deck"
@@ -4318,7 +4256,8 @@ export default function App() {
             )}
           </div>
 
-          {activeTab === "market" && (
+          
+          {activeTab === "spot" && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
@@ -4333,96 +4272,28 @@ export default function App() {
                     onAddAlert={handleAddPriceAlert}
                     onDeleteAlert={handleDeletePriceAlert}
                   />
+                  <MarketSentimentIndicator lang={lang} activePair={activePair} />
                 </div>
               </div>
-              <MarketSentimentIndicator lang={lang} activePair={activePair} />
-              <PortfolioOverview
-                lang={lang}
-                portfolio={portfolio}
-                pairs={pairs}
-                isLiveTrading={isLiveTrading}
-                isConnected={apiConnection.isConnected}
-                apiConnection={apiConnection}
-                onRefreshBalances={() => syncLiveBalances(false)}
-                isSyncingBalances={isSyncingBalances}
-                balanceSyncError={balanceSyncError}
-                onTabChange={setActiveTab}
-              />
               {!canTrade ? (
                 renderTradingSuspended()
               ) : (
-                <ManualTrading
+                <SpotTrading
                   lang={lang}
-                  activePair={activePair}
+                  activePair={activePair.symbol}
+                  pairs={pairs}
                   onSubmitOrder={handleAddNewOrder}
                   orders={orders}
                   portfolio={portfolio}
-                  isLiveTrading={isLiveTrading}
-                  manualLeverage={manualLeverage}
-                  setManualLeverage={setManualLeverage}
+                  activeBots={activeBots}
+                  onCreateBot={handleCreateBot}
+                  onDeleteBot={handleDeleteBot}
+                  onToggleStatus={handleToggleBotStatus}
                 />
               )}
             </div>
           )}
-
-          <div className={activeTab === "bots" ? "block" : "hidden"}>
-            {!canTrade ? (
-              renderTradingSuspended()
-            ) : (
-              <BotTrading
-                lang={lang}
-                activePair={activePair}
-                activeBots={activeBots}
-                onCreateBot={handleCreateBot}
-                onDeleteBot={handleDeleteBot}
-                onToggleStatus={handleToggleBotStatus}
-                onResumeAllBots={handleResumeAllBots}
-                onUpdateBotConfig={handleUpdateBotConfig}
-                portfolio={portfolio}
-                pairs={pairs}
-                isLiveTrading={isLiveTrading}
-              />
-            )}
-          </div>
-
-          <div className={activeTab === "hybrid" ? "block" : "hidden"}>
-            {!canTrade ? (
-              renderTradingSuspended()
-            ) : (
-              <HybridTrading
-                lang={lang}
-                activePair={activePair}
-                allPairs={pairs}
-                portfolio={portfolio}
-                onUpdatePortfolio={handleFuturesUpdatePortfolio}
-                onTriggerToast={handleTriggerToast}
-              />
-            )}
-          </div>
-
-          <div className={activeTab === "binance-ai" ? "block" : "hidden"}>
-            {!canTrade ? (
-              renderTradingSuspended()
-            ) : (
-              <BinanceAIManager
-                lang={lang}
-                activePair={activePair}
-                portfolio={portfolio}
-                onUpdatePortfolio={handleAIUpdatePortfolio}
-                onTriggerToast={handleTriggerToast}
-                onReboundCapture={handleAIReboundCapture}
-                apiConnection={apiConnection}
-                isLiveTrading={isLiveTrading}
-                balanceSyncError={balanceSyncError}
-                futuresApiError={futuresApiError}
-                isAggressiveRebound={isAggressiveRebound}
-              />
-            )}
-          </div>
-
-          {activeTab === "backtest" && (
-            <Backtester lang={lang} activePair={activePair} />
-          )}
+{activeTab === "backtest" && (<Backtester lang={lang} activePair={activePair} />)}
 
           {activeTab === "history" && (
             <OrderHistory
@@ -4454,8 +4325,7 @@ export default function App() {
 
           {activeTab === "ai" && <AIAnalyst lang={lang} activeBots={activeBots} allPairs={pairs} />}
 
-          {activeTab === "education" && <EducationHub lang={lang} />}
-
+          
           <div className={activeTab === "whales" ? "block" : "hidden"}>
 <WhaleTracker lang={lang} pairs={pairs} />
           </div>

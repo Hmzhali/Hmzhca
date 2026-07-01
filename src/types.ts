@@ -54,6 +54,14 @@ export interface TradeOrder {
 export type BotType = 'GRID' | 'DCA' | 'RSI';
 export type BotStatus = 'RUNNING' | 'PAUSED' | 'COMPLETED';
 
+export interface UserPortfolio {
+  usdt: number;
+  futuresUsdt: number;
+  btc: number;
+  eth: number;
+  [key: string]: number;
+}
+
 export interface GridBotConfig {
   lowerPrice: number;
   upperPrice: number;
