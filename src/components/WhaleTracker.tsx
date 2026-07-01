@@ -242,7 +242,7 @@ export default function WhaleTracker({ lang, pairs, onWhaleSignal }: WhaleTracke
       if (wsRef.current) {
         try {
           wsRef.current.close();
-        } catch (e) {}
+        } catch (e) { /* ignore */ }
         wsRef.current = null;
       }
       return;
@@ -257,7 +257,7 @@ export default function WhaleTracker({ lang, pairs, onWhaleSignal }: WhaleTracke
       if (wsRef.current) {
         try {
           wsRef.current.close();
-        } catch (e) {}
+        } catch (e) { /* ignore */ }
       }
 
       setWsStatus('CONNECTING');
@@ -378,7 +378,7 @@ export default function WhaleTracker({ lang, pairs, onWhaleSignal }: WhaleTracke
       if (wsRef.current) {
         try {
           wsRef.current.close();
-        } catch (e) {}
+        } catch (e) { /* ignore */ }
         wsRef.current = null;
       }
     };
