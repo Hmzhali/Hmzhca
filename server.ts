@@ -635,9 +635,9 @@ Guidelines:
 - Deliver precise, well-formatted financial analysis utilizing Markdown lists. Highlight essential risk parameters.`
         : aiSystemPrompt;
 
-      // Ask Gemini using standard gemini-3.5-flash
+      // Ask Gemini using standard gemini-2.5-flash
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction: systemInstruction,
@@ -765,7 +765,7 @@ Guidelines:
         const promptText = `Analyze technical sentiment (buyer vs seller power, moving averages, relative strength, volume and risk) to estimate a precise and highly professional 'Fear & Greed' sentiment index score for the cryptocurrency market pair '${symbol}' right now. Return a single strict JSON object following the required schema. Ensure the Arabic rationale is beautifully structured, high-quality, and completely matching the English justification.`;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-3.5-flash',
+          model: 'gemini-2.5-flash',
           contents: promptText,
           config: {
             systemInstruction: "You are a professional cryptocurrency risk analyst. Evaluate sentiment from 0 (extreme market anxiety/panic) to 100 (extreme irrational buy exuberance). Be objective and realistic.",
@@ -926,7 +926,7 @@ Guidelines:
       const promptText = `Explain the potential financial mechanics behind a sharp price volatility event of ${changePercent}% in under 1 minute for the cryptocurrency pair '${symbol}' (moved from ${priceStart} to ${priceEnd}). Focus on professional dynamics like leverage liquidation cascades, short/long squeezes, or order book thinness. Respond ONLY as a JSON object with two fields "explanation_en" and "explanation_ar" each containing a highly professional 2-sentence summary. Keep English and Arabic explanations matching perfectly in financial depth.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: promptText,
         config: {
           systemInstruction: "You are an elite cryptocurrency market analyst and risk expert. Synthesize professional explanations with complete objectivity. Avoid generic phrases.",
@@ -1019,7 +1019,7 @@ Guidelines:
       const promptText = `Analyze institutional coin flow activity: '${sampleTxStr}' and on-chain holdings index. Provide an objective and professional market outlook advising retail traders on what whales are doing. Respond ONLY as a JSON object with fields: "sentiment_en" (max 3 sentences), "sentiment_ar" (max 3 sentences matching English), "score" (number 0-100 representing whale buy/accumulate strength), "implication_en" (1-2 sentences), "implication_ar" (1-2 sentences matching English). Make explanations match perfectly in financial vocabulary.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: promptText,
         config: {
           systemInstruction: "You are an elite cryptocurrency wallet forensic analyst and on-chain strategist. Be mathematically precise and objective. Return only JSON.",
@@ -2336,7 +2336,7 @@ Communication Guidelines:
       Limit the response to 3 sentences in ${lang}.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
           systemInstruction: "You are a professional trader and financial analyst for Al-Moharif AI.",
@@ -2364,10 +2364,10 @@ Communication Guidelines:
       // Calculate true ranges
       let trSum = 0;
       for (let i = klines.length - period; i < klines.length; i++) {
-        const h = parseFloat(klines[i][2]);
-        const l = parseFloat(klines[i][3]);
-        const c = parseFloat(klines[i][4]);
-        const prevC = parseFloat(klines[i-1][4]);
+        const h = parseFloat(klines[i].high ?? klines[i][2]);
+        const l = parseFloat(klines[i].low ?? klines[i][3]);
+        const c = parseFloat(klines[i].close ?? klines[i][4]);
+        const prevC = parseFloat(klines[i-1].close ?? klines[i-1][4]);
         trSum += Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
       }
       const atr = trSum / period;
@@ -2387,7 +2387,7 @@ Communication Guidelines:
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",

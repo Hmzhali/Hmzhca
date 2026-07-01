@@ -223,6 +223,8 @@ export default function App() {
     return saved === "true"; // defaults to false (manual start preferred)
   });
 
+  const [reboundRadarTimeframe, setReboundRadarTimeframe] = useState<"1m" | "5m" | "15m" | "30m">("5m");
+
   const [quickScalpScannerLog, setQuickScalpScannerLog] = useState<any[]>(() => {
     const saved = localStorage.getItem("almoharif_quick_scalp_scanner_logs");
     return saved ? JSON.parse(saved) : [];
@@ -977,6 +979,9 @@ export default function App() {
   const priceHistory15mRef = useRef<
     Record<string, { timestamp: number; price: number }[]>
   >({});
+  const priceHistory30mRef = useRef<
+    Record<string, { timestamp: number; price: number }[]>
+  >({});
   const lastVolatilityTriggerRef = useRef<Record<string, number>>({});
   const peakPricesRef = useRef<Record<string, number>>({});
 
@@ -1136,6 +1141,14 @@ export default function App() {
       const list15m = priceHistory15mRef.current[pair.symbol];
       list15m.push({ timestamp: now, price: pair.currentPrice });
       priceHistory15mRef.current[pair.symbol] = list15m.filter((item) => now - item.timestamp <= 900000);
+
+      // 30-minute history
+      if (!priceHistory30mRef.current[pair.symbol]) {
+        priceHistory30mRef.current[pair.symbol] = [];
+      }
+      const list30m = priceHistory30mRef.current[pair.symbol];
+      list30m.push({ timestamp: now, price: pair.currentPrice });
+      priceHistory30mRef.current[pair.symbol] = list30m.filter((item) => now - item.timestamp <= 1800000);
 
       // Look for a point in filtered where price has changed by >= 2.0%
       if (filtered.length < 2) return;
@@ -2984,14 +2997,18 @@ export default function App() {
       const logsToBatch: any[] = [];
       
       for (const coin of availablePairs) {
-        const hist5m = priceHistory5mRef.current[coin.symbol] || [];
+        let selectedHist = priceHistory5mRef.current[coin.symbol] || [];
+        if (reboundRadarTimeframe === "1m") selectedHist = priceHistoryRef.current[coin.symbol] || [];
+        if (reboundRadarTimeframe === "15m") selectedHist = priceHistory15mRef.current[coin.symbol] || [];
+        if (reboundRadarTimeframe === "30m") selectedHist = priceHistory30mRef.current[coin.symbol] || [];
+        
         const hist15m = priceHistory15mRef.current[coin.symbol] || [];
-        if (hist5m.length < 2 || hist15m.length < 2) continue;
+        if (selectedHist.length < 2) continue;
         
         const inputs: EngineInputs = {
           symbol: coin.symbol,
           currentPrice: coin.currentPrice,
-          hist5m,
+          hist5m: selectedHist, // Use selected timeframe as primary short-term history
           hist15m,
           volume24h: coin.volume24h,
           change24h: coin.change24h,
@@ -3099,7 +3116,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
     const scanInterval = setInterval(scanAction, 4500);
 
     return () => clearInterval(scanInterval);
-  }, [quickScalpScannerEnabled]);
+  }, [quickScalpScannerEnabled, reboundRadarTimeframe]);
 
   // Calculate and simulate offline elapsed time profits automatically
   // Heartbeat to save online time every 5 seconds
@@ -3605,9 +3622,9 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                      {lang === "ar" ? "رادار الارتدادات السريعة (30 دقيقة / 1 ساعة)" : "Lightning Rebound Radar (30m / 1h)"}
+                      {lang === "ar" ? "رادار الارتدادات السريعة" : "Lightning Rebound Radar"}
                       <span className="bg-indigo-500/15 text-indigo-400 text-[9px] px-1.5 py-0.5 rounded font-mono font-black">
-                        M1/M5 QUANT
+                        QUANT
                       </span>
                     </h4>
                     <p className="text-[10px] text-slate-400">
@@ -3619,16 +3636,30 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                 </div>
 
                 {/* Control Toggle Switch */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={reboundRadarTimeframe}
+                    onChange={(e) => setReboundRadarTimeframe(e.target.value as any)}
+                    className="bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded-lg px-2 py-1.5 outline-none font-medium cursor-pointer hover:border-slate-600 transition"
+                  >
+                    <option value="1m">{lang === "ar" ? "1 دقيقة" : "1m"}</option>
+                    <option value="5m">{lang === "ar" ? "5 دقائق" : "5m"}</option>
+                    <option value="15m">{lang === "ar" ? "15 دقيقة" : "15m"}</option>
+                    <option value="30m">{lang === "ar" ? "30 دقيقة" : "30m"}</option>
+                  </select>
                   <button
                     type="button"
                     onClick={() => {
                       const bestCoin = pairs.reduce((best, coin) => {
-                        const hist5m = priceHistory5mRef.current[coin.symbol] || [];
-                        if (hist5m.length < 2) return best;
+                        let hist = priceHistory5mRef.current[coin.symbol] || [];
+                        if (reboundRadarTimeframe === "1m") hist = priceHistoryRef.current[coin.symbol] || [];
+                        if (reboundRadarTimeframe === "15m") hist = priceHistory15mRef.current[coin.symbol] || [];
+                        if (reboundRadarTimeframe === "30m") hist = priceHistory30mRef.current[coin.symbol] || [];
+                        
+                        if (hist.length < 2) return best;
                         const pCurrent = coin.currentPrice;
-                        const pMin5m = Math.min(...hist5m.map(h => h.price));
-                        const reboundScore = (pCurrent - pMin5m) / pMin5m;
+                        const pMin = Math.min(...hist.map(h => h.price));
+                        const reboundScore = (pCurrent - pMin) / pMin;
                         if (!best || reboundScore > best.score) {
                           return { symbol: coin.symbol, score: reboundScore };
                         }
@@ -3642,8 +3673,8 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                           timestamp: now,
                           symbol: bestCoin.symbol,
                           type: "INFO",
-                          msgAr: `🔎 [أفضل فرصة] تم العثور على ${bestCoin.symbol} كأفضل مرشح حالياً للمضاربة السريعة بناءً على مؤشرات الارتداد!`,
-                          msgEn: `🔎 [Best Opportunity] ${bestCoin.symbol} identified as currently best candidate for quick scalping based on rebound metrics!`
+                          msgAr: `🔎 [أفضل فرصة - ${reboundRadarTimeframe}] تم العثور على ${bestCoin.symbol} كأفضل مرشح حالياً بناءً على ارتداد الفريم المحدد!`,
+                          msgEn: `🔎 [Best Opportunity - ${reboundRadarTimeframe}] ${bestCoin.symbol} identified as currently best candidate based on timeframe rebound!`
                         }, ...prev]);
                       }
                     }}
@@ -3657,11 +3688,11 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                       setQuickScalpScannerEnabled(prev => !prev);
                       const now = Date.now();
                       const msgAr = !quickScalpScannerEnabled 
-                        ? "🟢 تم تشغيل رادار الارتدادات 1د / 5د وجاري مسح السيولة للعملات..." 
+                        ? `🟢 تم تشغيل رادار الارتدادات (${reboundRadarTimeframe}) وجاري مسح السيولة للعملات...`
                         : "🔴 تم إيقاف رادار مسح صفقات الارتداد اللحظي.";
                       const msgEn = !quickScalpScannerEnabled 
-                        ? "🟢 Rebound Radar (30m/1h) initiated. Scanning watched candidate assets..." 
-                        : "🔴 Rebound Radar (30m/1h) scanning suspended.";
+                        ? `🟢 Rebound Radar (${reboundRadarTimeframe}) initiated. Scanning watched candidate assets...` 
+                        : "🔴 Rebound Radar scanning suspended.";
                       setQuickScalpScannerLog(prev => [{
                         id: `log-${now}-${Math.random()}`,
                         timestamp: now,
@@ -3727,7 +3758,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                 <div className="flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-800/60 md:pl-3">
                   <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{lang === "ar" ? "فريمات المسح:" : "SCAN FRAMES:"}</span>
                   <span className="text-[11px] font-bold text-indigo-400 font-mono">
-                    {lang === "ar" ? "⏱️ 5د / 15د" : "⏱️ 5m / 15m"}
+                    ⏱️ {reboundRadarTimeframe} / 15m
                   </span>
                 </div>
               </div>
