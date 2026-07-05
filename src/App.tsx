@@ -116,6 +116,7 @@ export default function App() {
         }
         keysToRemove.forEach((k) => localStorage.removeItem(k));
         localStorage.setItem("almoharif_user_uid", user.uid);
+        window.location.reload();
         return;
       }
 
@@ -532,13 +533,6 @@ export default function App() {
         parsed.telegramBotToken = parsed.telegramBotToken || "";
         parsed.telegramChatId = parsed.telegramChatId || "";
         
-        if (parsed.telegramBotToken === "7736364858:AAGHy5aos21G8fgHsAooQioQmcFJsAGwmms") {
-          parsed.telegramBotToken = "";
-        }
-        if (parsed.telegramChatId === "5450846071") {
-          parsed.telegramChatId = "";
-        }
-
         return parsed;
       } catch (e) {
         // ignore JSON parse errors and fallback
