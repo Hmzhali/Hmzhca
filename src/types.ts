@@ -173,6 +173,7 @@ export interface ToastNotification {
   isMilestone?: boolean;
   milestonePercentage?: number;
   isVolatilityWarning?: boolean;
+  isError?: boolean;
   volatilityChange?: number;
   volatilityPriceStart?: number;
   volatilityPriceEnd?: number;

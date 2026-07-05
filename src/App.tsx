@@ -784,7 +784,7 @@ export default function App() {
         botId: "price-alert",
         symbol: "SYSTEM",
         timestamp: Date.now(),
-        isVolatilityWarning: false,
+        isError: true,
         aiExplanationAr:
           "⚠️ يرجى الإبقاء على عملة تداول واحدة على الأقل في قائمة المراقبة.",
         aiExplanationEn:
@@ -866,7 +866,12 @@ export default function App() {
     let body = "";
     let asciiChart = "";
 
-    if (toast.isVolatilityWarning) {
+    if (toast.isError) {
+      title = "❌ <b>فشل تنفيذ العملية (Execution Failure)</b>";
+      body = isAr
+        ? `⚠️ فشل تنفيذ العملية أو الصفقة المطلوبة.\n📊 الأصل المالي: <b>${toast.symbol}</b>\n\n📌 <b>السبب الفني والتعليمات:</b>\n${toast.aiExplanationAr || ""}`
+        : `⚠️ Target execution or transaction failure.\n📊 Target Asset: <b>${toast.symbol}</b>\n\n📌 <b>Technical Error Reason:</b>\n${toast.aiExplanationEn || ""}`;
+    } else if (toast.isVolatilityWarning) {
       title = "🚨 <b>تحذير تذبذب أسعار حاد (Volatility Incident)</b>";
       const percent = toast.volatilityChange || 0;
       const changeStr = `${percent >= 0 ? "+" : ""}${percent.toFixed(2)}%`;
@@ -2065,35 +2070,49 @@ export default function App() {
             }
             orderStoredLive = true;
 
-            alert(
-              lang === "ar"
-                ? `⚡ تم إرسال وتمرير الصفقة بنجاح إلى منصة بينانس ومحفظتك الحية! الرقم التعريفي للأمر: ${resData.orderId}`
-                : `⚡ Binance live trade executed successfully! Destination: ${apiConnection.useTestnet ? "Testnet" : "Mainnet"}. OrderId: ${resData.orderId}`,
-            );
+            if (newOrder.originType !== "BOT") {
+              alert(
+                lang === "ar"
+                  ? `⚡ تم إرسال وتمرير الصفقة بنجاح إلى منصة بينانس ومحفظتك الحية! الرقم التعريفي للأمر: ${resData.orderId}`
+                  : `⚡ Binance live trade executed successfully! Destination: ${apiConnection.useTestnet ? "Testnet" : "Mainnet"}. OrderId: ${resData.orderId}`,
+              );
+            }
           } else {
             handleTriggerToast({
               id: Date.now().toString(),
               symbol: newOrder.symbol,
               timestamp: Date.now(),
-              isVolatilityWarning: true,
-              aiExplanationAr: `❌ تأكد من أن قيمة الصفقة أكبر من 5 USDT (شروط بينانس) وأن المفاتيح صحيحة! سبب الرفض: ${resData.error || "مجهول"}. تم حفظها כתجريبية.`,
-              aiExplanationEn: `❌ Ensure order value is > $5 and keys are valid. Reason: ${resData.error || "Unknown error"}. Logged as Paper Demo.`,
+              isError: true,
+              aiExplanationAr: `❌ تأكد من الرصيد الكافي لتغطية قيمة الصفقة المحددة وأن المفاتيح صحيحة! سبب الرفض: ${resData.error || "مجهول"}.`,
+              aiExplanationEn: `❌ Ensure sufficient balance for the selected trade amount and keys are valid. Reason: ${resData.error || "Unknown error"}.`,
             });
-            alert(
-              lang === "ar"
-                ? `❌ رفضت بينانس تنفيذ الصفقة.\n\nالسبب: ${resData.error || "عطل مجهول"}.\n\nملاحظة هامة: لتنفيذ الصفقات حقيقياً يجب أن تكون قيمة الصفقة 5 دولار على الأقل حسب شروط بينانس، ويجب إدخال مفتاح API صحيح تماماً.\n\nتم حفظ الصفقة الآن كمحاكاة تجريبية.`
-                : `❌ Binance order rejected: ${resData.error || "Unknown error"}.\nNote: Spot orders must be > $5 in value, and API keys must have Spot Trading Enabled.\nLogged as paper-demo instead.`
-            );
+            
+            if (newOrder.originType === "BOT") {
+              throw new Error(`Binance order rejected: ${resData.error || "Unknown error"}`);
+            } else {
+              alert(
+                lang === "ar"
+                  ? `❌ رفضت بينانس تنفيذ الصفقة.\n\nالسبب: ${resData.error || "عطل مجهول"}.\n\nملاحظة هامة: لتنفيذ الصفقات حقيقياً يجب التأكد من توفر رصيد كافٍ لتغطية قيمة الصفقة المحددة حسب شروط المنصة، ويجب إدخال مفتاح API صحيح تماماً.\n\nتم حفظ الصفقة الآن كمحاكاة تجريبية.`
+                  : `❌ Binance order rejected: ${resData.error || "Unknown error"}.\nNote: Spot orders must meet the exchange's minimum notional value and API keys must have Spot Trading Enabled.\nLogged as paper-demo instead.`
+              );
+            }
           }
         } catch (err: any) {
           console.warn("Binance direct dispatch warning:", err.message || err);
+          if (newOrder.originType === "BOT") {
+            throw err;
+          }
         }
       } else {
-        alert(
-          lang === "ar"
-            ? `⚠️ التداول حقيقي ولكن مفاتيح API مفقودة!\n\nأنت في وضع التداول الحقيقي، ولكن لم يتم ربط وتفعيل مفاتيح API الخاصة بك. المنصة لا تستطيع تنفيذ الصفقات حقيقياً بدون مفاتيحك.\n\nالرجاء إدخال المفاتيح من تبويب 'أمان الـ API' لتنفيذ صفقات حقيقية في بينانس.\n\nتم تنفيذ العملية كمحاكاة تجريبية.`
-            : `⚠️ Live Trading but API keys missing!\n\nYou must securely link your Binance API keys in the 'API Security' tab first. Without them, trades are logged as paper-demo.`,
-        );
+        if (newOrder.originType !== "BOT") {
+          alert(
+            lang === "ar"
+              ? `⚠️ التداول حقيقي ولكن مفاتيح API مفقودة!\n\nأنت في وضع التداول الحقيقي، ولكن لم يتم ربط وتفعيل مفاتيح API الخاصة بك. المنصة لا تستطيع تنفيذ الصفقات حقيقياً بدون مفاتيحك.\n\nالرجاء إدخال المفاتيح من تبويب 'أمان الـ API' لتنفيذ صفقات حقيقية في بينانس.\n\nتم تنفيذ العملية كمحاكاة تجريبية.`
+              : `⚠️ Live Trading but API keys missing!\n\nYou must securely link your Binance API keys in the 'API Security' tab first. Without them, trades are logged as paper-demo.`,
+          );
+        } else {
+           throw new Error("Live Trading is enabled but API keys are missing.");
+        }
       }
     }
 
@@ -2708,20 +2727,17 @@ export default function App() {
     const tradeSide = signal.type === 'OUTFLOW' ? 'BUY' : 'SELL';
 
     // Use Futures balance for Whale Radar
-    let sizeInUsdt = Math.min(1.0, Math.max(0.5, portfolio.futuresUsdt));
-    if (portfolio.futuresUsdt < 0.5) {
-      sizeInUsdt = portfolio.futuresUsdt;
-    }
+    let sizeInUsdt = quickBuyAmountUsdt;
 
-    if (portfolio.futuresUsdt < (isLiveTrading ? 0.2 : 0.5)) {
+    if (portfolio.futuresUsdt < sizeInUsdt) {
       if (isLiveTrading) {
         handleTriggerToast({
           id: `whale-autotrade-fail-${Date.now()}`,
           symbol: matchedPair.symbol,
           timestamp: Date.now(),
-          isVolatilityWarning: true,
-          aiExplanationAr: `⚠️ رادار الحيتان: تم رصد فرصة ولكن رصيدك في محفظة العقود الآجلة (${portfolio.futuresUsdt} USDT) ضئيل جداً. يرجى إيداع 0.20 دولار كحد أدنى لتفعيل الرافعة.`,
-          aiExplanationEn: `⚠️ Whale Radar: Opportunity found but your Futures balance (${portfolio.futuresUsdt} USDT) is too small. Need at least ~$0.20 to leverage.`,
+          isError: true,
+          aiExplanationAr: `⚠️ رادار الحيتان: تم رصد فرصة ولكن رصيدك في محفظة العقود الآجلة (${portfolio.futuresUsdt} USDT) غير كافٍ. المبلغ المطلوب: ${sizeInUsdt} USDT.`,
+          aiExplanationEn: `⚠️ Whale Radar: Opportunity found but your Futures balance (${portfolio.futuresUsdt} USDT) is insufficient. Required: ${sizeInUsdt} USDT.`,
         });
       }
       return; // not enough simulated funds
@@ -2810,7 +2826,7 @@ export default function App() {
         symbol: matchedPair.symbol,
         profit: 0,
         timestamp: Date.now(),
-        isVolatilityWarning: true,
+        isMilestone: true,
         aiExplanationAr: `🐳 [رادار صفقات الحيتان] صفقة عقود آجلة (Futures) تلقائية رافعة (${defaultLeverage}x)! حركة حوت لعملة ${signal.symbol}.. تم الدخول الفوري بصفقة ${tradeSide === 'BUY' ? 'شراء (Long) 📈' : 'بيع (Short) 📉'} بقيمة هامش $${sizeInUsdt} بسعر $${coinPrice}.`,
         aiExplanationEn: `🐳 [Whale radar system] Auto-Futures Trade leveraging ${defaultLeverage}x! Detected whale activity on ${signal.symbol}. Automated engine instantly triggered a ${tradeSide === 'BUY' ? 'BUY (Long)' : 'SELL (Short)'} position margin $${sizeInUsdt} at $${coinPrice}.`,
       });
@@ -2830,8 +2846,11 @@ export default function App() {
       const nowMs = Date.now();
       if (nowMs - lastScannedTradeTimeRef.current < 15000) return;
 
-      const availablePairs = pairs.length > 0 ? pairs : INITIAL_PAIRS;
+      const availablePairs = pairsRef.current.length > 0 ? pairsRef.current : INITIAL_PAIRS;
       if (availablePairs.length === 0) return;
+
+      // Check active orders count to avoid spamming or over-trading
+      const activeOrdersCount = ordersRef.current.filter(o => o.status === 'FILLED').length;
 
       // Map each coin to its indicators and analyze opportunities
       const candidates = availablePairs.map((coin) => {
@@ -2879,15 +2898,20 @@ export default function App() {
 
       if (candidates.length > 0) {
         const bestCandidate = candidates[0];
+        
+        // If there are already active trades, wait for an exceptional opportunity (e.g. >= 92 confidence) to avoid spam
+        if (activeOrdersCount >= 2 && bestCandidate.confidenceScore < 92) return;
+        if (activeOrdersCount >= 4 && bestCandidate.confidenceScore < 95) return;
+
         const coin = bestCandidate.pair;
         const tradeSide = bestCandidate.suggestedSide!;
         
         // Ensure we don't spam duplicate orders on the same coin too close to each other
-        const isDuplicate = orders.slice(0, 5).some(o => o.symbol === coin.symbol && o.side === tradeSide);
+        const isDuplicate = ordersRef.current.slice(0, 5).some(o => o.symbol === coin.symbol && o.side === tradeSide);
         if (isDuplicate) return;
 
         // Trade sizing & Leverage dynamically scaled based on signal strength/confidence score! ("وكلما كانت الفرصة قوية، زيد بالرافعة والجاهزية بالرصيد")
-        let baseSizing = 20.0;
+        let baseSizing = quickBuyAmountUsdt;
         let scalingMultiplier = 1;
         let dynamicLeverage = 1;
 
@@ -2897,25 +2921,25 @@ export default function App() {
         }
 
         let sizeInUsdt = baseSizing * scalingMultiplier;
-        if (portfolio.usdt < sizeInUsdt) {
-          sizeInUsdt = isLiveTrading ? portfolio.usdt : Math.max(0.5, parseFloat((portfolio.usdt * 0.3).toFixed(2)));
-        }
-
-        if (portfolio.usdt < (isLiveTrading ? 5.1 : 0.5)) {
+        const currentPortfolio = portfolioRef.current;
+        if (currentPortfolio.usdt < sizeInUsdt) {
           if (isLiveTrading) {
             handleTriggerToast({
               id: `scan-autotrade-fail-${Date.now()}`,
               symbol: coin.symbol,
               timestamp: Date.now(),
-              isVolatilityWarning: true,
-              aiExplanationAr: `⚠️ مستكشف التداول: فرصة ذهبية على ${coin.symbol} ولكن رصيدك (${portfolio.usdt} USDT) أقل من 5 دولار (الحد الأدنى لصفقات بينانس).`,
-              aiExplanationEn: `⚠️ Scanner: Premium signal on ${coin.symbol} but balance (${portfolio.usdt} USDT) is under Binance's $5 minimum.`,
+              isError: true,
+              aiExplanationAr: `⚠️ مستكشف التداول: فرصة ذهبية على ${coin.symbol} ولكن رصيدك (${currentPortfolio.usdt} USDT) غير كافٍ لتغطية المبلغ المطلوب (${sizeInUsdt.toFixed(2)} USDT).`,
+              aiExplanationEn: `⚠️ Scanner: Premium signal on ${coin.symbol} but balance (${currentPortfolio.usdt} USDT) is insufficient to cover the required amount (${sizeInUsdt.toFixed(2)} USDT).`,
             });
+            return;
+          } else {
+            sizeInUsdt = Math.max(0.5, parseFloat((currentPortfolio.usdt * 0.3).toFixed(2)));
+            if (currentPortfolio.usdt < 0.5) return;
           }
-          return;
         }
         
-        sizeInUsdt = parseFloat(Math.min(sizeInUsdt, portfolio.usdt).toFixed(4));
+        sizeInUsdt = parseFloat(Math.min(sizeInUsdt, currentPortfolio.usdt).toFixed(4));
 
         const coinPrice = coin.currentPrice;
         const finalAmount = formatPrecision(((sizeInUsdt * dynamicLeverage) / coinPrice), coin.symbol, coinPrice);
@@ -2944,7 +2968,7 @@ export default function App() {
             symbol: coin.symbol,
             profit: 0,
             timestamp: Date.now(),
-            isVolatilityWarning: true,
+            isMilestone: true,
             aiExplanationAr: `🔍 [مستكشف صفقات التداول اليدوي - بداية الارتداد 📈] صفقة تلقائية بأقصى استجابة! رصد البوت إشارة دخول عند بداية ارتداد قوية لعملة ${coin.symbol}.\n📊 **الفرصة:** ثقة فائقة بمستوى ${bestCandidate.confidenceScore}%\n⚡ **الرافعة الديناميكية:** ${dynamicLeverage}x (مضاعفة ديناميكياً)\n💵 **رصيد الدخول والمامش المخصص:** $${sizeInUsdt.toFixed(2)} USDT (مُحسّن وبالمضاعفة)`,
             aiExplanationEn: `🔍 [Manual Watchlist Scanner - Rebound Start 📈] Premium auto-recovery trigger! Located gold entry signal at rebound beginning on ${coin.symbol}.\n📊 **Confidence Level:** Ultra high ${bestCandidate.confidenceScore}%\n⚡ **Dynamic Leverage:** ${dynamicLeverage}x (automatically elevated)\n💵 **Allotted Entry Margin:** $${sizeInUsdt.toFixed(2)} USDT (dynamically scaled)`,
           });
@@ -3028,14 +3052,14 @@ export default function App() {
           notional = entryAmountUsdt * lev;
         }
 
-        if (portfolioRef.current.usdt < (isLiveTrading ? 1.1 : 0.5)) {
+        if (portfolioRef.current.usdt < entryAmountUsdt) {
           logsToBatch.push({
             id: `log-${now}-${Math.random()}`,
             timestamp: now,
             symbol: coin.symbol,
             type: "WARNING",
-            msgAr: `⚠️ رصيد غير كافٍ. الرصيد الحالي $${portfolioRef.current.usdt} USDT.`,
-            msgEn: `⚠️ Insufficient balance. Balance: $${portfolioRef.current.usdt} USDT.`,
+            msgAr: `⚠️ رصيد غير كافٍ. المطلوب: $${entryAmountUsdt} USDT، الرصيد: $${portfolioRef.current.usdt} USDT.`,
+            msgEn: `⚠️ Insufficient balance. Required: $${entryAmountUsdt} USDT, Balance: $${portfolioRef.current.usdt} USDT.`,
             rsi5m: decision.score,
             rsi15m: decision.confidence,
           });
