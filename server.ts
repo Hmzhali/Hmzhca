@@ -11,6 +11,10 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import dns from 'dns';
+
+// Fix for Node.js 18+ undici fetch IPv6 timeouts
+dns.setDefaultResultOrder('ipv4first');
 
 // Load environmental parameters
 dotenv.config();

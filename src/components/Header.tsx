@@ -22,6 +22,7 @@ interface HeaderProps {
   balanceSyncError?: string | null;
   futuresApiError?: string | null;
   userData?: any;
+  isOwner?: boolean;
   notificationsHistory?: ToastNotification[];
   onClearNotifications?: () => void;
 }
@@ -38,6 +39,7 @@ export default function Header({
   balanceSyncError,
   futuresApiError,
   userData,
+  isOwner,
   notificationsHistory = [],
   onClearNotifications
 }: HeaderProps) {
@@ -160,7 +162,7 @@ export default function Header({
     { id: 'ai', label_ar: d.aiAdvisor, label_en: 'AI Advisor' },
       ];
 
-  if (userData?.role === 'OWNER' || userData?.email === 'alamryhmzh7@gmail.com') {
+  if (isOwner) {
     tabs.push({ id: 'owner', label_ar: 'إدارة المنصة (المالك) 👑', label_en: 'Owner Admin 👑' });
   }
 
@@ -627,13 +629,15 @@ export default function Header({
                   <LogOut className="w-4 h-4 text-amber-500" />
                 </button>
                 
-                <button
-                  onClick={() => { setShowProfileModal(false); setActiveTab('owner'); }}
-                  className="w-full flex items-center justify-between px-4 py-2.5 bg-indigo-950/30 hover:bg-indigo-950/50 border border-indigo-900/50 rounded-lg text-indigo-400 text-sm font-bold transition"
-                >
-                  <span>{lang === 'ar' ? 'لوحة تحكم المالك' : 'Admin Panel'}</span>
-                  <Shield className="w-4 h-4" />
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={() => { setShowProfileModal(false); setActiveTab('owner'); }}
+                    className="w-full flex items-center justify-between px-4 py-2.5 bg-indigo-950/30 hover:bg-indigo-950/50 border border-indigo-900/50 rounded-lg text-indigo-400 text-sm font-bold transition"
+                  >
+                    <span>{lang === 'ar' ? 'لوحة تحكم المالك' : 'Admin Panel'}</span>
+                    <Shield className="w-4 h-4" />
+                  </button>
+                )}
                 
                 <button
                   onClick={async () => {

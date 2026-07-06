@@ -400,6 +400,7 @@ export default function App() {
   }, [pairs, selectedPairIndex]);
 
   const canTrade = userData?.permissions?.canTrade !== false;
+  const isOwner = user?.email === "alamryhmzh7@gmail.com" || userData?.role === "OWNER";
 
   // Manual Orders Storage with local storage persistence
   const [orders, setOrders] = useState<TradeOrder[]>(() => {
@@ -1779,7 +1780,8 @@ export default function App() {
               `[Binance Smart AI Outflows] Order failed on Binance network: ${binData.error}`,
             );
             aiExplanationEn = `❌ [LIVE REJECTED/NSF] Binance response: ${binData.error || "Check asset liquidity"}. ${aiExplanationEn}`;
-            aiExplanationAr = `❌ [فشل تداول مباشر / رصيد غير كافٍ] رد منصة بينانس: ${binData.error || "يرجى التحقق من توفر الأرصدة"}. ${aiExplanationAr}`;
+            aiExplanationAr = `❌ [فشل تداول مباشر] رد بينانس: ${binData.error || "مجهول"}. ${aiExplanationAr}`;
+            failedBotsCooldownRef.current[bot.id] = Date.now();
           }
         } catch (binErr: any) {
           console.warn(
@@ -1788,6 +1790,7 @@ export default function App() {
           );
           aiExplanationEn = `⚠️ [LIVE NET TIMEOUT] ${binErr.message || binErr}. ${aiExplanationEn}`;
           aiExplanationAr = `⚠️ [خطأ اتصال بالشبكة لمراكز بينانس] ${binErr.message || binErr}. ${aiExplanationAr}`;
+          failedBotsCooldownRef.current[bot.id] = Date.now();
         }
       }
 
@@ -2078,14 +2081,19 @@ export default function App() {
               );
             }
           } else {
-            handleTriggerToast({
-              id: Date.now().toString(),
-              symbol: newOrder.symbol,
-              timestamp: Date.now(),
-              isError: true,
-              aiExplanationAr: `❌ تأكد من الرصيد الكافي لتغطية قيمة الصفقة المحددة وأن المفاتيح صحيحة! سبب الرفض: ${resData.error || "مجهول"}.`,
-              aiExplanationEn: `❌ Ensure sufficient balance for the selected trade amount and keys are valid. Reason: ${resData.error || "Unknown error"}.`,
-            });
+            const directionAr = newOrder.side === "BUY" ? "شراء (Long)" : "بيع (Short)";
+            const directionEn = newOrder.side === "BUY" ? "BUY (Long)" : "SELL (Short)";
+            
+            if (newOrder.originType !== "BOT") {
+              handleTriggerToast({
+                id: Date.now().toString(),
+                symbol: newOrder.symbol,
+                timestamp: Date.now(),
+                isError: true,
+                aiExplanationAr: `❌ فشل تنفيذ الصفقة على منصة بينانس!\nاتجاه الصفقة: ${directionAr}\nالسعر: ${newOrder.price}\nالسبب الفني والمؤشرات: ${newOrder.aiReasonAr || "غير متوفر"}\nسبب الرفض من بينانس: ${resData.error || "مجهول"}`,
+                aiExplanationEn: `❌ Binance live trade failed!\nDirection: ${directionEn}\nPrice: ${newOrder.price}\nTechnical Reason & Indicators: ${newOrder.aiReasonEn || "N/A"}\nBinance Rejection Reason: ${resData.error || "Unknown error"}`,
+              });
+            }
             
             if (newOrder.originType === "BOT") {
               throw new Error(`Binance order rejected: ${resData.error || "Unknown error"}`);
@@ -2285,16 +2293,16 @@ export default function App() {
       };
       setQuickScalpScannerLog((prev) => [exitLog, ...prev]);
     } else {
-      phraseAr = `🛡️ **[درع السنت النشط للمضاربة السريعة]** تم إغلاق الصفقة السريعة تلقائياً لعملة ${order.symbol} بعد التراجع بمقدار سنت واحد من الذروة!\n💵 **سعر الشراء:** $${(order.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n📈 **أعلى سعر (الذروة):** $${(savedPeak ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n🏹 **سعر الإغلاق:** $${(currentPrice ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n⚖️ **العائد:** $${(netProfit ?? 0).toLocaleString(undefined, { minimumFractionDigits: 3 })} USDT`;
-      phraseEn = `🛡️ **[1-Cent Active Scalp Shield]** Instantly auto-closed quick trade for ${order.symbol} due to a 1-cent retrace from peak!\n💵 **Entry Price:** $${(order.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n📈 **Peak Price Reached:** $${(savedPeak ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n🏹 **Closing Price:** $${(currentPrice ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n⚖️ **Net Return:** $${(netProfit ?? 0).toLocaleString(undefined, { minimumFractionDigits: 3 })} USDT`;
+      phraseAr = `🛡️ **[درع الحماية الديناميكي للمضاربة السريعة]** تم إغلاق الصفقة السريعة تلقائياً لعملة ${order.symbol} بعد التراجع من الذروة لتجنب الخسارة السريعة!\n💵 **سعر الشراء:** $${(order.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n📈 **أعلى سعر (الذروة):** $${(savedPeak ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n🏹 **سعر الإغلاق:** $${(currentPrice ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n⚖️ **العائد:** $${(netProfit ?? 0).toLocaleString(undefined, { minimumFractionDigits: 3 })} USDT`;
+      phraseEn = `🛡️ **[Dynamic Scalp Shield]** Instantly auto-closed quick trade for ${order.symbol} due to a retrace from peak!\n💵 **Entry Price:** $${(order.price ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n📈 **Peak Price Reached:** $${(savedPeak ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n🏹 **Closing Price:** $${(currentPrice ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}\n⚖️ **Net Return:** $${(netProfit ?? 0).toLocaleString(undefined, { minimumFractionDigits: 3 })} USDT`;
 
       const shieldLog = {
         id: `log-${Date.now()}-${Math.random()}`,
         timestamp: Date.now(),
         symbol: order.symbol,
         type: "SHIELD",
-        msgAr: `🛡️ [تفعيل درع السنت] تم الإغلاق التلقائي لعملة ${order.symbol} بعد ارتداد 1 سنت لتأمين الأرباح/الرأس المال. النتيجة: $${netProfit.toFixed(3)} USDT.`,
-        msgEn: `🛡️ [1-Cent Shield Active] Instantly closed ${order.symbol} on a 1-cent retrace. Net: $${netProfit.toFixed(3)} USDT.`,
+        msgAr: `🛡️ [تفعيل درع الحماية] تم الإغلاق التلقائي لعملة ${order.symbol} بعد تراجع طفيف لتأمين الأرباح/الرأس المال. النتيجة: $${netProfit.toFixed(3)} USDT.`,
+        msgEn: `🛡️ [Shield Active] Instantly closed ${order.symbol} on a slight retrace. Net: $${netProfit.toFixed(3)} USDT.`,
         price: currentPrice,
         profit: netProfit,
       };
@@ -2353,12 +2361,13 @@ export default function App() {
       const currentPrice = pair.currentPrice;
       let triggered: "TP" | "SL" | "QUICK_SCALP" | "REBOUND_COMPLETED" | null = null;
 
-      // Check Quick Scalp Trailing Protection Mode (1-Cent Exit Protection Shield)
+      // Check Quick Scalp Trailing Protection Mode (Dynamic Exit Protection Shield)
       if (quickScalpProtectorEnabled && order.isQuickBuy) {
         const savedPeak = peakPricesRef.current[order.id];
         const peakPrice = savedPeak !== undefined ? savedPeak : (order.peakPrice !== undefined ? order.peakPrice : order.price);
-        // If price reversed by 1 cent ($0.01) or more from peak, or is 1 cent below entry price
-        if (currentPrice <= peakPrice - 0.01 || currentPrice <= order.price - 0.01) {
+        // Dynamic shield: wait for a 0.75% drop instead of exactly 1 cent to avoid exiting too fast due to normal volatility
+        const shieldDrop = Math.max(0.01, peakPrice * 0.0075);
+        if (currentPrice <= peakPrice - shieldDrop || currentPrice <= order.price - shieldDrop) {
           triggered = "QUICK_SCALP";
         }
       }
@@ -2716,6 +2725,9 @@ export default function App() {
     // Cooldown check (prevent placing 20 trades in 2 seconds)
     const nowLocal = Date.now();
     if (nowLocal - lastWhaleTradeTimeRef.current < 8000) return;
+    
+    const lastFail = failedCoinsCooldownRef.current[signal.symbol] || 0;
+    if (nowLocal - lastFail < 60000) return; // 60s cooldown for a failed coin
 
     // Find if we have a matching pair in our listed pairs (the list of coins in manual trading / system pairs)
     const availablePairs = pairs.length > 0 ? pairs : INITIAL_PAIRS;
@@ -2728,19 +2740,17 @@ export default function App() {
 
     // Use Futures balance for Whale Radar
     let sizeInUsdt = quickBuyAmountUsdt;
+    const minimumTradeSize = isLiveTrading ? 1.0 : 0.5;
 
     if (portfolio.futuresUsdt < sizeInUsdt) {
-      if (isLiveTrading) {
-        handleTriggerToast({
-          id: `whale-autotrade-fail-${Date.now()}`,
-          symbol: matchedPair.symbol,
-          timestamp: Date.now(),
-          isError: true,
-          aiExplanationAr: `⚠️ رادار الحيتان: تم رصد فرصة ولكن رصيدك في محفظة العقود الآجلة (${portfolio.futuresUsdt} USDT) غير كافٍ. المبلغ المطلوب: ${sizeInUsdt} USDT.`,
-          aiExplanationEn: `⚠️ Whale Radar: Opportunity found but your Futures balance (${portfolio.futuresUsdt} USDT) is insufficient. Required: ${sizeInUsdt} USDT.`,
-        });
+      if (portfolio.futuresUsdt >= minimumTradeSize) {
+        sizeInUsdt = parseFloat((portfolio.futuresUsdt * 0.95).toFixed(2));
+      } else {
+        if (isLiveTrading) {
+        }
+        failedCoinsCooldownRef.current[matchedPair.symbol] = Date.now();
+        return; // not enough simulated funds
       }
-      return; // not enough simulated funds
     }
 
     // Fasten sizeInUsdt to not exceed portfolio.futuresUsdt and make sure it has 4 dec max
@@ -2832,19 +2842,35 @@ export default function App() {
       });
     } catch (err: any) {
       console.warn("Failed to dispatch automated whale-triggered futures trade:", err.message || err);
+      failedCoinsCooldownRef.current[signal.symbol] = Date.now();
     }
   };
 
   const lastScannedTradeTimeRef = useRef<number>(0);
+  const failedCoinsCooldownRef = useRef<Record<string, number>>({});
+  const failedBotsCooldownRef = useRef<Record<string, number>>({});
 
   // Background Watchlist Scanner of all manual trading pairs
   useEffect(() => {
     if (!manualWatchlistScannerEnabled || !canTrade) return;
 
-    const scannerInterval = setInterval(async () => {
-      // Cooldown check (minimum 15 seconds between scanner automated trades to manage funds responsibly)
+    const blob = new Blob([`
+      let timer = null;
+      self.onmessage = function(e) {
+        if (e.data.command === 'start') {
+          timer = setInterval(() => self.postMessage('tick'), e.data.delay);
+        } else if (e.data.command === 'stop') {
+          clearInterval(timer);
+        }
+      };
+    `], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    const worker = new Worker(workerUrl);
+    
+    worker.onmessage = async () => {
+      // Cooldown check (minimum 2.5 seconds between scanner automated trades to manage funds responsibly)
       const nowMs = Date.now();
-      if (nowMs - lastScannedTradeTimeRef.current < 15000) return;
+      if (nowMs - lastScannedTradeTimeRef.current < 2500) return;
 
       const availablePairs = pairsRef.current.length > 0 ? pairsRef.current : INITIAL_PAIRS;
       if (availablePairs.length === 0) return;
@@ -2857,11 +2883,11 @@ export default function App() {
         // Calculate dynamic real-time simulated RSI & volatility indicators
         let baseRsi = 50 + (coin.change24h * 3.8);
         const hash = coin.symbol.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-        const wave = Math.sin((Date.now() / 15000) + hash) * 4.5;
+        const wave = Math.sin((Date.now() / 3000) + hash) * 8.5; // faster wave, larger amplitude
         const rsi = Math.min(Math.max(Math.round(baseRsi + wave), 14), 86);
 
         const baseVol = Math.abs(coin.change24h) * 1.25 + 1.1;
-        const waveVolByTime = Math.sin((Date.now() / 25000) + hash) * 0.35;
+        const waveVolByTime = Math.sin((Date.now() / 5000) + hash) * 1.5;
         const vol = parseFloat(Math.min(Math.max(baseVol + waveVolByTime, 0.6), 18.2).toFixed(2));
 
         const isVolumeSpike = (Math.abs(coin.change24h) * 1.5 + (coin.volume24h % 100) / 10) > 6.0;
@@ -2875,10 +2901,10 @@ export default function App() {
         // Buy: if oversold (RSI < 42) or sudden bullish spike with high confidence
         // Sell/Short: if overbought (RSI > 58) with high confidence
         let suggestedSide: "BUY" | "SELL" | null = null;
-        if (confidenceScore >= 86) {
-          if (rsi < 42 || coin.change24h > 1.5) {
+        if (confidenceScore >= 60) { // Lowered to 60 for faster movement
+          if (rsi < 48 || coin.change24h > 0.5) {
             suggestedSide = "BUY";
-          } else if (rsi > 58 || coin.change24h < -1.5) {
+          } else if (rsi > 52 || coin.change24h < -0.5) {
             suggestedSide = "SELL";
           }
         }
@@ -2899,9 +2925,22 @@ export default function App() {
       if (candidates.length > 0) {
         const bestCandidate = candidates[0];
         
-        // If there are already active trades, wait for an exceptional opportunity (e.g. >= 92 confidence) to avoid spam
-        if (activeOrdersCount >= 2 && bestCandidate.confidenceScore < 92) return;
-        if (activeOrdersCount >= 4 && bestCandidate.confidenceScore < 95) return;
+        // Active Bot Orders
+        const activeBotOrders = ordersRef.current.filter(o => o.status === 'FILLED' && !o.isClosedScalped && o.originType === "BOT");
+        
+        if (activeBotOrders.length >= 1) {
+          if (bestCandidate.confidenceScore >= 80) {
+            // Exceptional opportunity found! Close existing bot trades to free up capital
+            activeBotOrders.forEach(o => {
+               const latestCoin = pairsRef.current.find(p => p.symbol === o.symbol);
+               const cPrice = latestCoin ? latestCoin.currentPrice : (o.price || 0);
+               triggerManualQuickScalpExit(o, cPrice, "REBOUND_COMPLETED");
+            });
+          } else {
+            // Wait until current trades are closed
+            return;
+          }
+        }
 
         const coin = bestCandidate.pair;
         const tradeSide = bestCandidate.suggestedSide!;
@@ -2910,36 +2949,45 @@ export default function App() {
         const isDuplicate = ordersRef.current.slice(0, 5).some(o => o.symbol === coin.symbol && o.side === tradeSide);
         if (isDuplicate) return;
 
+        const nowCooldownMs = Date.now();
+        const lastFail = failedCoinsCooldownRef.current[coin.symbol] || 0;
+        if (nowCooldownMs - lastFail < 60000) return; // 60 seconds cooldown for a failed coin
+
         // Trade sizing & Leverage dynamically scaled based on signal strength/confidence score! ("وكلما كانت الفرصة قوية، زيد بالرافعة والجاهزية بالرصيد")
         let baseSizing = quickBuyAmountUsdt;
         let scalingMultiplier = 1;
         let dynamicLeverage = 1;
 
-        if (bestCandidate.confidenceScore >= 86) {
-          scalingMultiplier = 1 + ((bestCandidate.confidenceScore - 86) / 13) * 1.5; // up to 2.5x standard size ($50 USDT)
-          dynamicLeverage = Math.round(5 + ((bestCandidate.confidenceScore - 86) / 13) * 45); // up to 50x leverage!
+        if (bestCandidate.confidenceScore >= 60) {
+          scalingMultiplier = 1 + ((bestCandidate.confidenceScore - 60) / 40) * 1.5; // up to 2.5x standard size
+          dynamicLeverage = Math.round(5 + ((bestCandidate.confidenceScore - 60) / 40) * 45); // up to 50x leverage!
         }
 
         let sizeInUsdt = baseSizing * scalingMultiplier;
         const currentPortfolio = portfolioRef.current;
-        if (currentPortfolio.usdt < sizeInUsdt) {
-          if (isLiveTrading) {
-            handleTriggerToast({
-              id: `scan-autotrade-fail-${Date.now()}`,
-              symbol: coin.symbol,
-              timestamp: Date.now(),
-              isError: true,
-              aiExplanationAr: `⚠️ مستكشف التداول: فرصة ذهبية على ${coin.symbol} ولكن رصيدك (${currentPortfolio.usdt} USDT) غير كافٍ لتغطية المبلغ المطلوب (${sizeInUsdt.toFixed(2)} USDT).`,
-              aiExplanationEn: `⚠️ Scanner: Premium signal on ${coin.symbol} but balance (${currentPortfolio.usdt} USDT) is insufficient to cover the required amount (${sizeInUsdt.toFixed(2)} USDT).`,
-            });
-            return;
+        const minimumTradeSize = isLiveTrading ? 1.0 : 0.5;
+
+        const tradeDirectionAr = tradeSide === "BUY" ? "شراء (Long - ارتداد للارتفاع 📈)" : "بيع (Short - ارتداد للهبوط 📉)";
+        const tradeDirectionEn = tradeSide === "BUY" ? "BUY (Long - Upward Rebound 📈)" : "SELL (Short - Downward Rebound 📉)";
+        const reasonAr = tradeSide === "BUY" 
+          ? (bestCandidate.rsi < 42 ? "مؤشر القوة النسبية (RSI) يشير إلى تشبع بيعي مفرط" : "زخم شرائي مفاجئ قوي مع ارتفاع حجم التداول")
+          : (bestCandidate.rsi > 58 ? "مؤشر القوة النسبية (RSI) يشير إلى تشبع شرائي مفرط" : "زخم بيعي قوي مع هبوط سريع");
+        const reasonEn = tradeSide === "BUY"
+          ? (bestCandidate.rsi < 42 ? "RSI indicates extreme oversold conditions" : "Strong sudden bullish momentum with volume spike")
+          : (bestCandidate.rsi > 58 ? "RSI indicates extreme overbought conditions" : "Strong bearish momentum with rapid drop");
+
+        if (currentPortfolio.futuresUsdt < sizeInUsdt) {
+          if (currentPortfolio.futuresUsdt >= minimumTradeSize) {
+             // Fallback to use available balance if it meets minimum
+             sizeInUsdt = parseFloat((currentPortfolio.futuresUsdt * 0.95).toFixed(2));
           } else {
-            sizeInUsdt = Math.max(0.5, parseFloat((currentPortfolio.usdt * 0.3).toFixed(2)));
-            if (currentPortfolio.usdt < 0.5) return;
+            if (isLiveTrading) {
+            }
+            return;
           }
         }
         
-        sizeInUsdt = parseFloat(Math.min(sizeInUsdt, currentPortfolio.usdt).toFixed(4));
+        sizeInUsdt = parseFloat(Math.min(sizeInUsdt, currentPortfolio.futuresUsdt).toFixed(4));
 
         const coinPrice = coin.currentPrice;
         const finalAmount = formatPrecision(((sizeInUsdt * dynamicLeverage) / coinPrice), coin.symbol, coinPrice);
@@ -2958,6 +3006,9 @@ export default function App() {
             total: parseFloat((coinPrice * finalAmount).toFixed(2)),
             leverage: dynamicLeverage,
             originType: "BOT",
+            isFutures: true,
+            aiReasonAr: `${reasonAr} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCandidate.volatility}%)`,
+            aiReasonEn: `${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCandidate.volatility}%)`,
           });
 
           // Dispatch premium notification
@@ -2969,16 +3020,32 @@ export default function App() {
             profit: 0,
             timestamp: Date.now(),
             isMilestone: true,
-            aiExplanationAr: `🔍 [مستكشف صفقات التداول اليدوي - بداية الارتداد 📈] صفقة تلقائية بأقصى استجابة! رصد البوت إشارة دخول عند بداية ارتداد قوية لعملة ${coin.symbol}.\n📊 **الفرصة:** ثقة فائقة بمستوى ${bestCandidate.confidenceScore}%\n⚡ **الرافعة الديناميكية:** ${dynamicLeverage}x (مضاعفة ديناميكياً)\n💵 **رصيد الدخول والمامش المخصص:** $${sizeInUsdt.toFixed(2)} USDT (مُحسّن وبالمضاعفة)`,
-            aiExplanationEn: `🔍 [Manual Watchlist Scanner - Rebound Start 📈] Premium auto-recovery trigger! Located gold entry signal at rebound beginning on ${coin.symbol}.\n📊 **Confidence Level:** Ultra high ${bestCandidate.confidenceScore}%\n⚡ **Dynamic Leverage:** ${dynamicLeverage}x (automatically elevated)\n💵 **Allotted Entry Margin:** $${sizeInUsdt.toFixed(2)} USDT (dynamically scaled)`,
+            aiExplanationAr: `🔍 [مستكشف صفقات التداول اليدوي - بداية الارتداد] صفقة تلقائية بأقصى استجابة! رصد البوت إشارة دخول قوية لعملة ${coin.symbol}.
+اتجاه الصفقة: ${tradeDirectionAr}
+السبب الفني: ${reasonAr} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCandidate.volatility}%)
+📊 **الفرصة:** ثقة فائقة بمستوى ${bestCandidate.confidenceScore}%
+⚡ **الرافعة الديناميكية:** ${dynamicLeverage}x (مضاعفة ديناميكياً)
+💵 **رصيد الدخول والمامش المخصص:** $${sizeInUsdt.toFixed(2)} USDT`,
+            aiExplanationEn: `🔍 [Manual Watchlist Scanner - Rebound] Premium auto-recovery trigger! Located gold entry signal on ${coin.symbol}.
+Direction: ${tradeDirectionEn}
+Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCandidate.volatility}%)
+📊 **Confidence Level:** Ultra high ${bestCandidate.confidenceScore}%
+⚡ **Dynamic Leverage:** ${dynamicLeverage}x (automatically elevated)
+💵 **Allotted Entry Margin:** $${sizeInUsdt.toFixed(2)} USDT`,
           });
         } catch (err: any) {
           console.warn("Watchlist scanner auto order failed:", err.message || err);
+          failedCoinsCooldownRef.current[coin.symbol] = Date.now();
         }
       }
-    }, 22000); // scan and check every 22 seconds
+    };
+    worker.postMessage({ command: 'start', delay: 4500 });
 
-    return () => clearInterval(scannerInterval);
+    return () => {
+      worker.postMessage({ command: 'stop' });
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+    };
   }, [manualWatchlistScannerEnabled]);
 
   const ordersRef = useRef(orders);
@@ -3037,33 +3104,46 @@ export default function App() {
         const decision = evaluateTradeDecision(inputs);
         
         // Filter out non-actionable decisions or low scores based on threshold
-        // User requested > 75 for normal, > 85 for strong, > 95 for exceptional.
-        if (decision.score < 75 || decision.action === 'HOLD') continue;
+        // Reduced threshold to make the bot extremely active and fast-moving as requested
+        if (decision.score < 45 || decision.action === 'HOLD') continue;
+        
+        const nowMs = Date.now();
+        const lastFail = failedCoinsCooldownRef.current[coin.symbol] || 0;
+        if (nowMs - lastFail < 60000) continue; // 60 seconds cooldown for a failed coin
 
         const alreadyTradingThisCoin = ordersRef.current.some(o => o.symbol === coin.symbol && o.status === "FILLED" && !o.isClosedScalped);
         if (alreadyTradingThisCoin) continue;
 
         let lev = manualLeverage;
         let entryAmountUsdt = quickBuyAmountUsdt;
+        const minimumTradeSize = isLiveTrading ? 1.0 : 0.5;
         
         let notional = entryAmountUsdt * lev;
         if (notional < 20) {
-          lev = Math.min(20, Math.ceil(20 / entryAmountUsdt));
+          lev = Math.min(20, Math.ceil(20 / Math.max(0.5, entryAmountUsdt)));
           notional = entryAmountUsdt * lev;
         }
 
-        if (portfolioRef.current.usdt < entryAmountUsdt) {
-          logsToBatch.push({
-            id: `log-${now}-${Math.random()}`,
-            timestamp: now,
-            symbol: coin.symbol,
-            type: "WARNING",
-            msgAr: `⚠️ رصيد غير كافٍ. المطلوب: $${entryAmountUsdt} USDT، الرصيد: $${portfolioRef.current.usdt} USDT.`,
-            msgEn: `⚠️ Insufficient balance. Required: $${entryAmountUsdt} USDT, Balance: $${portfolioRef.current.usdt} USDT.`,
-            rsi5m: decision.score,
-            rsi15m: decision.confidence,
-          });
-          continue;
+        if (portfolioRef.current.futuresUsdt < entryAmountUsdt) {
+          if (portfolioRef.current.futuresUsdt >= minimumTradeSize) {
+            entryAmountUsdt = parseFloat((portfolioRef.current.futuresUsdt * 0.95).toFixed(2));
+          } else {
+            const warnMsgAr = `⚠️ رصيد غير كافٍ. المطلوب: $${entryAmountUsdt} USDT، الرصيد: $${portfolioRef.current.futuresUsdt} USDT. (الحد الأدنى: ${minimumTradeSize} USDT)\nاتجاه الصفقة: ${decision.action === 'BUY' ? 'شراء' : 'بيع'}\nالسبب: ${decision.reasons.join(', ')}`;
+            const warnMsgEn = `⚠️ Insufficient balance. Required: $${entryAmountUsdt} USDT, Balance: $${portfolioRef.current.futuresUsdt} USDT. (Min: ${minimumTradeSize} USDT)\nDirection: ${decision.action}\nReason: ${decision.reasons.join(', ')}`;
+            logsToBatch.push({
+              id: `log-${now}-${Math.random()}`,
+              timestamp: now,
+              symbol: coin.symbol,
+              type: "WARNING",
+              msgAr: warnMsgAr,
+              msgEn: warnMsgEn,
+              rsi5m: decision.score,
+              rsi15m: decision.confidence,
+            });
+            // Intentionally omit toast for insufficient balance to prevent spam
+            failedCoinsCooldownRef.current[coin.symbol] = Date.now();
+            continue;
+          }
         }
 
         const finalQty = formatPrecision(((entryAmountUsdt * lev) / coin.currentPrice), coin.symbol, coin.currentPrice);
@@ -3082,7 +3162,9 @@ export default function App() {
             isQuickBuy: true,
             isFutures: true,
             takeProfit: decision.takeProfitRef,
-            stopLoss: decision.stopLossRef
+            stopLoss: decision.stopLossRef,
+            aiReasonAr: decision.reasons.join(', '),
+            aiReasonEn: decision.reasons.join(', ')
           });
 
           const label = decision.score >= 95 ? "استثنائية" : decision.score >= 85 ? "قوية" : "عادية";
@@ -3122,6 +3204,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
           });
         } catch (er: any) {
           console.warn("AI Engine order fail:", er.message);
+          failedCoinsCooldownRef.current[coin.symbol] = Date.now();
         }
       }
       
@@ -3131,9 +3214,29 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
       
       isScanningRef.current = false;
     };
-    const scanInterval = setInterval(scanAction, 4500);
+    const blob = new Blob([`
+      let timer = null;
+      self.onmessage = function(e) {
+        if (e.data.command === 'start') {
+          timer = setInterval(() => self.postMessage('tick'), e.data.delay);
+        } else if (e.data.command === 'stop') {
+          clearInterval(timer);
+        }
+      };
+    `], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    const worker = new Worker(workerUrl);
+    
+    worker.onmessage = () => {
+      scanAction();
+    };
+    worker.postMessage({ command: 'start', delay: 1500 });
 
-    return () => clearInterval(scanInterval);
+    return () => {
+      worker.postMessage({ command: 'stop' });
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+    };
   }, [quickScalpScannerEnabled, reboundRadarTimeframe]);
 
   // Calculate and simulate offline elapsed time profits automatically
@@ -3520,6 +3623,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         balanceSyncError={balanceSyncError}
         futuresApiError={futuresApiError}
         userData={userData}
+        isOwner={isOwner}
         notificationsHistory={notificationsHistory}
         onClearNotifications={handleClearNotificationsHistory}
       />
@@ -3626,8 +3730,8 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
 
               <span className="text-[9.5px] text-slate-500 font-semibold uppercase tracking-wide hidden md:inline animate-pulse">
                 {lang === "ar" 
-                  ? "🛡️ حامي السنت يغلق صفقات الصاعقة تلقائياً عند تراجع سنت واحد من الذروة" 
-                  : "🛡️ 1-Cent Scalp Shield closes lightning trades at first 1-cent drop from peak"}
+                  ? "🛡️ حامي الصفقات السريعة يغلق الصفقات تلقائياً عند أول تراجع حقيقي من الذروة" 
+                  : "🛡️ Dynamic Scalp Shield closes lightning trades upon a confirmed drop from peak"}
               </span>
             </div>
 
@@ -4284,7 +4388,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         <div className="transition-all duration-305">
           {activeTab === "dashboard" && <HamzaLiveMarkets lang={lang} pairs={pairs} onAddPair={handleAddPair} />}
 
-          {activeTab === "owner" && <OwnerDashboard lang={lang} />}
+          {activeTab === "owner" && isOwner && <OwnerDashboard lang={lang} />}
 
           <div className={activeTab === "futures" ? "block" : "hidden"}>
             {!canTrade ? (

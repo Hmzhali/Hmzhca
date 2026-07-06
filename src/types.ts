@@ -48,6 +48,8 @@ export interface TradeOrder {
   isQuickBuy?: boolean;
   peakPrice?: number;
   isClosedScalped?: boolean;
+  aiReasonAr?: string;
+  aiReasonEn?: string;
   isFutures?: boolean;
 }
 
