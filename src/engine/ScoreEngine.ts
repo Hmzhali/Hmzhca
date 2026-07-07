@@ -79,11 +79,19 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
     reasons.push("Negative AI Sentiment & News");
   }
 
+  // Add extra weight for momentum to favor quick scalps safely
+  if (rsi < 35 && currentTrend !== 'DOWN') score += 15;
+  if (rsi > 65 && currentTrend !== 'UP') score -= 15;
+
   // Direction resolution
   const direction = score > 0 ? 'BUY' : (score < 0 ? 'SELL' : 'NEUTRAL');
-  const absoluteScore = Math.min(Math.abs(score), 100);
+  let absoluteScore = Math.min(Math.abs(score), 100);
+  
+  // Guarantee super high confidence if we have extreme oversold/overbought and whale alignment
+  if (direction === 'BUY' && rsi < 40 && whaleAct > 60) absoluteScore = Math.max(absoluteScore, 85);
+  if (direction === 'SELL' && rsi > 60 && whaleAct < 40) absoluteScore = Math.max(absoluteScore, 85);
 
-  // Normalize absoluteScore up to 100 based on max possible (15+10+15+20+10 = 70 base, so map it slightly higher)
+  // Normalize absoluteScore up to 100 based on max possible
   const normalizedScore = Math.min(Math.round((absoluteScore / 70) * 100), 100);
 
   return {

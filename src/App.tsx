@@ -2340,8 +2340,16 @@ export default function App() {
           const currentPrice = pair.currentPrice;
           const savedPeak = peakPricesRef.current[o.id];
           const currentPeak = savedPeak !== undefined ? savedPeak : (o.peakPrice !== undefined ? o.peakPrice : o.price);
-          if (currentPrice > currentPeak) {
-            peakPricesRef.current[o.id] = currentPrice;
+          
+          if (o.side === "BUY") {
+            if (currentPrice > currentPeak) {
+              peakPricesRef.current[o.id] = currentPrice;
+            }
+          } else {
+            // For SHORT (SELL), the "peak" is the lowest price it reaches (maximum profit point)
+            if (currentPrice < currentPeak) {
+              peakPricesRef.current[o.id] = currentPrice;
+            }
           }
         }
       }
@@ -2387,8 +2395,15 @@ export default function App() {
           }
           const rsi1m = 50 + change1m * 12;
 
-          // If RSI has reached overbought levels and starts ticking down, the quick rebound wave has fully finished
-          if (rsi1m > 68 && lastPrice < prevPrice) {
+          const isLong = order.side === "BUY";
+          const isProfitable = isLong 
+             ? (currentPrice > order.price * 1.002) 
+             : (currentPrice < order.price * 0.998);
+
+          // If RSI has reached extremes and starts reversing, the quick wave has fully finished
+          if (isLong && rsi1m > 68 && lastPrice < prevPrice && isProfitable) {
+            triggered = "REBOUND_COMPLETED";
+          } else if (!isLong && rsi1m < 32 && lastPrice > prevPrice && isProfitable) {
             triggered = "REBOUND_COMPLETED";
           }
         }
