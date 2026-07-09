@@ -224,7 +224,10 @@ export default function App() {
     return saved === "true"; // defaults to false (manual start preferred)
   });
 
-  const [reboundRadarTimeframe, setReboundRadarTimeframe] = useState<"1m" | "5m" | "15m" | "30m">("5m");
+  const [reboundRadarTimeframe, setReboundRadarTimeframe] = useState<"1m" | "5m" | "15m" | "30m">(() => {
+    const saved = localStorage.getItem("almoharif_rebound_radar_timeframe");
+    return (saved as "1m" | "5m" | "15m" | "30m") || "5m";
+  });
 
   const [quickScalpScannerLog, setQuickScalpScannerLog] = useState<any[]>(() => {
     const saved = localStorage.getItem("almoharif_quick_scalp_scanner_logs");
@@ -236,6 +239,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("almoharif_quick_scalp_protector", String(quickScalpProtectorEnabled));
   }, [quickScalpProtectorEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem("almoharif_rebound_radar_timeframe", reboundRadarTimeframe);
+  }, [reboundRadarTimeframe]);
 
   useEffect(() => {
     localStorage.setItem("almoharif_quick_scalp_scanner_rebound", String(quickScalpScannerEnabled));
