@@ -923,8 +923,8 @@ export default function App() {
       title = "📊 <b>تنفيذ صفقة تداول آلية (Almoharif Trading Order)</b>";
       const profitVal = toast.profit ? toast.profit.toFixed(2) : "0.00";
       body = isAr
-        ? `🤖 تم معالجة صفقة تداول ومطابقتها خوارزمياً!\n📊 زوج الأصول: <b>${toast.symbol}</b>\n🦾 الأداة المشغلة: <b>${toast.botType || "GRID"} Automatic</b>\n💵 أرباح الصفقة الفورية: <b>+$${profitVal} USDT</b>\n\n📌 <b>تأكيد وتوضيح الذكاء الاصطناعي:</b>\n${toast.aiExplanationAr || ""}`
-        : `🤖 Algorithmic order successfully matched on target gateways!\n📊 Market Pair: <b>${toast.symbol}</b>\n🦾 Execution Module: <b>${toast.botType || "GRID"} Automatic</b>\n💵 Instant captured return: <b>+$${profitVal} USDT</b>\n\n📌 <b>AI Verdict & Analytics:</b>\n${toast.aiExplanationEn || ""}`;
+        ? `🤖 تم معالجة صفقة تداول ومطابقتها خوارزمياً!\n📊 زوج الأصول: <b>${toast.symbol}</b>\n🦾 الأداة المشغلة: <b>${toast.botType || "GRID"} Automatic</b>\n💵 أرباح الصفقة الفورية: <b>+${profitVal} USDT</b>` + (toast.aiExplanationAr ? `\n\n📌 <b>تأكيد وتوضيح الذكاء الاصطناعي:</b>\n${toast.aiExplanationAr}` : '')
+        : `🤖 Algorithmic order successfully matched on target gateways!\n📊 Market Pair: <b>${toast.symbol}</b>\n🦾 Execution Module: <b>${toast.botType || "GRID"} Automatic</b>\n💵 Instant captured return: <b>+${profitVal} USDT</b>` + (toast.aiExplanationEn ? `\n\n📌 <b>AI Verdict & Analytics:</b>\n${toast.aiExplanationEn}` : '');
 
       asciiChart = isAr
         ? `📊 <b>درجة نجاح الصفقة (Capture Ratio Chart):</b>\n<code>[████████░░ 80%] SUCCESSFUL MATCH</code>`
@@ -2754,7 +2754,8 @@ export default function App() {
     const tradeSide = signal.type === 'OUTFLOW' ? 'BUY' : 'SELL';
 
     // Use Futures balance for Whale Radar
-    let sizeInUsdt = quickBuyAmountUsdt;
+    // Smart Compounding: Use 15% to 30% of portfolio for whales, or the set quick buy amount, whichever is larger
+    let sizeInUsdt = Math.max(quickBuyAmountUsdt, portfolio.futuresUsdt * 0.20);
     const minimumTradeSize = isLiveTrading ? 1.0 : 0.5;
 
     if (portfolio.futuresUsdt < sizeInUsdt) {
