@@ -9,6 +9,7 @@ import { ARABIC_DICT } from '../utils/marketData';
 import { auth, logout } from '../lib/firebase';
 import { updateProfile } from 'firebase/auth';
 import { ToastNotification } from '../types';
+import WakeLockToggle from './WakeLockToggle';
 
 interface HeaderProps {
   lang: 'ar' | 'en';
@@ -239,6 +240,7 @@ export default function Header({
             <Languages className="w-3.5 h-3.5" />
             <span className="hidden sm:block">{lang === 'ar' ? 'EN' : 'AR'}</span>
           </button>
+          <WakeLockToggle lang={lang} />
 
           {/* Notifications Log / Center Button */}
           <div className="relative">

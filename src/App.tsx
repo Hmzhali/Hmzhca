@@ -2380,10 +2380,29 @@ export default function App() {
       if (quickScalpProtectorEnabled && order.isQuickBuy) {
         const savedPeak = peakPricesRef.current[order.id];
         const peakPrice = savedPeak !== undefined ? savedPeak : (order.peakPrice !== undefined ? order.peakPrice : order.price);
-        // Dynamic shield: wait for a 0.75% drop instead of exactly 1 cent to avoid exiting too fast due to normal volatility
-        const shieldDrop = Math.max(0.01, peakPrice * 0.0075);
-        if (currentPrice <= peakPrice - shieldDrop || currentPrice <= order.price - shieldDrop) {
-          triggered = "QUICK_SCALP";
+
+        const isLong = order.side === "BUY";
+        const entryPrice = order.price;
+        
+        // Ensure minimum sensible profit (0.3%) before trailing kicks in
+        const minProfitMet = isLong 
+          ? (currentPrice > entryPrice * 1.003) 
+          : (currentPrice < entryPrice * 0.997);
+          
+        if (isLong) {
+          const trailDistance = Math.max(0.01, peakPrice * 0.004); // 0.4% trailing stop for tighter profits
+          if (currentPrice <= peakPrice - trailDistance && minProfitMet) {
+            triggered = "QUICK_SCALP";
+          } else if (currentPrice <= entryPrice * 0.93) { // Relaxed Stop Loss at 7% to give room for recovery
+            triggered = "QUICK_SCALP";
+          }
+        } else {
+          const trailDistance = Math.max(0.01, peakPrice * 0.004);
+          if (currentPrice >= peakPrice + trailDistance && minProfitMet) {
+            triggered = "QUICK_SCALP";
+          } else if (currentPrice >= entryPrice * 1.07) { // Relaxed Stop Loss at 7% to give room for recovery
+            triggered = "QUICK_SCALP";
+          }
         }
       }
 
