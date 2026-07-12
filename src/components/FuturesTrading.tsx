@@ -179,6 +179,12 @@ export default function FuturesTrading({
     return saved ? JSON.parse(saved) : "MARKET";
   });
   const [stopLoss, setStopLoss] = useState<string>("");
+  const [useAiStopLoss, setUseAiStopLoss] = useState<boolean>(false);
+  
+  const priceRef = React.useRef(activePair.currentPrice);
+  React.useEffect(() => { priceRef.current = activePair.currentPrice; }, [activePair.currentPrice]);
+
+
   const [takeProfit, setTakeProfit] = useState<string>("");
   const [trailingStopEnabled, setTrailingStopEnabled] = useState<boolean>(false);
   const [trailingStopOffset, setTrailingStopOffset] = useState<string>("");
@@ -187,6 +193,37 @@ export default function FuturesTrading({
   const [limitPrice, setLimitPrice] = useState<string>(
     activePair.currentPrice.toString(),
   );
+
+  const calculateSmartSL = React.useCallback(async () => {
+    try {
+      const klineResp = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
+      const klines = await klineResp.json();
+      
+      const response = await fetch('/api/ai/calculate-smart-sl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: activePair.symbol,
+          side: positionSide === 'LONG' ? 'BUY' : 'SELL',
+          entryPrice: parseFloat(limitPrice) || priceRef.current,
+          currentPrice: priceRef.current,
+          klines: klines
+        })
+      });
+      const data = await response.json();
+      if (data.slPrice) {
+        setStopLoss(data.slPrice.toFixed(2));
+      }
+    } catch (error) {
+      console.error("Smart SL calculation failed", error);
+    }
+  }, [activePair.symbol, positionSide, limitPrice]);
+
+  React.useEffect(() => {
+    if (useAiStopLoss) {
+      calculateSmartSL();
+    }
+  }, [useAiStopLoss, calculateSmartSL]);
 
   useEffect(() => {
     localStorage.setItem(
