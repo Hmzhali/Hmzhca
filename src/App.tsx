@@ -152,6 +152,16 @@ export default function App() {
     localStorage.setItem("almoharif_lang", lang);
   }, [lang]);
 
+  // Day/Night (Light/Dark) theme state
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    const saved = localStorage.getItem("almoharif_theme");
+    return saved === "light" ? "light" : "dark";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("almoharif_theme", theme);
+  }, [theme]);
+
   // Automated whale trading integrations and full market scanner controls
   const [whaleTradingEnabled, setWhaleTradingEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem("almoharif_whale_trading_enabled");
@@ -3698,7 +3708,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
 
   return (
     <div
-      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-600 selection:text-white"
+      className={`min-h-screen ${theme === 'light' ? 'theme-light bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-100'} flex flex-col font-sans selection:bg-emerald-600 selection:text-white transition-colors duration-200`}
       id="main-terminal-app"
     >
       {/* Dynamic Header navbar */}
@@ -3717,6 +3727,8 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         isOwner={isOwner}
         notificationsHistory={notificationsHistory}
         onClearNotifications={handleClearNotificationsHistory}
+        theme={theme}
+        setTheme={setTheme}
       />
 
       {/* Main scrolling content frame */}
@@ -4501,42 +4513,40 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
           </div>
 
           
-          {activeTab === "spot" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                  <InteractiveChart lang={lang} activePair={activePair} />
-                </div>
-                <div className="lg:col-span-1 flex flex-col gap-6">
-                  <MarketGauge lang={lang} activePair={activePair} />
-                  <PriceAlertManager
-                    lang={lang}
-                    activePair={activePair}
-                    priceAlerts={priceAlerts}
-                    onAddAlert={handleAddPriceAlert}
-                    onDeleteAlert={handleDeletePriceAlert}
-                  />
-                  <MarketSentimentIndicator lang={lang} activePair={activePair} />
-                </div>
+          <div className={activeTab === "spot" ? "space-y-6 block" : "hidden"}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <InteractiveChart lang={lang} activePair={activePair} />
               </div>
-              {!canTrade ? (
-                renderTradingSuspended()
-              ) : (
-                <SpotTrading
+              <div className="lg:col-span-1 flex flex-col gap-6">
+                <MarketGauge lang={lang} activePair={activePair} />
+                <PriceAlertManager
                   lang={lang}
-                  activePair={activePair.symbol}
-                  pairs={pairs}
-                  onSubmitOrder={handleAddNewOrder}
-                  orders={orders}
-                  portfolio={portfolio}
-                  activeBots={activeBots}
-                  onCreateBot={handleCreateBot}
-                  onDeleteBot={handleDeleteBot}
-                  onToggleStatus={handleToggleBotStatus}
+                  activePair={activePair}
+                  priceAlerts={priceAlerts}
+                  onAddAlert={handleAddPriceAlert}
+                  onDeleteAlert={handleDeletePriceAlert}
                 />
-              )}
+                <MarketSentimentIndicator lang={lang} activePair={activePair} />
+              </div>
             </div>
-          )}
+            {!canTrade ? (
+              renderTradingSuspended()
+            ) : (
+              <SpotTrading
+                lang={lang}
+                activePair={activePair.symbol}
+                pairs={pairs}
+                onSubmitOrder={handleAddNewOrder}
+                orders={orders}
+                portfolio={portfolio}
+                activeBots={activeBots}
+                onCreateBot={handleCreateBot}
+                onDeleteBot={handleDeleteBot}
+                onToggleStatus={handleToggleBotStatus}
+              />
+            )}
+          </div>
 {activeTab === "backtest" && (<Backtester lang={lang} activePair={activePair} />)}
 
           {activeTab === "history" && (

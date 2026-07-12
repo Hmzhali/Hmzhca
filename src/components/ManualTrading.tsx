@@ -33,18 +33,71 @@ export default function ManualTrading({
   const d = ARABIC_DICT;
 
   // Form states
-  const [orderSide, setOrderSide] = useState<OrderSide>('BUY');
-  const [orderType, setOrderType] = useState<OrderType>('LIMIT');
-  const [price, setPrice] = useState<string>(activePair.currentPrice.toString());
-  const [amount, setAmount] = useState<string>('0.01');
-  const [takeProfit, setTakeProfit] = useState<string>('');
-  const [stopLoss, setStopLoss] = useState<string>('');
+  const [orderSide, setOrderSide] = useState<OrderSide>(() => {
+    const saved = localStorage.getItem("almoharif_spot_manual_side");
+    return (saved === 'BUY' || saved === 'SELL') ? saved : 'BUY';
+  });
+  const [orderType, setOrderType] = useState<OrderType>(() => {
+    const saved = localStorage.getItem("almoharif_spot_manual_type");
+    return (saved === 'LIMIT' || saved === 'MARKET' || saved === 'STOP_LIMIT') ? saved : 'LIMIT';
+  });
+  const [price, setPrice] = useState<string>(() => {
+    const saved = localStorage.getItem(`almoharif_spot_manual_price_${activePair.symbol}`);
+    return saved !== null ? saved : activePair.currentPrice.toString();
+  });
+  const [amount, setAmount] = useState<string>(() => {
+    const saved = localStorage.getItem(`almoharif_spot_manual_amount_${activePair.symbol}`);
+    return saved !== null ? saved : '0.01';
+  });
+  const [takeProfit, setTakeProfit] = useState<string>(() => {
+    const saved = localStorage.getItem(`almoharif_spot_manual_tp_${activePair.symbol}`);
+    return saved !== null ? saved : '';
+  });
+  const [stopLoss, setStopLoss] = useState<string>(() => {
+    const saved = localStorage.getItem(`almoharif_spot_manual_sl_${activePair.symbol}`);
+    return saved !== null ? saved : '';
+  });
   
   const priceRef = React.useRef(price);
   React.useEffect(() => { priceRef.current = price; }, [price]);
+
+  const activePriceRef = React.useRef(activePair.currentPrice);
+  React.useEffect(() => { activePriceRef.current = activePair.currentPrice; }, [activePair.currentPrice]);
   
   const [fallbackLeverage, setFallbackLeverage] = useState<number>(1);
-  const [useAiStopLoss, setUseAiStopLoss] = useState(false);
+  const [useAiStopLoss, setUseAiStopLoss] = useState<boolean>(() => {
+    const saved = localStorage.getItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`);
+    return saved === 'true';
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    localStorage.setItem("almoharif_spot_manual_side", orderSide);
+  }, [orderSide]);
+
+  useEffect(() => {
+    localStorage.setItem("almoharif_spot_manual_type", orderType);
+  }, [orderType]);
+
+  useEffect(() => {
+    localStorage.setItem(`almoharif_spot_manual_price_${activePair.symbol}`, price);
+  }, [price, activePair.symbol]);
+
+  useEffect(() => {
+    localStorage.setItem(`almoharif_spot_manual_amount_${activePair.symbol}`, amount);
+  }, [amount, activePair.symbol]);
+
+  useEffect(() => {
+    localStorage.setItem(`almoharif_spot_manual_tp_${activePair.symbol}`, takeProfit);
+  }, [takeProfit, activePair.symbol]);
+
+  useEffect(() => {
+    localStorage.setItem(`almoharif_spot_manual_sl_${activePair.symbol}`, stopLoss);
+  }, [stopLoss, activePair.symbol]);
+
+  useEffect(() => {
+    localStorage.setItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`, String(useAiStopLoss));
+  }, [useAiStopLoss, activePair.symbol]);
   const calculateSmartSL = React.useCallback(async () => {
     try {
       const klineResp = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
@@ -56,8 +109,8 @@ export default function ManualTrading({
         body: JSON.stringify({
           symbol: activePair.symbol,
           side: orderSide,
-          entryPrice: parseFloat(priceRef.current) || activePair.currentPrice,
-          currentPrice: activePair.currentPrice,
+          entryPrice: parseFloat(priceRef.current) || activePriceRef.current,
+          currentPrice: activePriceRef.current,
           klines: klines
         })
       });
@@ -68,7 +121,7 @@ export default function ManualTrading({
     } catch (error) {
       console.error("Smart SL calculation failed", error);
     }
-  }, [activePair.symbol, activePair.currentPrice, orderSide]);
+  }, [activePair.symbol, orderSide]);
 
   useEffect(() => {
     if (useAiStopLoss) {
@@ -88,7 +141,20 @@ export default function ManualTrading({
 
   // Sync price once when the pair symbol changes
   useEffect(() => {
-    setPrice(activePair.currentPrice.toString());
+    const savedPrice = localStorage.getItem(`almoharif_spot_manual_price_${activePair.symbol}`);
+    setPrice(savedPrice !== null ? savedPrice : activePair.currentPrice.toString());
+
+    const savedAmount = localStorage.getItem(`almoharif_spot_manual_amount_${activePair.symbol}`);
+    setAmount(savedAmount !== null ? savedAmount : '0.01');
+
+    const savedTP = localStorage.getItem(`almoharif_spot_manual_tp_${activePair.symbol}`);
+    setTakeProfit(savedTP !== null ? savedTP : '');
+
+    const savedSL = localStorage.getItem(`almoharif_spot_manual_sl_${activePair.symbol}`);
+    setStopLoss(savedSL !== null ? savedSL : '');
+
+    const savedAiSL = localStorage.getItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`);
+    setUseAiStopLoss(savedAiSL === 'true');
   }, [activePair.symbol]);
 
   // Order Book state with real-time Binance Order depth API synchronization

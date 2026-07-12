@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Shield, Coins, Cpu, Wallet, Languages, Activity, Smartphone, X, LogOut, User, Camera, Trash2, Bell, Sparkles, TrendingUp, AlertCircle, RefreshCw } from 'lucide-react';
+import { Shield, Coins, Cpu, Wallet, Languages, Activity, Smartphone, X, LogOut, User, Camera, Trash2, Bell, Sparkles, TrendingUp, AlertCircle, RefreshCw, Sun, Moon } from 'lucide-react';
 import { ARABIC_DICT } from '../utils/marketData';
 import { auth, logout } from '../lib/firebase';
 import { updateProfile } from 'firebase/auth';
@@ -26,6 +26,8 @@ interface HeaderProps {
   isOwner?: boolean;
   notificationsHistory?: ToastNotification[];
   onClearNotifications?: () => void;
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
 }
 
 export default function Header({
@@ -42,7 +44,9 @@ export default function Header({
   userData,
   isOwner,
   notificationsHistory = [],
-  onClearNotifications
+  onClearNotifications,
+  theme,
+  setTheme
 }: HeaderProps) {
   const [time, setTime] = useState<string>('');
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -239,6 +243,25 @@ export default function Header({
           >
             <Languages className="w-3.5 h-3.5" />
             <span className="hidden sm:block">{lang === 'ar' ? 'EN' : 'AR'}</span>
+          </button>
+
+          {/* Theme Toggle (Day/Night) */}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700 transition font-bold cursor-pointer"
+            title={lang === 'ar' ? (theme === 'dark' ? 'تشغيل الوضع النهاري' : 'تشغيل الوضع الليلي') : (theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode')}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                <span className="hidden sm:block text-amber-400">{lang === 'ar' ? 'نهاري' : 'LIGHT'}</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden sm:block text-indigo-400">{lang === 'ar' ? 'ليلي' : 'DARK'}</span>
+              </>
+            )}
           </button>
           <WakeLockToggle lang={lang} />
 

@@ -5,3 +5,156 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
+
+/* --- LIGHT THEME INJECTION --- */
+.theme-light {
+  background-color: #f8fafc !important; /* bg-slate-50 */
+  color: #0f172a !important; /* text-slate-900 */
+}
+
+/* Background translations */
+.theme-light,
+.theme-light #app-header,
+.theme-light .bg-slate-900,
+.theme-light .bg-slate-950,
+.theme-light .bg-slate-980,
+.theme-light .bg-slate-930,
+.theme-light .bg-slate-920,
+.theme-light .bg-slate-800,
+.theme-light .bg-slate-850,
+.theme-light .bg-slate-900\/50,
+.theme-light .bg-slate-950\/50,
+.theme-light .bg-slate-800\/50 {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+.theme-light main,
+.theme-light .bg-slate-950 {
+  background-color: #f1f5f9 !important; /* slate-100 */
+}
+
+/* Force light backgrounds for containers that act as sections */
+.theme-light .bg-slate-900\/40,
+.theme-light .bg-slate-950\/40,
+.theme-light .bg-slate-950\/80,
+.theme-light .bg-slate-900\/60,
+.theme-light .bg-slate-950\/20 {
+  background-color: rgba(241, 245, 249, 0.7) !important;
+}
+
+/* Border translations */
+.theme-light .border-slate-800,
+.theme-light .border-slate-700,
+.theme-light .border-slate-850,
+.theme-light .border-slate-900,
+.theme-light .border-slate-900\/50,
+.theme-light .border-slate-800\/50,
+.theme-light .border-slate-700\/50,
+.theme-light .border-slate-600,
+.theme-light .border-transparent {
+  border-color: #cbd5e1 !important; /* slate-300 */
+}
+
+/* General Text Overrides */
+.theme-light .text-slate-100,
+.theme-light .text-slate-200,
+.theme-light .text-slate-300,
+.theme-light .text-slate-350,
+.theme-light .text-slate-400,
+.theme-light .text-slate-450,
+.theme-light .text-slate-250,
+.theme-light .text-white,
+.theme-light h1,
+.theme-light h2,
+.theme-light h3,
+.theme-light h4,
+.theme-light h5,
+.theme-light h6,
+.theme-light label {
+  color: #0f172a !important; /* slate-900 */
+}
+
+.theme-light .text-slate-500,
+.theme-light .text-slate-400 {
+  color: #475569 !important; /* slate-600 */
+}
+
+/* Maintain status accents but with slightly higher contrast */
+.theme-light .text-emerald-400,
+.theme-light .text-emerald-500 {
+  color: #059669 !important; /* emerald-600 */
+}
+.theme-light .text-rose-400,
+.theme-light .text-rose-500 {
+  color: #dc2626 !important; /* rose-600 */
+}
+.theme-light .text-amber-400,
+.theme-light .text-amber-500 {
+  color: #d97706 !important; /* amber-600 */
+}
+.theme-light .text-indigo-400,
+.theme-light .text-indigo-500 {
+  color: #4f46e5 !important; /* indigo-600 */
+}
+
+/* Inputs, Select, Textareas */
+.theme-light input,
+.theme-light select,
+.theme-light textarea {
+  background-color: #f8fafc !important; /* slate-50 */
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.theme-light input:focus,
+.theme-light select:focus,
+.theme-light textarea:focus {
+  border-color: #10b981 !important; /* emerald-500 */
+}
+
+/* Headers & Navigation */
+.theme-light header,
+.theme-light #app-header {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+.theme-light .bg-indigo-600 {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+
+.theme-light .bg-indigo-950 {
+  background-color: #e0e7ff !important; /* indigo-100 */
+  color: #4f46e5 !important;
+}
+
+/* Tabs */
+.theme-light nav button {
+  background-color: #e2e8f0 !important; /* slate-200 */
+  color: #334155 !important; /* slate-700 */
+}
+.theme-light nav button.bg-emerald-500 {
+  background-color: #10b981 !important; /* emerald-500 */
+  color: #ffffff !important;
+}
+
+/* Active links/buttons style adjustments */
+.theme-light .bg-slate-800 {
+  background-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+.theme-light .hover\:bg-slate-700:hover {
+  background-color: #cbd5e1 !important;
+}
+
+/* Charts adjustments */
+.theme-light .recharts-cartesian-grid-horizontal line,
+.theme-light .recharts-cartesian-grid-vertical line {
+  stroke: #e2e8f0 !important;
+}
+.theme-light .recharts-text {
+  fill: #475569 !important;
+}
+

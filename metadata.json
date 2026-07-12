@@ -2,9 +2,6 @@
   "name": "Al-Moharif AI",
   "description": "Al-Moharif AI Crypto Trading Terminal",
   "requestFramePermissions": [
-    "camera",
-    "microphone",
-    "geolocation",
     "screen-wake-lock"
   ],
   "majorCapabilities": [
