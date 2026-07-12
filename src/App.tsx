@@ -3,6 +3,11 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
+declare global {
+  interface Window {
+    lastApiErrorToastTime?: number;
+  }
+}
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -2091,26 +2096,23 @@ export default function App() {
             const directionAr = newOrder.side === "BUY" ? "شراء (Long)" : "بيع (Short)";
             const directionEn = newOrder.side === "BUY" ? "BUY (Long)" : "SELL (Short)";
             
-            if (newOrder.originType !== "BOT") {
-              handleTriggerToast({
-                id: Date.now().toString(),
-                symbol: newOrder.symbol,
-                timestamp: Date.now(),
-                isError: true,
-                aiExplanationAr: `❌ فشل تنفيذ الصفقة على منصة بينانس!\nاتجاه الصفقة: ${directionAr}\nالسعر: ${newOrder.price}\nالسبب الفني والمؤشرات: ${newOrder.aiReasonAr || "غير متوفر"}\nسبب الرفض من بينانس: ${resData.error || "مجهول"}`,
-                aiExplanationEn: `❌ Binance live trade failed!\nDirection: ${directionEn}\nPrice: ${newOrder.price}\nTechnical Reason & Indicators: ${newOrder.aiReasonEn || "N/A"}\nBinance Rejection Reason: ${resData.error || "Unknown error"}`,
-              });
-            }
+            handleTriggerToast({
+              id: Date.now().toString(),
+              symbol: newOrder.symbol,
+              timestamp: Date.now(),
+              isError: true,
+              aiExplanationAr: `❌ فشل تنفيذ الصفقة على منصة بينانس!\nاتجاه الصفقة: ${directionAr}\nالسعر: ${newOrder.price}\nالسبب الفني والمؤشرات: ${newOrder.aiReasonAr || "غير متوفر"}\nسبب الرفض من بينانس: ${resData.error || "مجهول"}`,
+              aiExplanationEn: `❌ Binance live trade failed!\nDirection: ${directionEn}\nPrice: ${newOrder.price}\nTechnical Reason & Indicators: ${newOrder.aiReasonEn || "N/A"}\nBinance Rejection Reason: ${resData.error || "Unknown error"}`,
+            });
             
-            if (newOrder.originType === "BOT") {
-              throw new Error(`Binance order rejected: ${resData.error || "Unknown error"}`);
-            } else {
+            if (newOrder.originType !== "BOT") {
               alert(
                 lang === "ar"
                   ? `❌ رفضت بينانس تنفيذ الصفقة.\n\nالسبب: ${resData.error || "عطل مجهول"}.\n\nملاحظة هامة: لتنفيذ الصفقات حقيقياً يجب التأكد من توفر رصيد كافٍ لتغطية قيمة الصفقة المحددة حسب شروط المنصة، ويجب إدخال مفتاح API صحيح تماماً.\n\nتم حفظ الصفقة الآن كمحاكاة تجريبية.`
                   : `❌ Binance order rejected: ${resData.error || "Unknown error"}.\nNote: Spot orders must meet the exchange's minimum notional value and API keys must have Spot Trading Enabled.\nLogged as paper-demo instead.`
               );
             }
+            throw new Error(`Binance order rejected: ${resData.error || "Unknown error"}`);
           }
         } catch (err: any) {
           console.warn("Binance direct dispatch warning:", err.message || err);
@@ -2126,7 +2128,18 @@ export default function App() {
               : `⚠️ Live Trading but API keys missing!\n\nYou must securely link your Binance API keys in the 'API Security' tab first. Without them, trades are logged as paper-demo.`,
           );
         } else {
-           throw new Error("Live Trading is enabled but API keys are missing.");
+          if (Date.now() - (window.lastApiErrorToastTime || 0) > 300000) {
+            window.lastApiErrorToastTime = Date.now();
+            handleTriggerToast({
+              id: Date.now().toString(),
+              symbol: newOrder.symbol,
+              timestamp: Date.now(),
+              isError: true,
+              aiExplanationAr: `⚠️ التداول حقيقي ولكن مفاتيح API مفقودة!\nتم تحويل صفقات البوت التلقائية مؤقتاً إلى المحاكاة التجريبية (Demo) حتى تقوم بربط حساب بينانس من قسم (أمان الـ API).`,
+              aiExplanationEn: `⚠️ Live Trading enabled but API keys missing!\nAutomated bot trades have temporarily fallen back to paper-demo until you link your Binance API.`,
+            });
+          }
+          // Proceed as paper trade silently
         }
       }
     }
@@ -2884,7 +2897,19 @@ export default function App() {
       });
     } catch (err: any) {
       console.warn("Failed to dispatch automated whale-triggered futures trade:", err.message || err);
-      failedCoinsCooldownRef.current[signal.symbol] = Date.now();
+      failedCoinsCooldownRef.current[signal.symbol] = Date.now() + 300000; // 5 min cooldown for this coin
+      const msg = err.message || err.toString();
+      if (Date.now() - (window.lastApiErrorToastTime || 0) > 60000) { // Global 60s cooldown for API errors
+        window.lastApiErrorToastTime = Date.now();
+        handleTriggerToast({
+          id: `whale-err-${Date.now()}`,
+          symbol: signal.symbol,
+          timestamp: Date.now(),
+          isError: true,
+          aiExplanationAr: `❌ فشل تنفيذ صفقة الحيتان التلقائية!\nالسبب: ${msg}\nيرجى التحقق من توفر رصيد كاف ومفاتيح API صالحة.`,
+          aiExplanationEn: `❌ Failed to execute automated whale trade!\nReason: ${msg}\nPlease verify API keys and balance.`,
+        });
+      }
     }
   };
 
@@ -3077,7 +3102,19 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
           });
         } catch (err: any) {
           console.warn("Watchlist scanner auto order failed:", err.message || err);
-          failedCoinsCooldownRef.current[coin.symbol] = Date.now();
+          failedCoinsCooldownRef.current[coin.symbol] = Date.now() + 300000; // 5 min cooldown for this coin
+          const msg = err.message || err.toString();
+          if (Date.now() - (window.lastApiErrorToastTime || 0) > 60000) {
+            window.lastApiErrorToastTime = Date.now();
+            handleTriggerToast({
+              id: `scan-err-${Date.now()}`,
+              symbol: coin.symbol,
+              timestamp: Date.now(),
+              isError: true,
+              aiExplanationAr: `❌ فشل إطلاق صفقة ارتداد تلقائية!\nالسبب: ${msg}\nيرجى التأكد من ربط حساب بينانس وتوفر رصيد كاف.`,
+              aiExplanationEn: `❌ Failed to execute auto-rebound trade!\nReason: ${msg}\nPlease verify your Binance API connection and balance.`,
+            });
+          }
         }
       }
     };
@@ -3246,7 +3283,19 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
           });
         } catch (er: any) {
           console.warn("AI Engine order fail:", er.message);
-          failedCoinsCooldownRef.current[coin.symbol] = Date.now();
+          failedCoinsCooldownRef.current[coin.symbol] = Date.now() + 300000; // 5 min cooldown for this coin
+          const msg = er.message || er.toString();
+          if (Date.now() - (window.lastApiErrorToastTime || 0) > 60000) {
+            window.lastApiErrorToastTime = Date.now();
+            handleTriggerToast({
+              id: `ai-err-${Date.now()}`,
+              symbol: coin.symbol,
+              timestamp: Date.now(),
+              isError: true,
+              aiExplanationAr: `❌ فشل تنفيذ صفقة الذكاء الاصطناعي!\nالسبب: ${msg}\nقم بمراجعة الرصيد والمفاتيح.`,
+              aiExplanationEn: `❌ Failed to execute AI engine trade!\nReason: ${msg}\nCheck balance and API keys.`,
+            });
+          }
         }
       }
       
