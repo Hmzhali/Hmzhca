@@ -1,9 +1,7 @@
 {
   "name": "Al-Moharif AI",
   "description": "Al-Moharif AI Crypto Trading Terminal",
-  "requestFramePermissions": [
-    "screen-wake-lock"
-  ],
+  "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

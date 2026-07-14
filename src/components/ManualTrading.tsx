@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { MarketPair, OrderType, OrderSide, TradeOrder } from '../types';
 import { generateOrderBook, ARABIC_DICT } from '../utils/marketData';
-import { ArrowDownRight, ArrowUpLeft, AlertTriangle, Play, HelpCircle, CheckCircle2, Download } from 'lucide-react';
+import { ArrowDownRight, ArrowUpLeft, AlertTriangle, Play, HelpCircle, CheckCircle2, Download, Lock } from 'lucide-react';
 import LeverageRiskCalculator from './LeverageRiskCalculator';
 
 interface ManualTradingProps {
@@ -32,29 +32,50 @@ export default function ManualTrading({
 }: ManualTradingProps) {
   const d = ARABIC_DICT;
 
+  // Settings Lock State (defaults to true for maximum persistence/security)
+  const [lockSettingsGlobally, setLockSettingsGlobally] = useState<boolean>(() => {
+    const saved = localStorage.getItem("almoharif_spot_manual_lock_global");
+    return saved === null ? true : saved === "true";
+  });
+
   // Form states
   const [orderSide, setOrderSide] = useState<OrderSide>(() => {
-    const saved = localStorage.getItem("almoharif_spot_manual_side");
+    const isGlobal = (localStorage.getItem("almoharif_spot_manual_lock_global") ?? "true") === "true";
+    const key = isGlobal ? "almoharif_spot_manual_global_side" : "almoharif_spot_manual_side";
+    const saved = localStorage.getItem(key);
     return (saved === 'BUY' || saved === 'SELL') ? saved : 'BUY';
   });
+
   const [orderType, setOrderType] = useState<OrderType>(() => {
-    const saved = localStorage.getItem("almoharif_spot_manual_type");
+    const isGlobal = (localStorage.getItem("almoharif_spot_manual_lock_global") ?? "true") === "true";
+    const key = isGlobal ? "almoharif_spot_manual_global_type" : "almoharif_spot_manual_type";
+    const saved = localStorage.getItem(key);
     return (saved === 'LIMIT' || saved === 'MARKET' || saved === 'STOP_LIMIT') ? saved : 'LIMIT';
   });
+
   const [price, setPrice] = useState<string>(() => {
     const saved = localStorage.getItem(`almoharif_spot_manual_price_${activePair.symbol}`);
     return saved !== null ? saved : activePair.currentPrice.toString();
   });
+
   const [amount, setAmount] = useState<string>(() => {
-    const saved = localStorage.getItem(`almoharif_spot_manual_amount_${activePair.symbol}`);
+    const isGlobal = (localStorage.getItem("almoharif_spot_manual_lock_global") ?? "true") === "true";
+    const key = isGlobal ? "almoharif_spot_manual_global_amount" : `almoharif_spot_manual_amount_${activePair.symbol}`;
+    const saved = localStorage.getItem(key);
     return saved !== null ? saved : '0.01';
   });
+
   const [takeProfit, setTakeProfit] = useState<string>(() => {
-    const saved = localStorage.getItem(`almoharif_spot_manual_tp_${activePair.symbol}`);
+    const isGlobal = (localStorage.getItem("almoharif_spot_manual_lock_global") ?? "true") === "true";
+    const key = isGlobal ? "almoharif_spot_manual_global_tp" : `almoharif_spot_manual_tp_${activePair.symbol}`;
+    const saved = localStorage.getItem(key);
     return saved !== null ? saved : '';
   });
+
   const [stopLoss, setStopLoss] = useState<string>(() => {
-    const saved = localStorage.getItem(`almoharif_spot_manual_sl_${activePair.symbol}`);
+    const isGlobal = (localStorage.getItem("almoharif_spot_manual_lock_global") ?? "true") === "true";
+    const key = isGlobal ? "almoharif_spot_manual_global_sl" : `almoharif_spot_manual_sl_${activePair.symbol}`;
+    const saved = localStorage.getItem(key);
     return saved !== null ? saved : '';
   });
   
@@ -66,38 +87,69 @@ export default function ManualTrading({
   
   const [fallbackLeverage, setFallbackLeverage] = useState<number>(1);
   const [useAiStopLoss, setUseAiStopLoss] = useState<boolean>(() => {
-    const saved = localStorage.getItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`);
+    const isGlobal = (localStorage.getItem("almoharif_spot_manual_lock_global") ?? "true") === "true";
+    const key = isGlobal ? "almoharif_spot_manual_global_use_ai_sl" : `almoharif_spot_manual_use_ai_sl_${activePair.symbol}`;
+    const saved = localStorage.getItem(key);
     return saved === 'true';
   });
 
   // Save changes to localStorage
   useEffect(() => {
-    localStorage.setItem("almoharif_spot_manual_side", orderSide);
-  }, [orderSide]);
+    localStorage.setItem("almoharif_spot_manual_lock_global", String(lockSettingsGlobally));
+  }, [lockSettingsGlobally]);
 
   useEffect(() => {
-    localStorage.setItem("almoharif_spot_manual_type", orderType);
-  }, [orderType]);
+    if (lockSettingsGlobally) {
+      localStorage.setItem("almoharif_spot_manual_global_side", orderSide);
+    } else {
+      localStorage.setItem("almoharif_spot_manual_side", orderSide);
+    }
+  }, [orderSide, lockSettingsGlobally]);
+
+  useEffect(() => {
+    if (lockSettingsGlobally) {
+      localStorage.setItem("almoharif_spot_manual_global_type", orderType);
+    } else {
+      localStorage.setItem("almoharif_spot_manual_type", orderType);
+    }
+  }, [orderType, lockSettingsGlobally]);
 
   useEffect(() => {
     localStorage.setItem(`almoharif_spot_manual_price_${activePair.symbol}`, price);
   }, [price, activePair.symbol]);
 
   useEffect(() => {
-    localStorage.setItem(`almoharif_spot_manual_amount_${activePair.symbol}`, amount);
-  }, [amount, activePair.symbol]);
+    if (lockSettingsGlobally) {
+      localStorage.setItem("almoharif_spot_manual_global_amount", amount);
+    } else {
+      localStorage.setItem(`almoharif_spot_manual_amount_${activePair.symbol}`, amount);
+    }
+  }, [amount, activePair.symbol, lockSettingsGlobally]);
 
   useEffect(() => {
-    localStorage.setItem(`almoharif_spot_manual_tp_${activePair.symbol}`, takeProfit);
-  }, [takeProfit, activePair.symbol]);
+    if (lockSettingsGlobally) {
+      localStorage.setItem("almoharif_spot_manual_global_tp", takeProfit);
+    } else {
+      localStorage.setItem(`almoharif_spot_manual_tp_${activePair.symbol}`, takeProfit);
+    }
+  }, [takeProfit, activePair.symbol, lockSettingsGlobally]);
 
   useEffect(() => {
-    localStorage.setItem(`almoharif_spot_manual_sl_${activePair.symbol}`, stopLoss);
-  }, [stopLoss, activePair.symbol]);
+    if (lockSettingsGlobally) {
+      localStorage.setItem("almoharif_spot_manual_global_sl", stopLoss);
+    } else {
+      localStorage.setItem(`almoharif_spot_manual_sl_${activePair.symbol}`, stopLoss);
+    }
+  }, [stopLoss, activePair.symbol, lockSettingsGlobally]);
 
   useEffect(() => {
-    localStorage.setItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`, String(useAiStopLoss));
-  }, [useAiStopLoss, activePair.symbol]);
+    if (lockSettingsGlobally) {
+      localStorage.setItem("almoharif_spot_manual_global_use_ai_sl", String(useAiStopLoss));
+    } else {
+      localStorage.setItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`, String(useAiStopLoss));
+    }
+  }, [useAiStopLoss, activePair.symbol, lockSettingsGlobally]);
+
   const calculateSmartSL = React.useCallback(async () => {
     try {
       const klineResp = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
@@ -128,33 +180,37 @@ export default function ManualTrading({
       calculateSmartSL();
     }
   }, [useAiStopLoss, calculateSmartSL]);
+
   const leverage = manualLeverage !== undefined ? manualLeverage : fallbackLeverage;
   const setLeverage = setManualLeverage !== undefined ? setManualLeverage : setFallbackLeverage;
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'refused' } | null>(null);
 
   // Sync price if market order is selected or when pair switches
+  // Optimized to only execute on mode change or pair swap, preventing infinite WebSocket update depth crashes
   useEffect(() => {
     if (orderType === 'MARKET') {
-      setPrice(activePair.currentPrice.toString());
+      setPrice(activePriceRef.current.toString());
     }
-  }, [activePair.currentPrice, orderType]);
+  }, [orderType, activePair.symbol]);
 
-  // Sync price once when the pair symbol changes
+  // Sync price once when the pair symbol changes, respecting global settings lock
   useEffect(() => {
     const savedPrice = localStorage.getItem(`almoharif_spot_manual_price_${activePair.symbol}`);
     setPrice(savedPrice !== null ? savedPrice : activePair.currentPrice.toString());
 
-    const savedAmount = localStorage.getItem(`almoharif_spot_manual_amount_${activePair.symbol}`);
-    setAmount(savedAmount !== null ? savedAmount : '0.01');
+    if (!lockSettingsGlobally) {
+      const savedAmount = localStorage.getItem(`almoharif_spot_manual_amount_${activePair.symbol}`);
+      setAmount(savedAmount !== null ? savedAmount : '0.01');
 
-    const savedTP = localStorage.getItem(`almoharif_spot_manual_tp_${activePair.symbol}`);
-    setTakeProfit(savedTP !== null ? savedTP : '');
+      const savedTP = localStorage.getItem(`almoharif_spot_manual_tp_${activePair.symbol}`);
+      setTakeProfit(savedTP !== null ? savedTP : '');
 
-    const savedSL = localStorage.getItem(`almoharif_spot_manual_sl_${activePair.symbol}`);
-    setStopLoss(savedSL !== null ? savedSL : '');
+      const savedSL = localStorage.getItem(`almoharif_spot_manual_sl_${activePair.symbol}`);
+      setStopLoss(savedSL !== null ? savedSL : '');
 
-    const savedAiSL = localStorage.getItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`);
-    setUseAiStopLoss(savedAiSL === 'true');
+      const savedAiSL = localStorage.getItem(`almoharif_spot_manual_use_ai_sl_${activePair.symbol}`);
+      setUseAiStopLoss(savedAiSL === 'true');
+    }
   }, [activePair.symbol]);
 
   // Order Book state with real-time Binance Order depth API synchronization
@@ -421,7 +477,7 @@ export default function ManualTrading({
       <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <div>
           {/* Side Tabs (Buy/Sell) */}
-          <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-5">
+          <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-4">
             <button
               type="button"
               onClick={() => setOrderSide('BUY')}
@@ -443,6 +499,30 @@ export default function ManualTrading({
               }`}
             >
               {lang === 'ar' ? d.sell : 'SELL POINT'}
+            </button>
+          </div>
+
+          {/* Global Settings Lock Toggle */}
+          <div className="mb-5 flex items-center justify-between px-1 py-2 bg-slate-950/40 rounded-lg border border-slate-850/50">
+            <div className="flex items-center gap-2">
+              <div className={`p-1 rounded ${lockSettingsGlobally ? 'bg-emerald-500/10' : 'bg-slate-800'}`}>
+                <Lock className={`w-3 h-3 ${lockSettingsGlobally ? 'text-emerald-500' : 'text-slate-500'}`} />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-200">
+                  {lang === 'ar' ? 'تثبيت الإعدادات العامة' : 'Global Settings Lock'}
+                </span>
+                <span className="text-[8px] text-slate-500">
+                  {lang === 'ar' ? 'مزامنة الكمية والأهداف عبر العملات' : 'Sync amount & goals across all assets'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLockSettingsGlobally(!lockSettingsGlobally)}
+              className={`w-9 h-5 rounded-full transition-all relative ${lockSettingsGlobally ? 'bg-emerald-600' : 'bg-slate-700'}`}
+            >
+              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${lockSettingsGlobally ? (lang === 'ar' ? 'right-5' : 'left-5') : (lang === 'ar' ? 'right-1' : 'left-1')}`} />
             </button>
           </div>
 
