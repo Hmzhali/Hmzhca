@@ -18,6 +18,7 @@ import {
   ToastNotification,
   PriceAlert,
   OrderStatus,
+  FuturesPosition,
 } from "./types";
 import { INITIAL_PAIRS, ARABIC_DICT } from "./utils/marketData";
 import Header from "./components/Header";
@@ -482,6 +483,64 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("almoharif_portfolio", JSON.stringify(portfolio));
   }, [portfolio]);
+
+  // Lifted Futures Positions state for global Equity calculation
+  const [futuresPositions, setFuturesPositions] = useState<FuturesPosition[]>(() => {
+    const saved = localStorage.getItem("almoharif_futures_positions");
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("almoharif_futures_positions", JSON.stringify(futuresPositions));
+  }, [futuresPositions]);
+
+  // Real-time Equity Calculation (Wallet Balance + Margin + Total uPNL)
+  const [totalEquity, setTotalEquity] = useState<number>(portfolio.usdt);
+
+  useEffect(() => {
+    const totalPnl = futuresPositions.reduce((acc, p) => acc + (p.unrealizedPnl || 0), 0);
+    // Note: Margin is already deducted from portfolio.usdt when trade opens in simulation mode
+    // So Equity = Current Wallet Balance + Unrealized PNL + Locked Margin (wait, margin is usually part of equity)
+    // Actually, simulation deducts margin from usdt, so Equity = usdt + margin + pnl? 
+    // In live Binance, Equity is just Balance + PNL.
+    // In our simulation, we deduct margin to prevent overspending. So usdt is "Available Balance".
+    // Total Equity = Available Balance + Locked Margin + PNL
+    const lockedMargin = futuresPositions.reduce((acc, p) => acc + (p.margin || 0), 0);
+    setTotalEquity(parseFloat((portfolio.usdt + lockedMargin + totalPnl).toFixed(2)));
+  }, [futuresPositions, portfolio.usdt]);
+
+  // Sync positions PNL with real-time price feed in App.tsx
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFuturesPositions((prev) => {
+        let changed = false;
+        const next = prev.map((p) => {
+          const match = pairs.find((pair) => pair.symbol === p.symbol);
+          if (match && match.currentPrice !== p.currentPrice) {
+            changed = true;
+            const diff = match.currentPrice - p.entryPrice;
+            const pnlDirection = p.side === "LONG" ? 1 : -1;
+            const unrealPnl = diff * p.amount * pnlDirection;
+            const uPnlPercent = (unrealPnl / p.margin) * 100;
+
+            return {
+              ...p,
+              currentPrice: match.currentPrice,
+              unrealizedPnl: unrealPnl,
+              unrealizedPnlPercent: uPnlPercent,
+            };
+          }
+          return p;
+        });
+        return changed ? next : prev;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [pairs]);
 
   const handleFuturesUpdatePortfolio = useCallback((incUsdt: number, incBtc: number) => {
     setTimeout(() => {
@@ -2399,31 +2458,36 @@ export default function App() {
       const currentPrice = pair.currentPrice;
       let triggered: "TP" | "SL" | "QUICK_SCALP" | "REBOUND_COMPLETED" | null = null;
 
-      // Check Quick Scalp Trailing Protection Mode (Dynamic Exit Protection Shield)
+      // Check Quick Scalp Trailing Protection Mode (Smart Exit Shield)
       if (quickScalpProtectorEnabled && order.isQuickBuy) {
         const savedPeak = peakPricesRef.current[order.id];
         const peakPrice = savedPeak !== undefined ? savedPeak : (order.peakPrice !== undefined ? order.peakPrice : order.price);
 
         const isLong = order.side === "BUY";
         const entryPrice = order.price;
+        const now = Date.now();
+        const tradeAgeMs = now - (order.timestamp || now);
         
-        // Ensure minimum sensible profit (0.3%) before trailing kicks in
+        // Smart Filter: Ensure minimum profit (0.5%) AND minimum hold time (30s) before trailing kicks in
         const minProfitMet = isLong 
-          ? (currentPrice > entryPrice * 1.003) 
-          : (currentPrice < entryPrice * 0.997);
+          ? (currentPrice > entryPrice * 1.005) 
+          : (currentPrice < entryPrice * 0.995);
+        
+        const canExitSafe = tradeAgeMs > 30000; // 30s minimum hold time to avoid fee drainage
           
         if (isLong) {
-          const trailDistance = Math.max(0.01, peakPrice * 0.004); // 0.4% trailing stop for tighter profits
-          if (currentPrice <= peakPrice - trailDistance && minProfitMet) {
+          // Widened trail to 1.2% to allow for natural volatility
+          const trailDistance = Math.max(0.01, peakPrice * 0.012); 
+          if (currentPrice <= peakPrice - trailDistance && minProfitMet && canExitSafe) {
             triggered = "QUICK_SCALP";
-          } else if (currentPrice <= entryPrice * 0.93) { // Relaxed Stop Loss at 7% to give room for recovery
+          } else if (currentPrice <= entryPrice * 0.90) { // Stop loss at 10%
             triggered = "QUICK_SCALP";
           }
         } else {
-          const trailDistance = Math.max(0.01, peakPrice * 0.004);
-          if (currentPrice >= peakPrice + trailDistance && minProfitMet) {
+          const trailDistance = Math.max(0.01, peakPrice * 0.012);
+          if (currentPrice >= peakPrice + trailDistance && minProfitMet && canExitSafe) {
             triggered = "QUICK_SCALP";
-          } else if (currentPrice >= entryPrice * 1.07) { // Relaxed Stop Loss at 7% to give room for recovery
+          } else if (currentPrice >= entryPrice * 1.10) { // Stop loss at 10%
             triggered = "QUICK_SCALP";
           }
         }
@@ -2804,17 +2868,16 @@ export default function App() {
 
     // Use Futures balance for Whale Radar
     // Smart Compounding: Use 15% to 30% of portfolio for whales, or the set quick buy amount, whichever is larger
-    let sizeInUsdt = Math.max(quickBuyAmountUsdt, portfolio.futuresUsdt * 0.20);
-    const minimumTradeSize = isLiveTrading ? 1.0 : 0.5;
+    let sizeInUsdt = Math.max(quickBuyAmountUsdt, portfolio.futuresUsdt * 0.15);
+    const minimumTradeSize = isLiveTrading ? 5.1 : 0.5; // Enforce Binance $5 minimum for live trading
 
     if (portfolio.futuresUsdt < sizeInUsdt) {
       if (portfolio.futuresUsdt >= minimumTradeSize) {
-        sizeInUsdt = parseFloat((portfolio.futuresUsdt * 0.95).toFixed(2));
+        sizeInUsdt = parseFloat((portfolio.futuresUsdt * 0.90).toFixed(2));
       } else {
-        if (isLiveTrading) {
-        }
-        failedCoinsCooldownRef.current[matchedPair.symbol] = Date.now();
-        return; // not enough simulated funds
+        // Not enough funds for a safe trade
+        failedCoinsCooldownRef.current[matchedPair.symbol] = Date.now() + 300000; // 5 min cooldown
+        return;
       }
     }
 
@@ -2823,12 +2886,19 @@ export default function App() {
 
     const coinPrice = matchedPair.currentPrice;
     
-    // Adaptive Leverage to pass Binance $5 Minimum Notional Value Rule
-    let optimizedLeverage = 20;
-    if (isLiveTrading && sizeInUsdt < 5.1) {
-       // E.g., if sizeInUsdt is 0.5, 6.0 / 0.5 = 12x. We use 20x minimum, up to 50x.
-       optimizedLeverage = Math.max(20, Math.ceil(6.0 / sizeInUsdt));
-       optimizedLeverage = Math.min(50, optimizedLeverage); // Cap at 50x max
+    // Adaptive Leverage to pass Binance $5 Minimum Notional Value Rule (Safely)
+    let optimizedLeverage = 10; // Default to safer 10x
+    if (isLiveTrading) {
+       // If size is small, we calculate needed leverage to reach $5.5 (buffer)
+       // But we CAP it at 20x to avoid instant liquidation
+       const neededLeverage = Math.ceil(5.5 / sizeInUsdt);
+       optimizedLeverage = Math.min(20, Math.max(10, neededLeverage));
+       
+       // If even at 20x we can't reach $5 notional, we don't trade.
+       if (sizeInUsdt * optimizedLeverage < 5.0) {
+         console.warn(`[Whale Bot] Margin $${sizeInUsdt} is too small for Binance $5 limit even at 20x leverage.`);
+         return;
+       }
     }
 
     const defaultLeverage = optimizedLeverage;
@@ -2945,9 +3015,9 @@ export default function App() {
     const worker = new Worker(workerUrl);
     
     worker.onmessage = async () => {
-      // Cooldown check (minimum 2.5 seconds between scanner automated trades to manage funds responsibly)
+      // Cooldown check (minimum 15 seconds between scanner automated trades to manage fees and funds)
       const nowMs = Date.now();
-      if (nowMs - lastScannedTradeTimeRef.current < 2500) return;
+      if (nowMs - lastScannedTradeTimeRef.current < 15000) return;
 
       const availablePairs = pairsRef.current.length > 0 ? pairsRef.current : INITIAL_PAIRS;
       if (availablePairs.length === 0) return;
@@ -2975,13 +3045,15 @@ export default function App() {
         const confidenceScore = Math.min(Math.max(Math.round(45 + rsiDistance * 1.5 + volBonus + spBonus), 35), 99);
 
         // Optimal triggers:
-        // Buy: if oversold (RSI < 42) or sudden bullish spike with high confidence
-        // Sell/Short: if overbought (RSI > 58) with high confidence
+        // Buy: if oversold (RSI < 40) with high confidence
+        // Sell/Short: if overbought (RSI > 60) with high confidence
         let suggestedSide: "BUY" | "SELL" | null = null;
-        if (confidenceScore >= 60) { // Lowered to 60 for faster movement
-          if (rsi < 48 || coin.change24h > 0.5) {
+        const requiredConfidence = isLiveTrading ? 85 : 65; // Higher barrier for real funds
+
+        if (confidenceScore >= requiredConfidence) { 
+          if (rsi < 40) {
             suggestedSide = "BUY";
-          } else if (rsi > 52 || coin.change24h < -0.5) {
+          } else if (rsi > 60) {
             suggestedSide = "SELL";
           }
         }
@@ -3028,21 +3100,22 @@ export default function App() {
 
         const nowCooldownMs = Date.now();
         const lastFail = failedCoinsCooldownRef.current[coin.symbol] || 0;
-        if (nowCooldownMs - lastFail < 60000) return; // 60 seconds cooldown for a failed coin
+        // Increased cooldown to 10 minutes (600,000ms) after a trade or failure on a specific coin
+        if (nowCooldownMs - lastFail < 600000) return; 
 
-        // Trade sizing & Leverage dynamically scaled based on signal strength/confidence score! ("وكلما كانت الفرصة قوية، زيد بالرافعة والجاهزية بالرصيد")
+        // Trade sizing & Leverage dynamically scaled based on signal strength
         let baseSizing = quickBuyAmountUsdt;
         let scalingMultiplier = 1;
-        let dynamicLeverage = 1;
+        let dynamicLeverage = 10; // Safer default
 
-        if (bestCandidate.confidenceScore >= 60) {
-          scalingMultiplier = 1 + ((bestCandidate.confidenceScore - 60) / 40) * 1.5; // up to 2.5x standard size
-          dynamicLeverage = Math.round(5 + ((bestCandidate.confidenceScore - 60) / 40) * 45); // up to 50x leverage!
+        if (bestCandidate.confidenceScore >= 75) {
+          scalingMultiplier = 1 + ((bestCandidate.confidenceScore - 75) / 25) * 1.0; 
+          dynamicLeverage = Math.round(10 + ((bestCandidate.confidenceScore - 75) / 25) * 10); // max 20x
         }
 
         let sizeInUsdt = baseSizing * scalingMultiplier;
         const currentPortfolio = portfolioRef.current;
-        const minimumTradeSize = isLiveTrading ? 1.0 : 0.5;
+        const minimumTradeSize = isLiveTrading ? 5.1 : 0.5;
 
         const tradeDirectionAr = tradeSide === "BUY" ? "شراء (Long - ارتداد للارتفاع 📈)" : "بيع (Short - ارتداد للهبوط 📉)";
         const tradeDirectionEn = tradeSide === "BUY" ? "BUY (Long - Upward Rebound 📈)" : "SELL (Short - Downward Rebound 📉)";
@@ -3128,7 +3201,7 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
         }
       }
     };
-    worker.postMessage({ command: 'start', delay: 4500 });
+    worker.postMessage({ command: 'start', delay: 15000 }); // Scan every 15 seconds instead of 4.5
 
     return () => {
       worker.postMessage({ command: 'stop' });
@@ -3718,6 +3791,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         portfolio={portfolio}
+        totalEquity={totalEquity}
         isConnected={apiConnection.isConnected}
         isLiveTrading={isLiveTrading}
         setIsLiveTrading={setIsLiveTrading}
@@ -4502,6 +4576,8 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                 activePair={activePair}
                 allPairs={pairs}
                 portfolio={portfolio}
+                positions={futuresPositions}
+                setPositions={setFuturesPositions}
                 onUpdatePortfolio={handleFuturesUpdatePortfolio}
                 onTriggerToast={handleTriggerToast}
                 apiConnection={apiConnection}

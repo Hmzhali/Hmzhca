@@ -18,7 +18,7 @@ export default function ActivePositionsList({ positions, onClosePosition, lang }
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" id="active-positions-list">
       {positions.map((p) => {
         const isPositive = p.unrealizedPnl >= 0;
         return (

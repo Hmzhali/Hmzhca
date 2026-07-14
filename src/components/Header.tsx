@@ -17,6 +17,7 @@ interface HeaderProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   portfolio: { usdt: number; btc: number };
+  totalEquity: number;
   isConnected: boolean;
   isLiveTrading: boolean;
   setIsLiveTrading: (val: boolean) => void;
@@ -36,6 +37,7 @@ export default function Header({
   activeTab,
   setActiveTab,
   portfolio,
+  totalEquity,
   isConnected,
   isLiveTrading,
   setIsLiveTrading,
@@ -196,9 +198,39 @@ export default function Header({
           </div>
 
           {/* Balances */}
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-2 py-1 rounded font-mono">
-            <Wallet className="w-3.5 h-3.5 text-emerald-500" />
-            <span className="font-bold text-white">{portfolio.usdt.toLocaleString()} USDT</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-2 py-1 rounded font-mono group relative">
+              <Wallet className="w-3.5 h-3.5 text-emerald-500" />
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1">
+                  <span className="text-white font-bold">{portfolio.usdt.toLocaleString()}</span>
+                  <span className="text-slate-500 text-[9px]">USDT</span>
+                </div>
+                <div className="text-[8px] text-slate-400 -mt-0.5">
+                  {lang === 'ar' ? 'رصيد المحفظة' : 'Wallet Balance'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded font-mono group relative shadow-[0_0_10px_rgba(16,185,129,0.05)]">
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1">
+                  <span className="text-emerald-400 font-bold">{totalEquity.toLocaleString()}</span>
+                  <span className="text-emerald-600 text-[9px]">USDT</span>
+                </div>
+                <div className="text-[8px] text-emerald-500/70 -mt-0.5 font-bold">
+                  {lang === 'ar' ? 'إجمالي رأس المال' : 'Total Equity'}
+                </div>
+              </div>
+              
+              {/* Tooltip for total equity explanation */}
+              <div className="absolute top-full left-0 mt-1 w-48 p-2 bg-slate-800 border border-slate-700 rounded shadow-xl text-[9px] text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[60]">
+                {lang === 'ar' 
+                  ? 'رأس مالك الحقيقي شاملاً أرباح وخسائر الصفقات المفتوحة في الوقت الحالي.' 
+                  : 'Real-time account value including unrealized profit/loss from active positions.'}
+              </div>
+            </div>
           </div>
 
           {/* Modes Toggle */}

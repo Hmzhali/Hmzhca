@@ -29,6 +29,8 @@ interface FuturesTradingProps {
   lang: "ar" | "en";
   activePair: MarketPair;
   portfolio: { usdt: number; btc: number };
+  positions: FuturesPosition[];
+  setPositions: React.Dispatch<React.SetStateAction<FuturesPosition[]>>;
   onUpdatePortfolio?: (incUsdt: number, incBtc: number) => void;
   onTriggerToast?: (toast: any) => void;
   apiConnection?: ApiConnection;
@@ -43,6 +45,8 @@ export default function FuturesTrading({
   lang,
   activePair,
   portfolio,
+  positions,
+  setPositions,
   onUpdatePortfolio,
   onTriggerToast,
   apiConnection,
@@ -355,52 +359,6 @@ export default function FuturesTrading({
     isSmartMode,
   ]);
 
-  // Open Positions State
-  const [positions, setPositions] = useState<FuturesPosition[]>(() => {
-    const saved = localStorage.getItem("almoharif_futures_positions");
-    try {
-      return saved ? JSON.parse(saved) : [
-          {
-            id: "pos-btc-sample",
-            symbol: "BTC/USDT",
-            side: "LONG",
-            leverage: 20,
-            marginType: "ISOLATED",
-            entryPrice: 65200,
-            currentPrice:
-              activePair.symbol === "BTC/USDT"
-                ? activePair.currentPrice
-                : 67050,
-            amount: 0.15,
-            margin: 489,
-            liquidationPrice: 62230,
-            unrealizedPnl: 277.5,
-            unrealizedPnlPercent: 56.7,
-          },
-        ];
-    } catch (e) {
-      console.error("Failed to parse positions from localStorage", e);
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(
-      "almoharif_futures_positions",
-      JSON.stringify(positions),
-    );
-  }, [positions]);
-
-  useEffect(() => {
-    const handlePositionsUpdate = () => {
-      const saved = localStorage.getItem("almoharif_futures_positions");
-      if (saved) {
-        setPositions(JSON.parse(saved));
-      }
-    };
-    window.addEventListener("futures_positions_updated", handlePositionsUpdate);
-    return () => window.removeEventListener("futures_positions_updated", handlePositionsUpdate);
-  }, []);
 
   const fetchRealFuturesData = React.useCallback(async () => {
     if (
@@ -563,156 +521,58 @@ export default function FuturesTrading({
     leverage,
   );
 
-  // Periodically fluctuate open positions to simulate realistic price movements
+  // Periodically check for TP/SL/Liquidation triggers for simulated positions
   useEffect(() => {
     const interval = setInterval(() => {
-      setPositions((prevPositions) => {
-        if (apiConnection?.isConnected) {
-          return prevPositions;
-        }
+      if (apiConnection?.isConnected || positions.length === 0) return;
 
+      setPositions((prevPositions) => {
         const nextPositions: FuturesPosition[] = [];
         let closedRefund = 0;
-        let closedProfit = 0;
+        let triggers = 0;
 
         prevPositions.forEach((p) => {
-          // Dynamic spot synchronization
-          let spot = p.currentPrice;
-          if (p.symbol === activePairRef.current.symbol) {
-            spot = activePairRef.current.currentPrice;
-          } else {
-            // slightly faster random walk for aggressive trading
-            spot = p.currentPrice * (1 + (Math.random() - 0.5) * 0.015);
-          }
-
-          // Calculate unrealized PNL
-          // PNL = (Current - Entry) * Amount * Leverage
-          const diff = spot - p.entryPrice;
-          const pnlDirection = p.side === "LONG" ? 1 : -1;
-          const unrealPnl = diff * p.amount * pnlDirection;
-          // Standard traditional PNL percent
-          const uPnlPercent = (unrealPnl / p.margin) * 100 * p.leverage;
-
-          // Auto-close simulated positions if they hit TP/SL to simulate algorithmic scalping
+          // Check for auto-close triggers (TP, SL, or Liquidation)
           let shouldTriggerClose = false;
-          
+          const uPnlPercent = p.unrealizedPnlPercent;
+          const spot = p.currentPrice;
+
+          // TP/SL triggers
           if (p.takeProfit !== undefined) {
              shouldTriggerClose = p.side === 'LONG' ? spot >= p.takeProfit : spot <= p.takeProfit;
-          } else if (p.stopLoss !== undefined) {
+          }
+          if (p.stopLoss !== undefined && !shouldTriggerClose) {
              shouldTriggerClose = p.side === 'LONG' ? spot <= p.stopLoss : spot >= p.stopLoss;
-          } else {
-             shouldTriggerClose = uPnlPercent >= 12 || uPnlPercent <= -8;
           }
-
-          // Trailing Stop Logic
-          if (!shouldTriggerClose && p.trailingStopEnabled && p.trailingStopOffset) {
-            let currentExtreme = p.peakPrice || p.entryPrice;
-            
-            if (p.side === 'LONG') {
-               const newPeak = Math.max(currentExtreme, spot);
-               if (spot <= newPeak - p.trailingStopOffset) {
-                 shouldTriggerClose = true;
-               }
-               p.peakPrice = newPeak;
-            } else {
-               const newExtreme = Math.min(currentExtreme, spot);
-               if (spot >= newExtreme + p.trailingStopOffset) {
-                 shouldTriggerClose = true;
-               }
-               p.peakPrice = newExtreme;
-            }
-          }
-
-          // Trailing Take-Profit Logic
-          if (!shouldTriggerClose && p.trailingTakeProfitEnabled && p.trailingTakeProfitOffset && p.unrealizedPnl > 0) {
-             let currentExtreme = p.peakPrice || p.entryPrice;
-             
-             if (p.side === 'LONG') {
-                const newPeak = Math.max(currentExtreme, spot);
-                // Retrace by percentage
-                if (spot <= newPeak * (1 - p.trailingTakeProfitOffset / 100)) {
-                  shouldTriggerClose = true;
-                }
-                p.peakPrice = newPeak;
-             } else {
-                const newExtreme = Math.min(currentExtreme, spot);
-                // Retrace by percentage
-                if (spot >= newExtreme * (1 + p.trailingTakeProfitOffset / 100)) {
-                  shouldTriggerClose = true;
-                }
-                p.peakPrice = newExtreme;
-             }
-          }
-
-
-          // Pre-liquidation Protection
+          
+          // Liquidation check
           if (!shouldTriggerClose) {
-             const distToLiq = Math.abs(spot - p.liquidationPrice);
-             // Safety buffer of 0.2% of price for tight but not instant liquidation protection
-             const dangerZone = Math.abs(p.liquidationPrice) * 0.002; 
-             
-             // If price is within danger zone
-             if (distToLiq < dangerZone) {
-                // ...and position is in a very significant loss, say > 80% loss
-                const lossPercent = (p.unrealizedPnl / p.margin) * 100;
-                if (lossPercent <= -80) {
-                  shouldTriggerClose = true;
-                }
+             const isLiquidated = p.side === 'LONG' ? spot <= p.liquidationPrice : spot >= p.liquidationPrice;
+             if (isLiquidated || uPnlPercent <= -98) {
+               shouldTriggerClose = true;
              }
-          }
-
-          // Process the user's "4-cents loss" rule (Relaxed threshold)
-          if (!shouldTriggerClose) {
-            const priceLossDiff = p.side === "LONG" ? (p.entryPrice - spot) : (spot - p.entryPrice);
-            // Increased threshold to 10 cents ($0.10) to avoid premature exits on noise
-            if (priceLossDiff >= 0.10) {
-              const livePair = allPairsRef.current?.find((ap) => ap.symbol === p.symbol);
-              const currentRsi = livePair?.rsi || 50;
-
-              const isOversoldLong = p.side === "LONG" && currentRsi < 20;
-              const isOverboughtShort = p.side === "SHORT" && currentRsi > 80;
-
-              if (isOversoldLong || isOverboughtShort) {
-                // Suspect quick recovery -> allow bumper up to $0.25
-                if (priceLossDiff >= 0.25) {
-                  shouldTriggerClose = true;
-                }
-              } else {
-                // No recovery signs -> exit strictly at 10 cents price decline!
-                shouldTriggerClose = true;
-              }
-            }
           }
 
           if (shouldTriggerClose) {
-            closedRefund += p.margin;
-            closedProfit += unrealPnl;
-            return; // drop it to free up a slot!
+            closedRefund += p.margin + p.unrealizedPnl;
+            triggers++;
+          } else {
+            nextPositions.push(p);
           }
-
-          nextPositions.push({
-            ...p,
-            currentPrice: spot,
-            unrealizedPnl: parseFloat(unrealPnl.toFixed(2)),
-            unrealizedPnlPercent: parseFloat(uPnlPercent.toFixed(1)),
-          });
         });
 
-        if (closedRefund > 0 || Math.abs(closedProfit) > 0) {
-          // Schedule the side effect outside the reducer using a microtask
-          setTimeout(() => {
-            if (onUpdatePortfolioRef.current) {
-              onUpdatePortfolioRef.current(closedRefund + closedProfit, 0);
-            }
-          }, 0);
+        if (triggers > 0 && onUpdatePortfolioRef.current) {
+          // Deduct 0.04% taker fee on close
+          const totalMarginInvolved = prevPositions.reduce((acc, p) => acc + (p.id.includes('pos-') ? p.margin : 0), 0);
+          const fee = totalMarginInvolved * 10 * 0.0004; // estimating average 10x leverage
+          onUpdatePortfolioRef.current(closedRefund - fee, 0);
         }
 
-        return nextPositions;
+        return triggers > 0 ? nextPositions : prevPositions;
       });
-    }, 1500);
-
+    }, 3000);
     return () => clearInterval(interval);
-  }, [apiConnection?.isConnected]);
+  }, [apiConnection?.isConnected, positions.length]);
 
   // Risk Rating Calculator Label
   const getLeverageRiskLabel = (lev: number) => {
@@ -761,6 +621,21 @@ export default function FuturesTrading({
 
   // Place Manual Futures Position
   const handleOpenPosition = async () => {
+    // 0. Protection: Prevent multiple concurrent trades if one is already active
+    if (positions.length > 0) {
+      if (onTriggerToast) {
+        onTriggerToast({
+          id: Date.now().toString(),
+          symbol: activePair.symbol,
+          timestamp: Date.now(),
+          isVolatilityWarning: true,
+          aiExplanationAr: "⚠️ لا يمكن فتح صفقة جديدة بينما توجد صفقة نشطة. يرجى إغلاق الصفقة الحالية أولاً لتجنب مخاطر التصفية وتداخل السيولة.",
+          aiExplanationEn: "⚠️ Cannot open a new position while another is active. Please close your current position first to manage risk and liquidity.",
+        });
+      }
+      return;
+    }
+
     if (amountNum <= 0) {
       if (onTriggerToast) {
         onTriggerToast({
@@ -1046,19 +921,23 @@ export default function FuturesTrading({
     const payout = target.margin + target.unrealizedPnl;
 
     if (onUpdatePortfolio) {
-      onUpdatePortfolio(payout, 0);
+      // Calculate real net PNL after a simulated 0.04% taker fee
+      const tradingFee = target.margin * target.leverage * 0.0004; 
+      const netPayout = payout - tradingFee;
+      onUpdatePortfolio(netPayout, 0);
     }
 
     setPositions((prev) => prev.filter((p) => p.id !== id));
 
     if (onTriggerToast) {
+      const netProfit = target.unrealizedPnl - (target.margin * target.leverage * 0.0004);
       onTriggerToast({
         id: Date.now().toString(),
         symbol: target.symbol,
         timestamp: Date.now(),
         isMilestone: true,
-        aiExplanationAr: `✅ تم إغلاق مركز العقود الآجلة بنجاح بسعر السوق. العائد الإجمالي المضاف للرصيد: ${payout.toFixed(2)} USDT (ربح/خسارة: ${target.unrealizedPnl} USDT).`,
-        aiExplanationEn: `✅ Successfully executed market close for futures position. Total refund returned: ${payout.toFixed(2)} USDT (PnL: $${target.unrealizedPnl}).`,
+        aiExplanationAr: `✅ تم إغلاق مركز العقود الآجلة بنجاح. العائد الصافي المضاف للرصيد: ${payout.toFixed(2)} USDT (الربح الصافي بعد العمولات: ${netProfit.toFixed(2)} USDT).`,
+        aiExplanationEn: `✅ Successfully closed position. Net refund returned: ${payout.toFixed(2)} USDT (Net PnL after fees: $${netProfit.toFixed(2)}).`,
       });
     }
   };
@@ -1579,6 +1458,36 @@ export default function FuturesTrading({
       id="futures-section-container"
       dir={lang === "ar" ? "rtl" : "ltr"}
     >
+      {/* Persistent Active Position Notification Banner */}
+      {positions.length > 0 && (
+        <div className="bg-indigo-500/10 border border-indigo-500/30 p-3 rounded-xl flex items-center justify-between gap-3 animate-pulse shadow-[0_0_15px_rgba(99,102,241,0.1)]">
+          <div className="flex items-center gap-3 text-indigo-400">
+            <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-widest">
+                {lang === 'ar' ? '⚠️ تنبيه: لديك صفقة نشطة حالياً' : '⚠️ ALERT: YOU HAVE AN ACTIVE POSITION'}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium">
+                {lang === 'ar' 
+                  ? `أنت تتداول الآن على ${positions[0].symbol}. راقب تحركات السعر وإجمالي رأس المال في شريط الرأس.` 
+                  : `Currently trading ${positions[0].symbol}. Monitor price action and total equity in the header.`}
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              const el = document.getElementById('active-positions-list');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white text-[10px] font-bold rounded-lg transition-all shadow-lg"
+          >
+            {lang === 'ar' ? 'عرض الصفقة' : 'VIEW POSITION'}
+          </button>
+        </div>
+      )}
+
       {/* Live Binance Connection Status Banner */}
       {apiConnection?.isConnected ? (
         <div className="bg-emerald-950/40 border border-emerald-900/60 p-3.5 rounded-xl flex items-center justify-between text-xs gap-3">
