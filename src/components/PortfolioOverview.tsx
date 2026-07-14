@@ -196,7 +196,7 @@ export default function PortfolioOverview({
     demoFeed: lang === 'ar' ? 'محاكاة المحفظة الافتراضية' : 'Demo Sandbox Ledger',
     apiConnected: lang === 'ar' ? 'شبكة API متصلة ومفتوحة للتداول' : 'Binance API Channel Opened',
     apiDisconnected: lang === 'ar' ? 'وضع الحساب الافتراضي التراكمي' : 'Offline Paper Sandbox Mode',
-    totalBalance: lang === 'ar' ? 'إجمالي رأس المال (فوري + آجلة)' : 'Total Equity (Spot + Futures)',
+    totalBalance: lang === 'ar' ? 'إجمالي رأس المال (Spot + Futures)' : 'Total Net Equity',
     chartDisplayMode: lang === 'ar' ? 'عرض الرسم البياني بـ' : 'Chart Base',
     amount: lang === 'ar' ? 'الكمية الفعلية' : 'Coin Amount',
     usdVal: lang === 'ar' ? 'القيمة بالدولار $' : 'USD Combined',
@@ -587,17 +587,17 @@ export default function PortfolioOverview({
                   <span className="text-[10px] text-slate-500 block leading-none">{dict.currentRate}</span>
                   <div className="text-xs font-mono font-bold text-slate-200 mt-1 flex items-center gap-1 text-emerald-400">
                     <DollarSign className="w-3 h-3 text-emerald-500" />
-                    {selectedAsset === 'USDT' ? '1.00 USDT' : `${activeAssetData.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`}
+                    {selectedAsset === 'USDT' ? '1.00 USDT' : `${activeAssetData.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} USDT`}
                   </div>
                 </div>
 
                 <div>
                   <span className="text-[10px] text-slate-500 block leading-none">{lang === 'ar' ? 'الرصيد المتاح الكافي:' : 'Current Portfolio Holding:'}</span>
                   <div className="text-sm font-mono font-black text-slate-100 mt-1">
-                    {hideBalances ? '••••••' : activeAssetData.value.toFixed(activeAssetData.decimals)} <span className="text-xs font-normal text-slate-400">{selectedAsset}</span>
+                    {hideBalances ? '••••••' : activeAssetData.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: activeAssetData.decimals + 2 })} <span className="text-xs font-normal text-slate-400">{selectedAsset}</span>
                   </div>
                   <div className="text-[10px] text-slate-400 mt-0.5">
-                    ≈ {hideBalances ? '••••' : `$${activeAssetData.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`}
+                    ≈ {hideBalances ? '••••' : `$${activeAssetData.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT`}
                   </div>
                 </div>
 

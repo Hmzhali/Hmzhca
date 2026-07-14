@@ -11,9 +11,10 @@ import { TrendingUp, TrendingDown, Layers, ChartBar, Contrast } from 'lucide-rea
 interface InteractiveChartProps {
   lang: 'ar' | 'en';
   activePair: MarketPair;
+  market?: 'spot' | 'futures';
 }
 
-export default function InteractiveChart({ lang, activePair }: InteractiveChartProps) {
+export default function InteractiveChart({ lang, activePair, market = 'spot' }: InteractiveChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 350 });
   const [interval, setInterval] = useState<string>('1h');
@@ -38,7 +39,7 @@ export default function InteractiveChart({ lang, activePair }: InteractiveChartP
       setIsLoadingCandles(true);
       try {
         const querySymbol = activePair.symbol;
-        const response = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(querySymbol)}&interval=${interval}&limit=${days}`);
+        const response = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(querySymbol)}&interval=${interval}&limit=${days}&market=${market}`);
         if (!response.ok) {
           throw new Error('Local fallback cascade.');
         }

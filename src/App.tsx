@@ -504,12 +504,12 @@ export default function App() {
 
   useEffect(() => {
     const totalPnl = futuresPositions.reduce((acc, p) => acc + (p.unrealizedPnl || 0), 0);
-    // Total Futures Equity = Available Futures Balance + Locked Margin + Unrealized PNL
-    const lockedMargin = futuresPositions.reduce((acc, p) => acc + (p.margin || 0), 0);
-    const newEquity = parseFloat((portfolio.futuresUsdt + lockedMargin + totalPnl).toFixed(2));
+    // Total Futures Equity = Wallet Balance + Unrealized PNL
+    // Wallet Balance (portfolio.futuresUsdt) already includes the margin held in positions
+    const newEquity = parseFloat((portfolio.futuresUsdt + totalPnl).toFixed(4));
     
-    // Only update if value changed significantly to prevent infinite loops from floating point noise
-    setFuturesEquity((prev) => (Math.abs(prev - newEquity) > 0.01 ? newEquity : prev));
+    // Only update if value changed to prevent unnecessary re-renders
+    setFuturesEquity((prev) => (Math.abs(prev - newEquity) > 0.0001 ? newEquity : prev));
   }, [futuresPositions, portfolio.futuresUsdt]);
 
   // Sync positions PNL with real-time price feed in App.tsx (Optimized with Ref)
@@ -527,10 +527,24 @@ export default function App() {
           const match = pairsRef.current.find((pair) => pair.symbol === p.symbol);
           if (match && match.currentPrice !== p.currentPrice) {
             changed = true;
+            
+            // For live positions, we trust the server-side sync from FuturesTrading.tsx
+            // Recalculating here using Spot prices causes significant discrepancies with Binance
+            if (p.id.startsWith("pos-live-") && isLiveTrading) {
+              return {
+                ...p,
+                currentPrice: match.currentPrice,
+              };
+            }
+
             const diff = match.currentPrice - p.entryPrice;
             const pnlDirection = p.side === "LONG" ? 1 : -1;
             const unrealPnl = diff * p.amount * pnlDirection;
-            const uPnlPercent = (unrealPnl / p.margin) * 100;
+            
+            // ROE % = (Unrealized PNL / Initial Margin) * 100
+            // Initial Margin = (Position Size * Entry Price) / Leverage
+            const initialMargin = (p.amount * p.entryPrice) / p.leverage;
+            const uPnlPercent = (unrealPnl / initialMargin) * 100;
 
             return {
               ...p,
@@ -1425,16 +1439,12 @@ export default function App() {
               if (liveData) {
                 return {
                   ...pair,
-                  currentPrice: parseFloat(
-                    parseFloat(liveData.lastPrice).toFixed(2),
-                  ),
+                  currentPrice: parseFloat(liveData.lastPrice),
                   change24h: parseFloat(
                     parseFloat(liveData.priceChangePercent).toFixed(2),
                   ),
-                  high24h: parseFloat(
-                    parseFloat(liveData.highPrice).toFixed(2),
-                  ),
-                  low24h: parseFloat(parseFloat(liveData.lowPrice).toFixed(2)),
+                  high24h: parseFloat(liveData.highPrice),
+                  low24h: parseFloat(liveData.lowPrice),
                   volume24h: parseFloat(
                     parseFloat(liveData.quoteVolume || liveData.volume).toFixed(
                       0,
@@ -1486,12 +1496,10 @@ export default function App() {
                   if (sanitizedSymbol === wsSymbol) {
                     return {
                       ...pair,
-                      currentPrice: parseFloat(
-                        parseFloat(rawData.c).toFixed(2),
-                      ),
+                      currentPrice: parseFloat(rawData.c),
                       change24h: parseFloat(parseFloat(rawData.P).toFixed(2)),
-                      high24h: parseFloat(parseFloat(rawData.h).toFixed(2)),
-                      low24h: parseFloat(parseFloat(rawData.l).toFixed(2)),
+                      high24h: parseFloat(rawData.h),
+                      low24h: parseFloat(rawData.l),
                       volume24h: parseFloat(
                         parseFloat(rawData.q || rawData.v).toFixed(0),
                       ),
@@ -1728,8 +1736,8 @@ export default function App() {
 
     if (isLiveTrading && apiConnection.isConnected && apiConnection.apiKey) {
       autoSync();
-      // Poll every 20 seconds to keep platform balance perfectly aligned with Binance
-      balanceTimer = setInterval(autoSync, 20000);
+      // Poll every 8 seconds to keep platform balance perfectly aligned with Binance
+      balanceTimer = setInterval(autoSync, 8000);
     }
 
     return () => {

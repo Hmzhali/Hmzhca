@@ -329,7 +329,7 @@ app.post('/api/log', express.json(), (req, res) => {
   // New endpoint to fetch live candlestick chart histories for charts
   app.get('/api/gateway/klines', async (req, res) => {
     try {
-      const { symbol, interval = '1D', limit = '100' } = req.query;
+      const { symbol, interval = '1D', limit = '100', market = 'spot' } = req.query;
       if (!symbol) {
         res.status(400).json({ error: 'Symbol parameter is required.' });
         return;
@@ -345,9 +345,11 @@ app.post('/api/log', express.json(), (req, res) => {
       else if (rawInt === '1h') binanceInterval = '1h';
       else if (rawInt === '4h') binanceInterval = '4h';
       
-      console.log(`[DEBUG] Klines request: symbol=${cleanSymbol}, interval=${binanceInterval}, limit=${limit}`);
+      console.log(`[DEBUG] Klines request: symbol=${cleanSymbol}, interval=${binanceInterval}, limit=${limit}, market=${market}`);
 
-      const url = `https://api.binance.com/api/v3/klines?symbol=${cleanSymbol}&interval=${binanceInterval}&limit=${limit}`;
+      const baseUrl = market === 'futures' ? 'https://fapi.binance.com' : 'https://api.binance.com';
+      const endpoint = market === 'futures' ? '/fapi/v1/klines' : '/api/v3/klines';
+      const url = `${baseUrl}${endpoint}?symbol=${cleanSymbol}&interval=${binanceInterval}&limit=${limit}`;
       const fetchResponse = await fetch(url);
       if (!fetchResponse.ok) {
         const errorText = await fetchResponse.text();
@@ -639,9 +641,9 @@ Guidelines:
 - Deliver precise, well-formatted financial analysis utilizing Markdown lists. Highlight essential risk parameters.`
         : aiSystemPrompt;
 
-      // Ask Gemini using standard gemini-2.5-flash
+      // Ask Gemini using standard gemini-3.5-flash
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: prompt,
         config: {
           systemInstruction: systemInstruction,
@@ -769,7 +771,7 @@ Guidelines:
         const promptText = `Analyze technical sentiment (buyer vs seller power, moving averages, relative strength, volume and risk) to estimate a precise and highly professional 'Fear & Greed' sentiment index score for the cryptocurrency market pair '${symbol}' right now. Return a single strict JSON object following the required schema. Ensure the Arabic rationale is beautifully structured, high-quality, and completely matching the English justification.`;
 
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3.5-flash',
           contents: promptText,
           config: {
             systemInstruction: "You are a professional cryptocurrency risk analyst. Evaluate sentiment from 0 (extreme market anxiety/panic) to 100 (extreme irrational buy exuberance). Be objective and realistic.",
@@ -930,7 +932,7 @@ Guidelines:
       const promptText = `Explain the potential financial mechanics behind a sharp price volatility event of ${changePercent}% in under 1 minute for the cryptocurrency pair '${symbol}' (moved from ${priceStart} to ${priceEnd}). Focus on professional dynamics like leverage liquidation cascades, short/long squeezes, or order book thinness. Respond ONLY as a JSON object with two fields "explanation_en" and "explanation_ar" each containing a highly professional 2-sentence summary. Keep English and Arabic explanations matching perfectly in financial depth.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: promptText,
         config: {
           systemInstruction: "You are an elite cryptocurrency market analyst and risk expert. Synthesize professional explanations with complete objectivity. Avoid generic phrases.",
@@ -1023,7 +1025,7 @@ Guidelines:
       const promptText = `Analyze institutional coin flow activity: '${sampleTxStr}' and on-chain holdings index. Provide an objective and professional market outlook advising retail traders on what whales are doing. Respond ONLY as a JSON object with fields: "sentiment_en" (max 3 sentences), "sentiment_ar" (max 3 sentences matching English), "score" (number 0-100 representing whale buy/accumulate strength), "implication_en" (1-2 sentences), "implication_ar" (1-2 sentences matching English). Make explanations match perfectly in financial vocabulary.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: promptText,
         config: {
           systemInstruction: "You are an elite cryptocurrency wallet forensic analyst and on-chain strategist. Be mathematically precise and objective. Return only JSON.",
@@ -1247,7 +1249,7 @@ Communication Guidelines:
 - If asked a highly specific questions about custom database balances, account private disputes, or explicit developer bugs, set a confidence score below 75 so that the ticket can be escalated to the Platform Manager (المدير والمالك) for direct personal attention while keeping the user informed politely.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: prompt,
         config: { 
           systemInstruction, 
@@ -2340,7 +2342,7 @@ Communication Guidelines:
       Limit the response to 3 sentences in ${lang}.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         contents: prompt,
         config: {
           systemInstruction: "You are a professional trader and financial analyst for Al-Moharif AI.",
@@ -2349,35 +2351,45 @@ Communication Guidelines:
       });
 
       res.json({ reply: response.text });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (error: any) {
+      // Graceful fallback for alert analysis
+      console.warn('[Gemini Alert Analysis] AI Gateway busy or error:', error.message);
+      res.json({ reply: lang === 'ar' ? 'التحليل الذكي غير متاح حالياً بسبب ضغط العمليات، يرجى المحاولة لاحقاً.' : 'AI analysis is currently unavailable due to high demand. Please try again in a moment.' });
     }
   });
 
   // Explicitly serve static files from the public folder to guarantee PWA assets
   app.post('/api/ai/calculate-smart-sl', async (req, res) => {
     const { symbol, side, entryPrice, currentPrice, klines } = req.body;
+    
+    // Define a robust fallback logic
+    const getFallback = (reason: string) => {
+      const multiplier = side === 'LONG' || side === 'BUY' ? 0.95 : 1.05;
+      return { slPrice: currentPrice * multiplier, reason: `Fallback: ${reason}` };
+    };
+
     try {
       // Basic ATR calculation (simplified)
       // 14 periods lookback
       const period = 14;
       if (!klines || klines.length < period) {
-        return res.json({ slPrice: side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05, reason: 'Not enough data for ATR' });
+        return res.json(getFallback('Not enough kline data for ATR analysis'));
       }
 
       // Calculate true ranges
       let trSum = 0;
       for (let i = klines.length - period; i < klines.length; i++) {
-        const h = parseFloat(klines[i].high ?? klines[i][2]);
-        const l = parseFloat(klines[i].low ?? klines[i][3]);
-        const c = parseFloat(klines[i].close ?? klines[i][4]);
-        const prevC = parseFloat(klines[i-1].close ?? klines[i-1][4]);
+        const h = parseFloat(klines[i].high ?? klines[i][2] ?? 0);
+        const l = parseFloat(klines[i].low ?? klines[i][3] ?? 0);
+        const c = parseFloat(klines[i].close ?? klines[i][4] ?? 0);
+        const prevIdx = i > 0 ? i - 1 : i;
+        const prevC = parseFloat(klines[prevIdx].close ?? klines[prevIdx][4] ?? c);
         trSum += Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC));
       }
       const atr = trSum / period;
       
       const prompt = `You are a professional crypto trading expert.
-      Calculate an optimal stop-loss (SL) level for a ${side} position.
+      Calculate an optimal stop-loss (SL) level for a ${side} position on ${symbol}.
       Entry: ${entryPrice}, Current: ${currentPrice}.
       ATR (14): ${atr.toFixed(4)}.
       Use ATR to calculate a safe base stop-loss, then adjust it dynamically based on the current market trend.
@@ -2390,18 +2402,36 @@ Communication Guidelines:
       }
       `;
 
+      // Use gemini-3.1-flash-lite for lightweight utility tasks to ensure better availability
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
         }
       });
       
-      res.json(JSON.parse(response.text!));
-    } catch (error) {
-      console.error('Smart SL Calculation Error:', error);
-      res.status(500).json({ slPrice: side === 'LONG' ? currentPrice * 0.95 : currentPrice * 1.05, reason: 'Calculation failed, default fallback.' });
+      const text = response.text;
+      if (!text) {
+         return res.json(getFallback('AI returned empty response'));
+      }
+      
+      try {
+        res.json(JSON.parse(text));
+      } catch (parseErr) {
+        console.error('JSON Parse Error in Smart SL:', text);
+        res.json(getFallback('AI returned invalid JSON'));
+      }
+    } catch (error: any) {
+      const isTransient = error?.message?.includes('429') || error?.status === 429 || error?.message?.includes('503') || error?.status === 503;
+      
+      if (isTransient) {
+         console.warn('[Smart SL] AI Gateway transient error (Rate limit/Busy). Using fallback.');
+         return res.json(getFallback('AI is busy. Using technical ATR fallback.'));
+      }
+      
+      console.error('Smart SL Fatal Error:', error);
+      res.json(getFallback('Technical analysis engine fallback initiated.'));
     }
   });
 

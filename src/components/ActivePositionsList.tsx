@@ -30,15 +30,19 @@ export default function ActivePositionsList({ positions, onClosePosition, lang }
                   {p.side} {p.leverage}x
                 </span>
               </div>
-              <div className="text-[10px] text-slate-400">
-                {lang === 'ar' ? 'سعر الدخول:' : 'Entry:'} ${p.entryPrice.toLocaleString()}
+              <div className="text-[10px] text-slate-400 flex flex-col gap-0.5">
+                <div>{lang === 'ar' ? 'سعر الدخول:' : 'Entry:'} ${p.entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</div>
+                <div className="text-slate-500">
+                  {p.id.startsWith('pos-live-') ? (lang === 'ar' ? 'السعر (Mark):' : 'Mark Price:') : (lang === 'ar' ? 'السعر:' : 'Price:')} 
+                  ${p.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                </div>
               </div>
             </div>
             
             <div className="text-right">
               <div className={`flex items-center gap-1 font-mono text-xs font-bold ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                ${p.unrealizedPnl.toFixed(2)} ({p.unrealizedPnlPercent.toFixed(2)}%)
+                ${p.unrealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ({p.unrealizedPnlPercent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)
               </div>
             </div>
 

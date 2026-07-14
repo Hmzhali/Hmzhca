@@ -22,6 +22,7 @@ import {
   History,
 } from "lucide-react";
 import ActivePositionsList from "./ActivePositionsList";
+import InteractiveChart from "./InteractiveChart";
 import { MarketPair, ApiConnection, FuturesPosition } from "../types";
 import { evaluateTradeDecision, EngineInputs } from "../engine";
 
@@ -148,7 +149,7 @@ export default function FuturesTrading({
       fetchRealFuturesData();
       const interval = setInterval(() => {
         fetchRealFuturesData();
-      }, 10000);
+      }, 4000);
       return () => clearInterval(interval);
     } else {
       setLiveBalance(null);
@@ -183,7 +184,6 @@ export default function FuturesTrading({
     return saved ? JSON.parse(saved) : "MARKET";
   });
   const [stopLoss, setStopLoss] = useState<string>("");
-  const [useAiStopLoss, setUseAiStopLoss] = useState<boolean>(false);
   
   const priceRef = React.useRef(activePair.currentPrice);
   React.useEffect(() => { priceRef.current = activePair.currentPrice; }, [activePair.currentPrice]);
@@ -198,7 +198,11 @@ export default function FuturesTrading({
     activePair.currentPrice.toString(),
   );
 
+  const [isCalculatingAiSL, setIsCalculatingAiSL] = useState(false);
+
   const calculateSmartSL = React.useCallback(async () => {
+    if (isCalculatingAiSL) return;
+    setIsCalculatingAiSL(true);
     try {
       const klineResp = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=20`);
       const klines = await klineResp.json();
@@ -220,14 +224,13 @@ export default function FuturesTrading({
       }
     } catch (error) {
       console.error("Smart SL calculation failed", error);
+    } finally {
+      setIsCalculatingAiSL(false);
     }
-  }, [activePair.symbol, positionSide, limitPrice]);
+  }, [activePair.symbol, positionSide, limitPrice, isCalculatingAiSL]);
 
-  React.useEffect(() => {
-    if (useAiStopLoss) {
-      calculateSmartSL();
-    }
-  }, [useAiStopLoss, calculateSmartSL]);
+  // Removed automatic AI SL trigger to prevent quota exhaustion and rate limiting issues.
+  // The user can now trigger this manually via the SL input UI.
 
   useEffect(() => {
     localStorage.setItem(
@@ -412,7 +415,7 @@ export default function FuturesTrading({
   // Simulate offline movement for Futures positions
   useEffect(() => {
     const lastOnlineStr = localStorage.getItem("almoharif_futures_last_online");
-    if (lastOnlineStr && isAlgoActive && positions.length > 0) {
+    if (lastOnlineStr && isAlgoActive && positions.length > 0 && !isLiveTrading) {
       const lastOnline = parseInt(lastOnlineStr, 10);
       const now = Date.now();
       const elapsedMs = now - lastOnline;
@@ -800,8 +803,8 @@ export default function FuturesTrading({
       ),
       currentPrice: currentSpotPrice,
       amount: parseFloat(contractsSize.toFixed(4)),
-      margin: parseFloat(requiredMargin.toFixed(1)),
-      liquidationPrice: parseFloat(currentEstLiqPrice.toFixed(2)),
+      margin: parseFloat(requiredMargin.toFixed(2)),
+      liquidationPrice: parseFloat(currentEstLiqPrice.toFixed(4)),
       unrealizedPnl: 0,
       unrealizedPnlPercent: 0,
       stopLoss: stopLoss ? parseFloat(stopLoss) : undefined,
@@ -1756,6 +1759,11 @@ export default function FuturesTrading({
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* Left Control Column (8 cols in broad layout) */}
         <div className="xl:col-span-8 space-y-6">
+          {/* Active Pair Chart - Futures Market Context */}
+          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg h-[400px]">
+             <InteractiveChart lang={lang} activePair={activePair} market="futures" />
+          </div>
+
           {futuresTab === "MANUAL" ? (
             <div
               id="futures-trading-panel"
@@ -1982,13 +1990,32 @@ export default function FuturesTrading({
                       <label className="text-[10px] font-bold text-rose-400">
                         {lang === "ar" ? "وقف الخسارة (SL)" : "Stop Loss"}
                       </label>
-                      <input
-                        type="number"
-                        value={stopLoss}
-                        onChange={(e) => setStopLoss(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs focus:outline-none focus:border-rose-500 font-mono"
-                        placeholder="Price"
-                      />
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={stopLoss}
+                          onChange={(e) => setStopLoss(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 pr-10 text-xs focus:outline-none focus:border-rose-500 font-mono"
+                          placeholder="Price"
+                        />
+                        <button
+                          type="button"
+                          disabled={isCalculatingAiSL}
+                          onClick={calculateSmartSL}
+                          className={`absolute right-1 top-1 bottom-1 px-1.5 rounded flex items-center justify-center transition-all ${
+                            isCalculatingAiSL 
+                              ? "bg-slate-800 text-slate-500" 
+                              : "bg-indigo-900/40 text-indigo-400 hover:bg-indigo-800/60"
+                          }`}
+                          title={lang === 'ar' ? 'حساب SL ذكي' : 'Calculate Smart SL'}
+                        >
+                          {isCalculatingAiSL ? (
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
@@ -2730,16 +2757,28 @@ export default function FuturesTrading({
               </div>
 
               {apiConnection?.isConnected && (
-                <div className="flex items-center justify-between border-t border-slate-900 pt-2 text-[11px]">
-                  <span className="text-slate-500">
-                    {lang === "ar"
-                      ? "رصيد المحفظة الفورية (Spot)"
-                      : "Spot Wallet Balance"}
-                  </span>
-                  <span className="font-mono font-bold text-slate-300">
-                    {portfolio.usdt.toFixed(2)} USDT
-                  </span>
-                </div>
+                <>
+                  <div className="flex items-center justify-between border-t border-slate-900 pt-2 text-[11px]">
+                    <span className="text-slate-500">
+                      {lang === "ar"
+                        ? "رصيد المحفظة الفورية (Spot)"
+                        : "Spot Wallet Balance"}
+                    </span>
+                    <span className="font-mono font-bold text-slate-300">
+                      {portfolio.usdt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-900 pt-2 text-[11px]">
+                    <span className="text-slate-500">
+                      {lang === "ar"
+                        ? "رصيد محفظة العقود الآجلة"
+                        : "Futures Wallet Balance"}
+                    </span>
+                    <span className="font-mono font-bold text-slate-300">
+                      {portfolio.futuresUsdt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} USDT
+                    </span>
+                  </div>
+                </>
               )}
             </div>
 
