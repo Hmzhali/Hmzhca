@@ -224,4 +224,6 @@ export interface FuturesPosition {
   trailingTakeProfitEnabled?: boolean;
   trailingTakeProfitOffset?: number; // e.g. 0.02 for 2%
   peakPrice?: number; // Highest price for Long or Lowest price for Short since entry
+  maxPnlPercent?: number; // Track peak profit percentage for smart trailing stops
+  timestamp?: number; // Entry timestamp for hold-time logic
 }

@@ -465,14 +465,15 @@ export default function App() {
     if (saved) {
       const parsed = JSON.parse(saved);
       // Give the user 15000 default if they happen to be at exactly 0 from previous saves.
-      if (parsed.usdt === 0) {
-        parsed.usdt = 15000;
+      if (parsed.usdt === 0 && (!parsed.futuresUsdt || parsed.futuresUsdt === 0)) {
+        parsed.usdt = 10000;
+        parsed.futuresUsdt = 5000;
       }
       return parsed;
     }
     return {
-      usdt: 15000,
-      futuresUsdt: 0,
+      usdt: 10000,
+      futuresUsdt: 5000,
       btc: 0,
       eth: 0,
       sol: 0,
@@ -498,28 +499,32 @@ export default function App() {
     localStorage.setItem("almoharif_futures_positions", JSON.stringify(futuresPositions));
   }, [futuresPositions]);
 
-  // Real-time Equity Calculation (Wallet Balance + Margin + Total uPNL)
-  const [totalEquity, setTotalEquity] = useState<number>(portfolio.usdt);
+  // Real-time Futures Equity Calculation (Futures Wallet + Margin + Total uPNL)
+  const [futuresEquity, setFuturesEquity] = useState<number>(portfolio.futuresUsdt);
 
   useEffect(() => {
     const totalPnl = futuresPositions.reduce((acc, p) => acc + (p.unrealizedPnl || 0), 0);
-    // Note: Margin is already deducted from portfolio.usdt when trade opens in simulation mode
-    // So Equity = Current Wallet Balance + Unrealized PNL + Locked Margin (wait, margin is usually part of equity)
-    // Actually, simulation deducts margin from usdt, so Equity = usdt + margin + pnl? 
-    // In live Binance, Equity is just Balance + PNL.
-    // In our simulation, we deduct margin to prevent overspending. So usdt is "Available Balance".
-    // Total Equity = Available Balance + Locked Margin + PNL
+    // Total Futures Equity = Available Futures Balance + Locked Margin + Unrealized PNL
     const lockedMargin = futuresPositions.reduce((acc, p) => acc + (p.margin || 0), 0);
-    setTotalEquity(parseFloat((portfolio.usdt + lockedMargin + totalPnl).toFixed(2)));
-  }, [futuresPositions, portfolio.usdt]);
+    const newEquity = parseFloat((portfolio.futuresUsdt + lockedMargin + totalPnl).toFixed(2));
+    
+    // Only update if value changed significantly to prevent infinite loops from floating point noise
+    setFuturesEquity((prev) => (Math.abs(prev - newEquity) > 0.01 ? newEquity : prev));
+  }, [futuresPositions, portfolio.futuresUsdt]);
 
-  // Sync positions PNL with real-time price feed in App.tsx
+  // Sync positions PNL with real-time price feed in App.tsx (Optimized with Ref)
+  const pairsRef = useRef<MarketPair[]>(pairs);
+  useEffect(() => {
+    pairsRef.current = pairs;
+  }, [pairs]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setFuturesPositions((prev) => {
+        if (prev.length === 0) return prev;
         let changed = false;
         const next = prev.map((p) => {
-          const match = pairs.find((pair) => pair.symbol === p.symbol);
+          const match = pairsRef.current.find((pair) => pair.symbol === p.symbol);
           if (match && match.currentPrice !== p.currentPrice) {
             changed = true;
             const diff = match.currentPrice - p.entryPrice;
@@ -540,13 +545,13 @@ export default function App() {
       });
     }, 2000);
     return () => clearInterval(interval);
-  }, [pairs]);
+  }, []); // Run once, uses ref
 
   const handleFuturesUpdatePortfolio = useCallback((incUsdt: number, incBtc: number) => {
     setTimeout(() => {
       setPortfolio((p) => ({
         ...p,
-        usdt: parseFloat((p.usdt + incUsdt).toFixed(2)),
+        futuresUsdt: parseFloat((p.futuresUsdt + incUsdt).toFixed(2)),
         btc: parseFloat((p.btc + incBtc).toFixed(6)),
       }));
     }, 0);
@@ -1615,12 +1620,12 @@ export default function App() {
             : 0;
 
           setPortfolio({
-            usdt: parseFloat(liveUsdt.toFixed(2)),
-            futuresUsdt: parseFloat((resData.futuresUsdt || 0).toFixed(2)),
-            btc: parseFloat(liveBtc.toFixed(6)),
-            eth: parseFloat(liveEth.toFixed(4)),
-            sol: parseFloat(liveSol.toFixed(4)),
-            bnb: parseFloat(liveBnb.toFixed(4)),
+            usdt: parseFloat(liveUsdt.toFixed(4)),
+            futuresUsdt: parseFloat((resData.futuresUsdt || 0).toFixed(4)),
+            btc: parseFloat(liveBtc.toFixed(8)),
+            eth: parseFloat(liveEth.toFixed(6)),
+            sol: parseFloat(liveSol.toFixed(6)),
+            bnb: parseFloat(liveBnb.toFixed(6)),
           });
           if (!silent) {
             setBalanceSyncError(null);
@@ -2236,8 +2241,15 @@ export default function App() {
       }
 
       const usdtDiff = isBuy
-        ? -(cost / newOrder.leverage)
-        : cost / newOrder.leverage;
+        ? -(cost / (newOrder.leverage || 1))
+        : cost / (newOrder.leverage || 1);
+
+      if (newOrder.isFutures) {
+        return {
+          ...prev,
+          futuresUsdt: parseFloat((prev.futuresUsdt + usdtDiff).toFixed(2)),
+        };
+      }
 
       return {
         ...prev,
@@ -2468,26 +2480,27 @@ export default function App() {
         const now = Date.now();
         const tradeAgeMs = now - (order.timestamp || now);
         
-        // Smart Filter: Ensure minimum profit (0.5%) AND minimum hold time (30s) before trailing kicks in
+        // Smart Filter: Ensure minimum profit (1.5%) AND minimum hold time (300s / 5m) before trailing kicks in
+        // This prevents fee drainage as requested by the user
         const minProfitMet = isLong 
-          ? (currentPrice > entryPrice * 1.005) 
-          : (currentPrice < entryPrice * 0.995);
+          ? (currentPrice > entryPrice * 1.015) 
+          : (currentPrice < entryPrice * 0.985);
         
-        const canExitSafe = tradeAgeMs > 30000; // 30s minimum hold time to avoid fee drainage
+        const canExitSafe = tradeAgeMs > 300000; // 5 minutes minimum hold time to avoid fee drainage
           
         if (isLong) {
-          // Widened trail to 1.2% to allow for natural volatility
-          const trailDistance = Math.max(0.01, peakPrice * 0.012); 
+          // Widened trail to 2.5% to allow for natural volatility without premature exits
+          const trailDistance = Math.max(0.01, peakPrice * 0.025); 
           if (currentPrice <= peakPrice - trailDistance && minProfitMet && canExitSafe) {
             triggered = "QUICK_SCALP";
-          } else if (currentPrice <= entryPrice * 0.90) { // Stop loss at 10%
+          } else if (currentPrice <= entryPrice * 0.85) { // Stop loss at 15% to avoid closing on noise
             triggered = "QUICK_SCALP";
           }
         } else {
-          const trailDistance = Math.max(0.01, peakPrice * 0.012);
+          const trailDistance = Math.max(0.01, peakPrice * 0.025);
           if (currentPrice >= peakPrice + trailDistance && minProfitMet && canExitSafe) {
             triggered = "QUICK_SCALP";
-          } else if (currentPrice >= entryPrice * 1.10) { // Stop loss at 10%
+          } else if (currentPrice >= entryPrice * 1.15) { // Stop loss at 15%
             triggered = "QUICK_SCALP";
           }
         }
@@ -3045,15 +3058,15 @@ export default function App() {
         const confidenceScore = Math.min(Math.max(Math.round(45 + rsiDistance * 1.5 + volBonus + spBonus), 35), 99);
 
         // Optimal triggers:
-        // Buy: if oversold (RSI < 40) with high confidence
-        // Sell/Short: if overbought (RSI > 60) with high confidence
+        // Buy: if oversold (RSI < 30) with extremely high confidence
+        // Sell/Short: if overbought (RSI > 70) with extremely high confidence
         let suggestedSide: "BUY" | "SELL" | null = null;
-        const requiredConfidence = isLiveTrading ? 85 : 65; // Higher barrier for real funds
+        const requiredConfidence = isLiveTrading ? 90 : 70; // Even higher barrier for real funds
 
         if (confidenceScore >= requiredConfidence) { 
-          if (rsi < 40) {
+          if (rsi < 30) {
             suggestedSide = "BUY";
-          } else if (rsi > 60) {
+          } else if (rsi > 70) {
             suggestedSide = "SELL";
           }
         }
@@ -3201,7 +3214,7 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
         }
       }
     };
-    worker.postMessage({ command: 'start', delay: 15000 }); // Scan every 15 seconds instead of 4.5
+    worker.postMessage({ command: 'start', delay: 20000 }); // Scan every 20 seconds instead of 15
 
     return () => {
       worker.postMessage({ command: 'stop' });
@@ -3215,11 +3228,6 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
     ordersRef.current = orders;                
   }, [orders]);
 
-  const pairsRef = useRef(pairs);
-  useEffect(() => {
-    pairsRef.current = pairs;
-  }, [pairs]);
-  
   const canTradeRef = useRef(canTrade);
   useEffect(() => {
     canTradeRef.current = canTrade;
@@ -3791,7 +3799,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         portfolio={portfolio}
-        totalEquity={totalEquity}
+        futuresEquity={futuresEquity}
         isConnected={apiConnection.isConnected}
         isLiveTrading={isLiveTrading}
         setIsLiveTrading={setIsLiveTrading}

@@ -28,7 +28,7 @@ import { evaluateTradeDecision, EngineInputs } from "../engine";
 interface FuturesTradingProps {
   lang: "ar" | "en";
   activePair: MarketPair;
-  portfolio: { usdt: number; btc: number };
+  portfolio: { usdt: number; futuresUsdt: number; btc: number };
   positions: FuturesPosition[];
   setPositions: React.Dispatch<React.SetStateAction<FuturesPosition[]>>;
   onUpdatePortfolio?: (incUsdt: number, incBtc: number) => void;
@@ -84,7 +84,7 @@ export default function FuturesTrading({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [openOrders, setOpenOrders] = useState<any[]>([]);
 
-  const activeUsdtBalance = liveBalance !== null ? liveBalance : portfolio.usdt;
+  const activeUsdtBalance = liveBalance !== null ? liveBalance : portfolio.futuresUsdt;
 
     const handleCancelFuturesOrder = async (orderId: any, symbol: string) => {
     if (
@@ -407,7 +407,7 @@ export default function FuturesTrading({
     } finally {
       setLoadingPositions(false);
     }
-  }, [apiConnection, isLiveTrading, portfolio.usdt, setPositions, setFuturesApiError, setLiveBalance]);
+  }, [apiConnection, isLiveTrading, portfolio.futuresUsdt, setPositions, setFuturesApiError, setLiveBalance]);
 
   // Simulate offline movement for Futures positions
   useEffect(() => {
@@ -768,15 +768,15 @@ export default function FuturesTrading({
     }
 
     // Educational Sandbox Mock Path
-    if (requiredMargin > portfolio.usdt) {
+    if (requiredMargin > portfolio.futuresUsdt) {
       if (onTriggerToast) {
         onTriggerToast({
           id: Date.now().toString(),
           symbol: activePair.symbol,
           timestamp: Date.now(),
           isVolatilityWarning: true,
-          aiExplanationAr: `رصيدك لا يكفي لتغطية هامش الضمان المطلوب (${requiredMargin.toFixed(1)} USDT).`,
-          aiExplanationEn: `Insufficient USDT balance setup. Margin required is $${requiredMargin.toFixed(1)}.`,
+          aiExplanationAr: `رصيد العقود الآجلة لا يكفي لتغطية هامش الضمان المطلوب (${requiredMargin.toFixed(1)} USDT).`,
+          aiExplanationEn: `Insufficient Futures balance. Margin required is $${requiredMargin.toFixed(1)}.`,
         });
       }
       return;
@@ -1128,6 +1128,13 @@ export default function FuturesTrading({
               )
             );
 
+            // Ensure minimum notional value (Margin * Leverage) is at least $5.1 to comply with Binance limits
+            const notionalValue = margin * currentLev;
+            const finalMargin = notionalValue < 5.1 ? (5.1 / currentLev) : margin;
+            
+            // Re-check if we have enough balance for the adjusted margin
+            if (finalMargin > (portfolio?.usdt || 0)) return updatedPrev;
+
             const newBotPos: FuturesPosition = {
               id: `algo-pos-${Date.now()}`,
               symbol: targetPair.symbol,
@@ -1137,9 +1144,10 @@ export default function FuturesTrading({
               entryPrice: targetPair.currentPrice,
               currentPrice: targetPair.currentPrice,
               amount: parseFloat(
-                ((margin * currentLev) / targetPair.currentPrice).toFixed(4),
+                ((finalMargin * currentLev) / targetPair.currentPrice).toFixed(4),
               ),
-              margin: parseFloat(margin.toFixed(2)),
+              margin: parseFloat(finalMargin.toFixed(2)),
+              timestamp: Date.now(), // Track entry time
               liquidationPrice: calcLiquidationPrice(
                 tradeSide,
                 targetPair.currentPrice,
@@ -1181,13 +1189,19 @@ export default function FuturesTrading({
         const executeLiveTrade = async () => {
           isAlgoExecutingRef.current = true;
           try {
-            // 1. Algorithmic Auto-Close for Open Positions (Scalping TP/SL)
+            // 1. Algorithmic Auto-Close with Smart Shield (Prevents premature fee-drain exits)
             let cleanedPositions = false;
             for (const pos of positions) {
-              if (
-                pos.unrealizedPnlPercent >= algoTakeProfit ||
-                pos.unrealizedPnlPercent <= algoStopLoss
-              ) {
+              const ageMin = (Date.now() - (pos.timestamp || Date.now())) / 60000;
+              const isProfit = pos.unrealizedPnlPercent >= algoTakeProfit;
+              const isLoss = pos.unrealizedPnlPercent <= algoStopLoss;
+              
+              // Only exit if thresholds met AND either:
+              // a) It's a stop loss (safety first)
+              // b) It's a profit and we've held for at least 3 minutes to justify fees
+              const shouldExit = isLoss || (isProfit && ageMin >= 3.0);
+
+              if (shouldExit) {
                 try {
                   const closeSide = pos.side === "LONG" ? "SELL" : "BUY";
                   const activeSymbol = pos.symbol
@@ -2709,7 +2723,7 @@ export default function FuturesTrading({
                 <span className="font-mono font-black text-emerald-400 text-sm">
                   {activeUsdtBalance.toLocaleString(undefined, {
                     minimumFractionDigits: 1,
-                    maximumFractionDigits: 2,
+                    maximumFractionDigits: 4,
                   })}{" "}
                   USDT
                 </span>

@@ -196,7 +196,7 @@ export default function PortfolioOverview({
     demoFeed: lang === 'ar' ? 'محاكاة المحفظة الافتراضية' : 'Demo Sandbox Ledger',
     apiConnected: lang === 'ar' ? 'شبكة API متصلة ومفتوحة للتداول' : 'Binance API Channel Opened',
     apiDisconnected: lang === 'ar' ? 'وضع الحساب الافتراضي التراكمي' : 'Offline Paper Sandbox Mode',
-    totalBalance: lang === 'ar' ? 'الرصيد الكلي التقريبي' : 'Estimated Total Balance',
+    totalBalance: lang === 'ar' ? 'إجمالي رأس المال (فوري + آجلة)' : 'Total Equity (Spot + Futures)',
     chartDisplayMode: lang === 'ar' ? 'عرض الرسم البياني بـ' : 'Chart Base',
     amount: lang === 'ar' ? 'الكمية الفعلية' : 'Coin Amount',
     usdVal: lang === 'ar' ? 'القيمة بالدولار $' : 'USD Combined',
@@ -243,7 +243,7 @@ export default function PortfolioOverview({
     document.body.removeChild(link);
   };
 
-  const roundedTotalUSD = portfolioData.totalUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const roundedTotalUSD = portfolioData.totalUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
   return (
     <div id="portfolio-overview-section" className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-slate-800 p-6 flex flex-col gap-6">
