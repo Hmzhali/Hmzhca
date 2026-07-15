@@ -3240,6 +3240,7 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
     canTradeRef.current = canTrade;
   }, [canTrade]);
 
+  const lastRadarSummaryTimeRef = useRef(0);
   // High-Speed 1-Minute & 5-Minute Quick Scalp Rebound Monitoring and Automated Entry
   const isScanningRef = useRef(false);
   useEffect(() => {
@@ -3258,6 +3259,57 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
       
       const logsToBatch: any[] = [];
       
+      // Periodic "Best Opportunity" summary for the Radar log (every 3 minutes)
+      if (now - lastRadarSummaryTimeRef.current > 180000) {
+        const bestCandidate = availablePairs.reduce((best, coin) => {
+          let hist = priceHistory5mRef.current[coin.symbol] || [];
+          if (reboundRadarTimeframe === "1m") hist = priceHistoryRef.current[coin.symbol] || [];
+          if (reboundRadarTimeframe === "15m") hist = priceHistory15mRef.current[coin.symbol] || [];
+          if (reboundRadarTimeframe === "30m") hist = priceHistory30mRef.current[coin.symbol] || [];
+          
+          if (hist.length < 2) return best;
+          const pCurrent = coin.currentPrice;
+          const pMin = Math.min(...hist.map(h => h.price));
+          const pMax = Math.max(...hist.map(h => h.price));
+          
+          const bullishScore = pMin > 0 ? (pCurrent - pMin) / pMin : 0;
+          const bearishScore = pMax > 0 ? (pMax - pCurrent) / pMax : 0;
+          
+          const currentScore = Math.max(bullishScore, bearishScore);
+          const currentType = bullishScore > bearishScore ? "BULLISH" : "BEARISH";
+          
+          let confidence = Math.floor(currentScore * 2000);
+          if (coin.rsi) {
+            if (currentType === "BULLISH" && coin.rsi < 40) confidence += 40;
+            else if (currentType === "BEARISH" && coin.rsi > 60) confidence += 40;
+            else confidence += 20;
+          } else {
+            confidence += 30;
+          }
+          const finalConfidence = Math.min(99, Math.max(65, confidence));
+
+          if (!best || currentScore > best.score) {
+            return { symbol: coin.symbol, score: currentScore, type: currentType, confidence: finalConfidence };
+          }
+          return best;
+        }, null as any);
+
+        if (bestCandidate) {
+          const typeAr = bestCandidate.type === "BULLISH" ? "صعودي (ارتداد من القاع)" : "هبوطي (ارتداد من القمة)";
+          const typeEn = bestCandidate.type === "BULLISH" ? "Bullish (Rebound from Bottom)" : "Bearish (Rejection from Top)";
+          
+          logsToBatch.push({
+            id: `radar-sum-${now}`,
+            timestamp: now,
+            symbol: bestCandidate.symbol,
+            type: "INFO",
+            msgAr: `🔎 [رادار الارتداد - ${reboundRadarTimeframe}] أفضل فرصة حالية: ${bestCandidate.symbol}\n📈 الاتجاه: ${typeAr}\n🛡️ الثقة: ${bestCandidate.confidence}%`,
+            msgEn: `🔎 [Rebound Radar - ${reboundRadarTimeframe}] Best current candidate: ${bestCandidate.symbol}\n📈 Direction: ${typeEn}\n🛡️ Confidence: ${bestCandidate.confidence}%`
+          });
+          lastRadarSummaryTimeRef.current = now;
+        }
+      }
+
       for (const coin of availablePairs) {
         let selectedHist = priceHistory5mRef.current[coin.symbol] || [];
         if (reboundRadarTimeframe === "1m") selectedHist = priceHistoryRef.current[coin.symbol] || [];
@@ -3973,22 +4025,46 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                         if (hist.length < 2) return best;
                         const pCurrent = coin.currentPrice;
                         const pMin = Math.min(...hist.map(h => h.price));
-                        const reboundScore = (pCurrent - pMin) / pMin;
-                        if (!best || reboundScore > best.score) {
-                          return { symbol: coin.symbol, score: reboundScore };
+                        const pMax = Math.max(...hist.map(h => h.price));
+                        
+                        // Bullish rebound: Current price moved up from minimum
+                        const bullishScore = pMin > 0 ? (pCurrent - pMin) / pMin : 0;
+                        // Bearish rebound (rejection): Current price moved down from maximum
+                        const bearishScore = pMax > 0 ? (pMax - pCurrent) / pMax : 0;
+                        
+                        const currentScore = Math.max(bullishScore, bearishScore);
+                        const currentType = bullishScore > bearishScore ? "BULLISH" : "BEARISH";
+                        
+                        // Heuristic confidence: Score + RSI alignment
+                        let confidence = Math.floor(currentScore * 2000); // Base from volatility
+                        if (coin.rsi) {
+                          if (currentType === "BULLISH" && coin.rsi < 40) confidence += 40;
+                          else if (currentType === "BEARISH" && coin.rsi > 60) confidence += 40;
+                          else confidence += 20;
+                        } else {
+                          confidence += 30;
+                        }
+                        
+                        const finalConfidence = Math.min(99, Math.max(65, confidence));
+
+                        if (!best || currentScore > best.score) {
+                          return { symbol: coin.symbol, score: currentScore, type: currentType, confidence: finalConfidence };
                         }
                         return best;
-                      }, null as { symbol: string, score: number } | null);
+                      }, null as { symbol: string, score: number, type: string, confidence: number } | null);
 
                       if (bestCoin) {
                         const now = Date.now();
+                        const typeAr = bestCoin.type === "BULLISH" ? "صعودي (ارتداد من القاع)" : "هبوطي (ارتداد من القمة)";
+                        const typeEn = bestCoin.type === "BULLISH" ? "Bullish (Rebound from Bottom)" : "Bearish (Rejection from Top)";
+                        
                         setQuickScalpScannerLog(prev => [{
                           id: `log-${now}-${Math.random()}`,
                           timestamp: now,
                           symbol: bestCoin.symbol,
                           type: "INFO",
-                          msgAr: `🔎 [أفضل فرصة - ${reboundRadarTimeframe}] تم العثور على ${bestCoin.symbol} كأفضل مرشح حالياً بناءً على ارتداد الفريم المحدد!`,
-                          msgEn: `🔎 [Best Opportunity - ${reboundRadarTimeframe}] ${bestCoin.symbol} identified as currently best candidate based on timeframe rebound!`
+                          msgAr: `🔎 [أفضل فرصة - ${reboundRadarTimeframe}] تم العثور على ${bestCoin.symbol} كأفضل مرشح!\n📈 نوع الارتداد: ${typeAr}\n🛡️ نسبة الثقة: ${bestCoin.confidence}%`,
+                          msgEn: `🔎 [Best Opportunity - ${reboundRadarTimeframe}] ${bestCoin.symbol} identified as best candidate!\n📈 Rebound Type: ${typeEn}\n🛡️ Confidence: ${bestCoin.confidence}%`
                         }, ...prev]);
                       }
                     }}
