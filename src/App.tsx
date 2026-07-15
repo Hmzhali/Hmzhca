@@ -2488,27 +2488,26 @@ export default function App() {
         const now = Date.now();
         const tradeAgeMs = now - (order.timestamp || now);
         
-        // Smart Filter: Ensure minimum profit (1.5%) AND minimum hold time (300s / 5m) before trailing kicks in
-        // This prevents fee drainage as requested by the user
+        // Real-adjustment: Lock in profits/prevent losses at 1% retrace immediately as requested
         const minProfitMet = isLong 
-          ? (currentPrice > entryPrice * 1.015) 
-          : (currentPrice < entryPrice * 0.985);
+          ? (currentPrice > entryPrice * 1.005) // Reduced to 0.5% to allow for fee coverage
+          : (currentPrice < entryPrice * 0.995);
         
-        const canExitSafe = tradeAgeMs > 300000; // 5 minutes minimum hold time to avoid fee drainage
+        const canExitSafe = tradeAgeMs > 10000; // Reduced to 10 seconds to allow fast exits if it dumps
           
         if (isLong) {
-          // Widened trail to 2.5% to allow for natural volatility without premature exits
-          const trailDistance = Math.max(0.01, peakPrice * 0.025); 
+          // Adjusted to strict 1% retrace from peak as requested
+          const trailDistance = Math.max(0.01, peakPrice * 0.01); 
           if (currentPrice <= peakPrice - trailDistance && minProfitMet && canExitSafe) {
             triggered = "QUICK_SCALP";
-          } else if (currentPrice <= entryPrice * 0.85) { // Stop loss at 15% to avoid closing on noise
+          } else if (currentPrice <= entryPrice * 0.95) { // Stop loss at 5% instead of 15% to prevent deep losses
             triggered = "QUICK_SCALP";
           }
         } else {
-          const trailDistance = Math.max(0.01, peakPrice * 0.025);
+          const trailDistance = Math.max(0.01, peakPrice * 0.01);
           if (currentPrice >= peakPrice + trailDistance && minProfitMet && canExitSafe) {
             triggered = "QUICK_SCALP";
-          } else if (currentPrice >= entryPrice * 1.15) { // Stop loss at 15%
+          } else if (currentPrice >= entryPrice * 1.05) { // Stop loss at 5% instead of 15%
             triggered = "QUICK_SCALP";
           }
         }

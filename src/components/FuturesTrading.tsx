@@ -66,7 +66,6 @@ export default function FuturesTrading({
     localStorage.setItem("almoharif_futures_tab", JSON.stringify(futuresTab));
   }, [futuresTab]);
 
-  // Live Futures Sync States
   const [liveBalance, setLiveBalance] = useState<number | null>(null);
   const [loadingPositions, setLoadingPositions] = useState<boolean>(false);
   const [localFuturesApiError, setLocalFuturesApiError] = useState<
@@ -86,6 +85,162 @@ export default function FuturesTrading({
   const [openOrders, setOpenOrders] = useState<any[]>([]);
 
   const activeUsdtBalance = liveBalance !== null ? liveBalance : portfolio.futuresUsdt;
+
+  const fetchRealFuturesData = React.useCallback(async () => {
+    if (
+      !isLiveTrading ||
+      !apiConnection ||
+      !apiConnection.isConnected ||
+      !apiConnection.apiKey ||
+      !apiConnection.apiSecret
+    ) {
+      return;
+    }
+    setLoadingPositions(true);
+    try {
+      const response = await fetch("/api/gateway/futures/account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: apiConnection.apiKey,
+          apiSecret: apiConnection.apiSecret,
+          useTestnet: apiConnection.useTestnet === true,
+        }),
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const errData = await response.json();
+          throw new Error(errData.error || `HTTP Error ${response.status}`);
+        } else {
+          throw new Error(`HTTP Error ${response.status}: Received non-JSON response from server.`);
+        }
+      }
+
+      const resData = await response.json();
+      if (resData.success) {
+        setLiveBalance(resData.usdtBalance);
+        
+        // Track peak PnL for each position to handle the trailing retrace
+        const rawPositions: FuturesPosition[] = resData.positions || [];
+        
+        setPositions((prev) => {
+          return rawPositions.map((p) => {
+             const existingPos = prev.find(old => old.id === p.id);
+             const currentPeakPnl = existingPos?.maxPnlPercent ?? p.unrealizedPnlPercent;
+             const newPeakPnl = Math.max(currentPeakPnl, p.unrealizedPnlPercent);
+             return { ...p, maxPnlPercent: newPeakPnl };
+          });
+        });
+
+        setOpenOrders(resData.openOrders || []);
+        setFuturesApiError(null);
+      } else {
+        throw new Error(resData.error || "Failed to fetch futures data");
+      }
+    } catch (err: any) {
+      console.warn("Failed to sync live Binance Futures data:", err);
+      setFuturesApiError(err.message || "API error or connection issue.");
+    } finally {
+      setLoadingPositions(false);
+    }
+  }, [apiConnection, isLiveTrading, portfolio.futuresUsdt, setPositions, setFuturesApiError, setLiveBalance]);
+
+  // Close specific position - Defined after fetchRealFuturesData to allow proper dependency
+  const handleClosePosition = React.useCallback(async (id: string) => {
+    const target = positions.find((p) => p.id === id);
+    if (!target) return;
+
+    // Live Binance API close path
+    if (
+      target.id.startsWith("pos-live-") ||
+      (isLiveTrading &&
+        apiConnection &&
+        apiConnection.isConnected &&
+        apiConnection.apiKey)
+    ) {
+      setIsSubmitting(true);
+      try {
+        const cleanSymbol = target.symbol.toUpperCase().replace("/", "");
+        const oppositeSide = target.side === "LONG" ? "SELL" : "BUY";
+
+        if (!apiConnection.apiKey || !apiConnection.apiSecret) {
+          console.warn("[Close Position] Missing credentials");
+          return;
+        }
+
+        const response = await fetch("/api/gateway/futures/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            apiKey: apiConnection.apiKey,
+            apiSecret: apiConnection.apiSecret,
+            useTestnet: apiConnection.useTestnet === true,
+            symbol: cleanSymbol,
+            side: oppositeSide,
+            type: "MARKET",
+            amount: target.amount,
+            leverage: target.leverage,
+            marginType: target.marginType,
+          }),
+        });
+
+        if (!response.ok) {
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const errData = await response.json();
+            throw new Error(errData.error || `HTTP Error ${response.status}`);
+          } else {
+            throw new Error(`HTTP Error ${response.status}: Received non-JSON response from server.`);
+          }
+        }
+
+        const result = await response.json();
+        if (result.success) {
+          if (onTriggerToast) {
+            onTriggerToast({
+              id: Date.now().toString(),
+              symbol: target.symbol,
+              timestamp: Date.now(),
+              isMilestone: true,
+              aiExplanationAr: `✅ [بينانس عقود آجلة حقيقية] تم إغلاق مركز ${target.symbol} بنجاح عبر السوق!`,
+              aiExplanationEn: `✅ [Binance Live Futures] Successfully executed market close for ${target.symbol} position!`,
+            });
+          }
+          await fetchRealFuturesData();
+        } else {
+          throw new Error(result.error || "Server unhandled response");
+        }
+      } catch (err: any) {
+        console.error("[Binance Live Futures Settle Error]:", err);
+        if (onTriggerToast) {
+          onTriggerToast({
+            id: Date.now().toString(),
+            symbol: target.symbol,
+            timestamp: Date.now(),
+            isVolatilityWarning: true,
+            aiExplanationAr: `⚠️ فشل إغلاق مركز العقود الآجلة على بينانس: ${err.message}`,
+            aiExplanationEn: `⚠️ Binance Futures close operation failed: ${err.message}`,
+          });
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // Local/Simulated position close
+      setPositions((prev) => prev.filter((p) => p.id !== id));
+      if (onTriggerToast) {
+        onTriggerToast({
+          id: Date.now().toString(),
+          symbol: target.symbol,
+          timestamp: Date.now(),
+          aiExplanationAr: `📉 تم إغلاق مركز ${target.symbol} بنجاح!`,
+          aiExplanationEn: `📉 Successfully closed ${target.symbol} position.`,
+        });
+      }
+    }
+  }, [positions, isLiveTrading, apiConnection, onTriggerToast, setPositions, fetchRealFuturesData]);
 
     const handleCancelFuturesOrder = async (orderId: any, symbol: string) => {
     if (
@@ -184,6 +339,10 @@ export default function FuturesTrading({
     return saved ? JSON.parse(saved) : "MARKET";
   });
   const [stopLoss, setStopLoss] = useState<string>("");
+  const [autoStopLoss5Percent, setAutoStopLoss5Percent] = useState<boolean>(() => {
+    const saved = localStorage.getItem("almoharif_futures_auto_sl_5");
+    return saved ? JSON.parse(saved) : false;
+  });
   
   const priceRef = React.useRef(activePair.currentPrice);
   React.useEffect(() => { priceRef.current = activePair.currentPrice; }, [activePair.currentPrice]);
@@ -253,7 +412,11 @@ export default function FuturesTrading({
       "almoharif_futures_manual_ordertype",
       JSON.stringify(orderType),
     );
-  }, [positionSide, marginType, leverage, orderAmountUsdt, orderType]);
+    localStorage.setItem(
+      "almoharif_futures_auto_sl_5",
+      JSON.stringify(autoStopLoss5Percent),
+    );
+  }, [positionSide, marginType, leverage, orderAmountUsdt, orderType, autoStopLoss5Percent]);
 
   // Algorithmic Automatic Bot Configuration
   const [isAlgoActive, setIsAlgoActive] = useState<boolean>(() => {
@@ -363,54 +526,22 @@ export default function FuturesTrading({
   ]);
 
 
-  const fetchRealFuturesData = React.useCallback(async () => {
-    if (
-      !isLiveTrading ||
-      !apiConnection ||
-      !apiConnection.isConnected ||
-      !apiConnection.apiKey ||
-      !apiConnection.apiSecret
-    ) {
-      return;
-    }
-    setLoadingPositions(true);
-    try {
-      const response = await fetch("/api/gateway/futures/account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apiKey: apiConnection.apiKey,
-          apiSecret: apiConnection.apiSecret,
-          useTestnet: apiConnection.useTestnet === true,
-        }),
-      });
-
-      if (!response.ok) {
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const errData = await response.json();
-          throw new Error(errData.error || `HTTP Error ${response.status}`);
-        } else {
-          throw new Error(`HTTP Error ${response.status}: Received non-JSON response from server.`);
+  // Handle Auto 5% Stop Loss (Smart Protection Shield) separately to avoid circular dependency
+  useEffect(() => {
+    if (!isLiveTrading || !autoStopLoss5Percent || positions.length === 0) return;
+    
+    positions.forEach((p) => {
+      // Only process live positions for the auto-shield
+      if (p.id.startsWith("pos-live-")) {
+        const retrace = (p.maxPnlPercent ?? p.unrealizedPnlPercent) - p.unrealizedPnlPercent;
+        // Trigger if it retraces 5% from its highest point OR if it hits -10% hard stop
+        if (retrace >= 5 || p.unrealizedPnlPercent <= -10) {
+          console.log(`[Auto 5% SL Trigger] Symbol: ${p.symbol}, PnL: ${p.unrealizedPnlPercent}%, Peak: ${p.maxPnlPercent}%`);
+          handleClosePosition(p.id);
         }
       }
-
-      const resData = await response.json();
-      if (resData.success) {
-        setLiveBalance(resData.usdtBalance);
-        setPositions(resData.positions);
-        setOpenOrders(resData.openOrders || []);
-        setFuturesApiError(null);
-      } else {
-        throw new Error(resData.error || "Failed to fetch futures data");
-      }
-    } catch (err: any) {
-      console.warn("Failed to sync live Binance Futures data:", err);
-      setFuturesApiError(err.message || "API error or connection issue.");
-    } finally {
-      setLoadingPositions(false);
-    }
-  }, [apiConnection, isLiveTrading, portfolio.futuresUsdt, setPositions, setFuturesApiError, setLiveBalance]);
+    });
+  }, [positions, isLiveTrading, autoStopLoss5Percent, handleClosePosition]);
 
   // Simulate offline movement for Futures positions
   useEffect(() => {
@@ -837,113 +968,6 @@ export default function FuturesTrading({
     }
   };
 
-  // Close specific position
-  const handleClosePosition = async (id: string) => {
-    const target = positions.find((p) => p.id === id);
-    if (!target) return;
-
-    // Live Binance API close path
-    if (
-      target.id.startsWith("pos-live-") ||
-      (isLiveTrading &&
-        apiConnection &&
-        apiConnection.isConnected &&
-        apiConnection.apiKey)
-    ) {
-      setIsSubmitting(true);
-      try {
-        const cleanSymbol = target.symbol.toUpperCase().replace("/", "");
-        const oppositeSide = target.side === "LONG" ? "SELL" : "BUY";
-
-        if (!apiConnection.apiKey || !apiConnection.apiSecret) {
-          console.warn("[Close Position] Missing credentials");
-          return;
-        }
-
-        const response = await fetch("/api/gateway/futures/execute", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            apiKey: apiConnection.apiKey,
-            apiSecret: apiConnection.apiSecret,
-            useTestnet: apiConnection.useTestnet === true,
-            symbol: cleanSymbol,
-            side: oppositeSide,
-            type: "MARKET",
-            amount: target.amount,
-            leverage: target.leverage,
-            marginType: target.marginType,
-          }),
-        });
-
-        if (!response.ok) {
-          const contentType = response.headers.get("content-type") || "";
-          if (contentType.includes("application/json")) {
-            const errData = await response.json();
-            throw new Error(errData.error || `HTTP Error ${response.status}`);
-          } else {
-            throw new Error(`HTTP Error ${response.status}: Received non-JSON response from server.`);
-          }
-        }
-
-        const result = await response.json();
-        if (result.success) {
-          if (onTriggerToast) {
-            onTriggerToast({
-              id: Date.now().toString(),
-              symbol: target.symbol,
-              timestamp: Date.now(),
-              isMilestone: true,
-              aiExplanationAr: `✅ [بينانس عقود آجلة حقيقية] تم إغلاق مركز ${target.symbol} بنجاح عبر السوق!`,
-              aiExplanationEn: `✅ [Binance Live Futures] Successfully executed market close for ${target.symbol} position!`,
-            });
-          }
-          await fetchRealFuturesData();
-        } else {
-          throw new Error(result.error || "Server unhandled response");
-        }
-      } catch (err: any) {
-        console.error("[Binance Live Futures Settle Error]:", err);
-        if (onTriggerToast) {
-          onTriggerToast({
-            id: Date.now().toString(),
-            symbol: target.symbol,
-            timestamp: Date.now(),
-            isVolatilityWarning: true,
-            aiExplanationAr: `⚠️ فشل إغلاق مركز العقود الآجلة على بينانس: ${err.message}`,
-            aiExplanationEn: `⚠️ Binance Futures close operation failed: ${err.message}`,
-          });
-        }
-      } finally {
-        setIsSubmitting(false);
-      }
-      return;
-    }
-
-    // Educational Sandbox Close path
-    const payout = target.margin + target.unrealizedPnl;
-
-    if (onUpdatePortfolio) {
-      // Calculate real net PNL after a simulated 0.04% taker fee
-      const tradingFee = target.margin * target.leverage * 0.0004; 
-      const netPayout = payout - tradingFee;
-      onUpdatePortfolio(netPayout, 0);
-    }
-
-    setPositions((prev) => prev.filter((p) => p.id !== id));
-
-    if (onTriggerToast) {
-      const netProfit = target.unrealizedPnl - (target.margin * target.leverage * 0.0004);
-      onTriggerToast({
-        id: Date.now().toString(),
-        symbol: target.symbol,
-        timestamp: Date.now(),
-        isMilestone: true,
-        aiExplanationAr: `✅ تم إغلاق مركز العقود الآجلة بنجاح. العائد الصافي المضاف للرصيد: ${payout.toFixed(2)} USDT (الربح الصافي بعد العمولات: ${netProfit.toFixed(2)} USDT).`,
-        aiExplanationEn: `✅ Successfully closed position. Net refund returned: ${payout.toFixed(2)} USDT (Net PnL after fees: $${netProfit.toFixed(2)}).`,
-      });
-    }
-  };
 
   // Close all positions
   const handleMarketCloseAll = async () => {
@@ -2015,6 +2039,19 @@ export default function FuturesTrading({
                             <Sparkles className="w-3 h-3" />
                           )}
                         </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-2 p-1.5 bg-rose-950/20 border border-rose-900/30 rounded-lg">
+                        <input
+                          type="checkbox"
+                          id="auto-5-sl"
+                          checked={autoStopLoss5Percent}
+                          onChange={(e) => setAutoStopLoss5Percent(e.target.checked)}
+                          className="accent-rose-500 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <label htmlFor="auto-5-sl" className="text-[9px] font-bold text-rose-300 cursor-pointer select-none leading-tight">
+                          {lang === 'ar' ? 'درع حماية 5% تلقائي (تتبع ذكي)' : 'Auto 5% Protection Shield (Smart Trail)'}
+                        </label>
                       </div>
                     </div>
                     <div className="space-y-1.5">
