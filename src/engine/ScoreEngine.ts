@@ -79,6 +79,22 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
     reasons.push("Negative AI Sentiment & News");
   }
 
+  // 6. Retrace/Rebound Detection ("الارتداد")
+  // If price is significantly down (Retrace) but RSI is oversold, it's a "Bullish Rebound" opportunity
+  if (inputs.change24h < -3 && rsi < 40) {
+    const reboundBonus = 20;
+    score += reboundBonus;
+    factors['rebound'] = reboundBonus;
+    reasons.push(`Bullish Rebound Detected (Drop: ${inputs.change24h}%, RSI: ${rsi})`);
+  }
+  // If price is significantly up but RSI is overbought, it's a "Bearish Retrace" opportunity (Short)
+  else if (inputs.change24h > 3 && rsi > 60) {
+    const retraceBonus = 20;
+    score -= retraceBonus;
+    factors['retrace'] = -retraceBonus;
+    reasons.push(`Bearish Retrace Detected (Pump: ${inputs.change24h}%, RSI: ${rsi})`);
+  }
+
   // Add extra weight for momentum to favor quick scalps safely
   if (rsi < 35 && currentTrend !== 'DOWN') score += 15;
   if (rsi > 65 && currentTrend !== 'UP') score -= 15;

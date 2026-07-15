@@ -211,6 +211,7 @@ export interface FuturesPosition {
   entryPrice: number;
   currentPrice: number;
   amount: number; // Position contracts/size in crypto coin
+  positionSide?: "BOTH" | "LONG" | "SHORT"; // Binance Dual-Side support
   margin: number; // Collateral USDT
   liquidationPrice: number;
   unrealizedPnl: number;

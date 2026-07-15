@@ -185,6 +185,7 @@ export default function FuturesTrading({
             leverage: target.leverage,
             marginType: target.marginType,
             reduceOnly: true,
+            positionSide: target.positionSide,
           }),
         });
 
@@ -535,16 +536,37 @@ export default function FuturesTrading({
     positions.forEach((p) => {
       // Only process live positions for automatic exits
       if (p.id.startsWith("pos-live-")) {
-        // A) Auto Shield 5% (Retrace from peak)
+        const peak = p.maxPnlPercent ?? p.unrealizedPnlPercent;
+        const current = p.unrealizedPnlPercent;
+        const retrace = peak - current;
+
+        // A) Smart Rebound Exhaustion Exit (Bot Logic)
+        // If we have a decent profit and it starts to stall or retrace even slightly, exit to protect gains.
+        // Logic: If peak profit was > 1.5% and we dropped 0.7% from that peak, OR peak > 3% and dropped 1.2%
+        const isReboundComplete = (peak > 1.5 && retrace > 0.7) || (peak > 3 && retrace > 1.2);
+        
+        // Also check RSI exhaustion if pair data is available
+        const pair = allPairs.find(ap => ap.symbol === p.symbol);
+        const isRsiExhausted = pair && pair.rsi && (
+          (p.side === 'LONG' && pair.rsi > 62 && current > 0.5) || 
+          (p.side === 'SHORT' && pair.rsi < 38 && current > 0.5)
+        );
+
+        if (isReboundComplete || isRsiExhausted) {
+          console.log(`[Smart Exit] ${isReboundComplete ? "Rebound Completed" : "RSI Exhausted"}. Closing ${p.symbol} to secure profits. Peak: ${peak.toFixed(2)}%, Current: ${current.toFixed(2)}%`);
+          handleClosePosition(p.id);
+          return;
+        }
+
+        // B) Standard Auto Shield 5% (Retrace from peak)
         if (autoStopLoss5Percent) {
-          const retrace = (p.maxPnlPercent ?? p.unrealizedPnlPercent) - p.unrealizedPnlPercent;
           // Trigger if it retraces 5% from its highest point OR if it hits -10% hard stop
-          if (retrace >= 5 || p.unrealizedPnlPercent <= -10) {
-            console.log(`[Auto 5% SL Trigger] Symbol: ${p.symbol}, PnL: ${p.unrealizedPnlPercent}%, Peak: ${p.maxPnlPercent}%`);
+          if (retrace >= 5 || current <= -10) {
+            console.log(`[Auto 5% SL Trigger] Symbol: ${p.symbol}, PnL: ${current}%, Peak: ${peak}%`);
             handleClosePosition(p.id);
           }
         } 
-        // B) Manual Stop Loss Price (If shield is off and a price is set)
+        // C) Manual Stop Loss Price (If shield is off and a price is set)
         else if (stopLoss && !isNaN(parseFloat(stopLoss))) {
           const slPrice = parseFloat(stopLoss);
           const isTriggered = p.side === "LONG" ? p.currentPrice <= slPrice : p.currentPrice >= slPrice;
@@ -556,7 +578,7 @@ export default function FuturesTrading({
         }
       }
     });
-  }, [positions, isLiveTrading, autoStopLoss5Percent, stopLoss, handleClosePosition]);
+  }, [positions, isLiveTrading, autoStopLoss5Percent, stopLoss, handleClosePosition, allPairs]);
 
   // Simulate offline movement for Futures positions
   useEffect(() => {
@@ -1128,12 +1150,13 @@ export default function FuturesTrading({
               change24h: targetPair.change24h || 0,
               rsi: targetPair.rsi,
               sentimentScore: targetPair.sentimentScore,
+              whaleActivity: (targetPair as any).whaleActivity ?? (50 + Math.random() * 10),
             };
 
             const decision = evaluateTradeDecision(inputs);
 
             // Filter out non-actionable decisions or low scores based on threshold
-            if (decision.score < 75 || decision.action === 'HOLD') {
+            if (decision.score < 70 || decision.action === 'HOLD') {
               return updatedPrev; // Skip trade!
             }
 
@@ -1257,7 +1280,7 @@ export default function FuturesTrading({
                     console.warn("[Algo Bot] Missing API credentials, skipping fetch.");
                     return;
                   }
-                  await fetch("/api/gateway/futures/execute", {
+                    await fetch("/api/gateway/futures/execute", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1270,6 +1293,8 @@ export default function FuturesTrading({
                       amount: Math.abs(pos.amount),
                       leverage: pos.leverage, // Added to fix potentially missing param
                       marginType: pos.marginType,
+                      reduceOnly: true,
+                      positionSide: pos.positionSide,
                     }),
                   });
                   cleanedPositions = true;
@@ -1299,11 +1324,12 @@ export default function FuturesTrading({
               change24h: targetPair.change24h || 0,
               rsi: targetPair.rsi,
               sentimentScore: targetPair.sentimentScore,
+              whaleActivity: (targetPair as any).whaleActivity ?? (50 + Math.random() * 10),
             };
 
             const decision = evaluateTradeDecision(inputs);
 
-            if (decision.score < 75 || decision.action === 'HOLD') {
+            if (decision.score < 70 || decision.action === 'HOLD') {
               return; // Skip trade!
             }
 

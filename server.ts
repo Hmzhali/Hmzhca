@@ -659,7 +659,7 @@ Guidelines:
         : aiSystemPrompt;
 
       // Ask Gemini using standard gemini-3.5-flash
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry({
         model: 'gemini-3.5-flash',
         contents: prompt,
         config: {
@@ -1237,7 +1237,7 @@ Communication Guidelines:
 - Maintain high-interest engagement, giving clear step-by-step guidance.
 - If asked a highly specific questions about custom database balances, account private disputes, or explicit developer bugs, set a confidence score below 75 so that the ticket can be escalated to the Platform Manager (المدير والمالك) for direct personal attention while keeping the user informed politely.`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry({
         model: 'gemini-3.5-flash',
         contents: prompt,
         config: { 
@@ -2017,6 +2017,7 @@ Communication Guidelines:
                 id: `pos-live-${p.symbol}-${side}`,
                  symbol: formattedSymbol,
                  side,
+                 positionSide: p.positionSide, // 'BOTH', 'LONG', or 'SHORT'
                  leverage,
                  marginType: p.isolated ? 'ISOLATED' : 'CROSS',
                  entryPrice: entry,
@@ -2184,7 +2185,7 @@ Communication Guidelines:
   // API Route: Secure Binance Futures Order Dispatch Proxy (updates marginType + leverage first, then places order)
   app.post('/api/gateway/futures/execute', async (req, res) => {
     try {
-      const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, leverage, marginType, reduceOnly } = req.body;
+      const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, leverage, marginType, reduceOnly, positionSide } = req.body;
       console.log('--- Incoming order request (raw body) ---', req.body);
       const missingParams = [];
       if (!apiKey) missingParams.push('apiKey');
@@ -2264,6 +2265,10 @@ Communication Guidelines:
         queryString += `&reduceOnly=true`;
       }
 
+      if (positionSide) {
+        queryString += `&positionSide=${positionSide}`;
+      }
+
       const signature = crypto
         .createHmac('sha256', apiSecret)
         .update(queryString)
@@ -2302,9 +2307,21 @@ Communication Guidelines:
           updateTime: responseData.updateTime
         });
       } else {
+        let errorMsg = responseData.msg || 'Binance Futures order failed.';
+        
+        // Specific handling for common Binance Errors
+        if (responseData.code === -2022) {
+          errorMsg = `[Binance -2022] ReduceOnly Order is rejected. This usually happens if you are in 'Hedge Mode' (which requires dual sides) or if the quantity exceeds your current open position. Try refreshing your data or adjusting your Binance settings to 'One-Way Mode'.`;
+        } else if (responseData.code === -1111) {
+          errorMsg = `[Binance -1111] Precision error. The quantity or price has too many decimal places for this pair.`;
+        } else if (responseData.code === -2019) {
+          errorMsg = `[Binance -2019] Insufficient margin/balance to open this position.`;
+        }
+
         res.status(fetchResponse.status).json({
           success: false,
-          error: responseData.msg || 'Binance Futures order failed.'
+          error: errorMsg,
+          code: responseData.code
         });
       }
 
@@ -2328,7 +2345,7 @@ Communication Guidelines:
       Please provide a technical explanation for this alert, detailing reasons like volume spikes, significant whale movements/activities, or key technical levels (support/resistance, overbought/sold). Provide a brief professional verdict (Buy/Sell/Hold).
       Limit the response to 3 sentences in ${lang}.`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry({
         model: 'gemini-3.5-flash',
         contents: prompt,
         config: {
@@ -2390,7 +2407,7 @@ Communication Guidelines:
       `;
 
       // Use gemini-3.1-flash-lite for lightweight utility tasks to ensure better availability
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry({
         model: "gemini-3.1-flash-lite",
         contents: prompt,
         config: {
