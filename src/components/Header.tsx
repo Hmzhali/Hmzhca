@@ -155,6 +155,50 @@ export default function Header({
     }
   };
 
+  const [swStatus, setSwStatus] = useState<'loading' | 'active' | 'error' | 'unsupported'>('loading');
+
+  const checkSWStatus = async () => {
+    if (!('serviceWorker' in navigator)) {
+      setSwStatus('unsupported');
+      return;
+    }
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration?.active) {
+        setSwStatus('active');
+      } else if (registration?.installing || registration?.waiting) {
+        setSwStatus('loading');
+      } else {
+        setSwStatus('error');
+      }
+    } catch (e) {
+      setSwStatus('error');
+    }
+  };
+
+  const refreshSW = async () => {
+    if (!('serviceWorker' in navigator)) return;
+    setSwStatus('loading');
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (let registration of registrations) {
+        await registration.unregister();
+      }
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      console.log('SW re-registered:', reg.scope);
+      setTimeout(checkSWStatus, 1000);
+    } catch (err) {
+      console.error('SW refresh failed:', err);
+      setSwStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    checkSWStatus();
+    const interval = setInterval(checkSWStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const d = ARABIC_DICT;
 
   const tabs = [
@@ -296,6 +340,35 @@ export default function Header({
             )}
           </button>
           <WakeLockToggle lang={lang} />
+          
+          {/* Service Worker Status & Refresh */}
+          <div className="flex items-center gap-1 bg-slate-800 px-1.5 py-1 rounded border border-slate-700">
+            <div className="flex items-center gap-1.5 px-1 border-r border-slate-700 mr-1">
+              <div 
+                className={`w-2 h-2 rounded-full ${
+                  swStatus === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
+                  swStatus === 'loading' ? 'bg-amber-500 animate-pulse' :
+                  'bg-rose-500'
+                }`}
+                title={
+                  lang === 'ar' 
+                    ? (swStatus === 'active' ? 'الخلفية نشطة' : swStatus === 'loading' ? 'جاري التنشيط' : 'الخلفية معطلة') 
+                    : (swStatus === 'active' ? 'Background Active' : swStatus === 'loading' ? 'Activating' : 'Background Inactive')
+                }
+              />
+              <span className="text-[8px] font-bold text-slate-400 hidden lg:block">
+                {lang === 'ar' ? 'المزامنة' : 'SYNC'}
+              </span>
+            </div>
+            <button
+              onClick={refreshSW}
+              disabled={swStatus === 'loading'}
+              className={`p-1 rounded hover:bg-slate-700 transition group ${swStatus === 'loading' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              title={lang === 'ar' ? 'تحديث الاتصال بالخلفية' : 'Refresh Background Sync'}
+            >
+              <RefreshCw className={`w-3 h-3 text-slate-400 group-hover:text-emerald-400 ${swStatus === 'loading' ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
 
           {/* Notifications Log / Center Button */}
           <div className="relative">

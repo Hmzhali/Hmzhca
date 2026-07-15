@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, GenerateContentParameters, GenerateContentResponse } from '@google/genai';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import dns from 'dns';
@@ -27,6 +27,32 @@ const ai = new GoogleGenAI({
     }
   }
 });
+
+/**
+ * Shared helper for calling Gemini with automatic retry for transient network failures.
+ */
+async function callGeminiWithRetry(params: GenerateContentParameters, retries = 2): Promise<GenerateContentResponse> {
+  try {
+    return await ai.models.generateContent(params);
+  } catch (err: any) {
+    const errStr = String(err.message || err).toLowerCase();
+    const isRetryable = (
+      errStr.includes('fetch failed') || 
+      errStr.includes('timeout') || 
+      errStr.includes('econnreset') || 
+      errStr.includes('enetunreach') || 
+      errStr.includes('socket hang up') ||
+      errStr.includes('undici')
+    ) && retries > 0;
+    
+    if (isRetryable) {
+      console.log(`[Gemini Retry] Call failed, retrying... (${retries} left). Error: ${err.message || err}`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      return callGeminiWithRetry(params, retries - 1);
+    }
+    throw err;
+  }
+}
 
 console.log('[DEBUG] Server starting up...');
 
@@ -606,16 +632,7 @@ I am your active quantitative analyst. Ask me anything about the system:
         return;
       }
 
-      // Instantiate modern official @google/genai model client
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-
+      // Use the global official @google/genai model client
       const systemInstruction = lang === 'en'
         ? `You are the elite AI Advisor and Financial Consultant for the 'Al-Moharif AI' platform (المحترف الذكي للكم).
 Your core mission is to confidently and professionally resolve user inquiries, consultations, subscription questions, and operational instructions regarding the platform.
@@ -758,19 +775,10 @@ Guidelines:
       }
 
       // 3. Initiate raw request to Gemini API and wrap in a de-duplicated promise
-      const executeSentimentFetch = async () => {
-        const ai = new GoogleGenAI({
-          apiKey: apiKey,
-          httpOptions: {
-            headers: {
-              'User-Agent': 'aistudio-build',
-            },
-          },
-        });
-
+      const executeSentimentFetch = async (): Promise<any> => {
         const promptText = `Analyze technical sentiment (buyer vs seller power, moving averages, relative strength, volume and risk) to estimate a precise and highly professional 'Fear & Greed' sentiment index score for the cryptocurrency market pair '${symbol}' right now. Return a single strict JSON object following the required schema. Ensure the Arabic rationale is beautifully structured, high-quality, and completely matching the English justification.`;
 
-        const response = await ai.models.generateContent({
+        const response = await callGeminiWithRetry({
           model: 'gemini-3.5-flash',
           contents: promptText,
           config: {
@@ -920,18 +928,9 @@ Guidelines:
         return;
       }
 
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-
       const promptText = `Explain the potential financial mechanics behind a sharp price volatility event of ${changePercent}% in under 1 minute for the cryptocurrency pair '${symbol}' (moved from ${priceStart} to ${priceEnd}). Focus on professional dynamics like leverage liquidation cascades, short/long squeezes, or order book thinness. Respond ONLY as a JSON object with two fields "explanation_en" and "explanation_ar" each containing a highly professional 2-sentence summary. Keep English and Arabic explanations matching perfectly in financial depth.`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry({
         model: 'gemini-3.5-flash',
         contents: promptText,
         config: {
@@ -1012,19 +1011,10 @@ Guidelines:
         return;
       }
 
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-
       const sampleTxStr = active_positions ? JSON.stringify(active_positions.slice(0, 5)) : "No transactions";
       const promptText = `Analyze institutional coin flow activity: '${sampleTxStr}' and on-chain holdings index. Provide an objective and professional market outlook advising retail traders on what whales are doing. Respond ONLY as a JSON object with fields: "sentiment_en" (max 3 sentences), "sentiment_ar" (max 3 sentences matching English), "score" (number 0-100 representing whale buy/accumulate strength), "implication_en" (1-2 sentences), "implication_ar" (1-2 sentences matching English). Make explanations match perfectly in financial vocabulary.`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry({
         model: 'gemini-3.5-flash',
         contents: promptText,
         config: {
@@ -1219,7 +1209,6 @@ I am your professional AI co-pilot, ready to assist you with any topic regarding
         return;
       }
 
-      const ai = new GoogleGenAI({ apiKey });
       const systemInstruction = `You are the highly professional Elite AI Advisor and Customer Support Consultant for 'Al-Moharif AI' (منصة المحترف الذكي للكم).
 Your goal is to answer users' consultations, questions, subscription queries, and operational instructions with technical elegance, helpfulness, and precision.
 
@@ -2334,13 +2323,6 @@ Communication Guidelines:
         res.json({ reply: lang === 'ar' ? 'تحليل غير متاح حالياً.' : 'AI analysis currently unavailable.' });
         return;
       }
-
-      const ai = new GoogleGenAI({
-        apiKey: apiKey,
-        httpOptions: {
-          headers: { 'User-Agent': 'aistudio-build' },
-        },
-      });
 
       const prompt = `Analyze the ${symbol} pair. An alert triggered because the ${type} reached ${value} (condition: ${condition}). The current ${type} is ${currentValue}.
       Please provide a technical explanation for this alert, detailing reasons like volume spikes, significant whale movements/activities, or key technical levels (support/resistance, overbought/sold). Provide a brief professional verdict (Buy/Sell/Hold).
