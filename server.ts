@@ -2195,7 +2195,7 @@ Communication Guidelines:
   // API Route: Secure Binance Futures Order Dispatch Proxy (updates marginType + leverage first, then places order)
   app.post('/api/gateway/futures/execute', async (req, res) => {
     try {
-      const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, leverage, marginType } = req.body;
+      const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, leverage, marginType, reduceOnly } = req.body;
       console.log('--- Incoming order request (raw body) ---', req.body);
       const missingParams = [];
       if (!apiKey) missingParams.push('apiKey');
@@ -2266,8 +2266,13 @@ Communication Guidelines:
       // 3. Dispatch the order
       const timestamp = Date.now();
       let queryString = `symbol=${cleanSymbol}&side=${side}&type=${type}&quantity=${amount}&timestamp=${timestamp}&recvWindow=6000`;
+      
       if (type === 'LIMIT') {
         queryString += `&price=${price}&timeInForce=GTC`;
+      }
+
+      if (reduceOnly === true) {
+        queryString += `&reduceOnly=true`;
       }
 
       const signature = crypto

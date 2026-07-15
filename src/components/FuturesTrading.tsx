@@ -6,6 +6,7 @@ import {
   Zap,
   DollarSign,
   ShieldCheck,
+  MousePointer2,
   Sliders,
   CheckCircle2,
   XCircle,
@@ -183,6 +184,7 @@ export default function FuturesTrading({
             amount: target.amount,
             leverage: target.leverage,
             marginType: target.marginType,
+            reduceOnly: true,
           }),
         });
 
@@ -526,22 +528,35 @@ export default function FuturesTrading({
   ]);
 
 
-  // Handle Auto 5% Stop Loss (Smart Protection Shield) separately to avoid circular dependency
+  // Handle Auto 5% Stop Loss (Smart Protection Shield) & Manual Stop Loss Price
   useEffect(() => {
-    if (!isLiveTrading || !autoStopLoss5Percent || positions.length === 0) return;
+    if (!isLiveTrading || positions.length === 0) return;
     
     positions.forEach((p) => {
-      // Only process live positions for the auto-shield
+      // Only process live positions for automatic exits
       if (p.id.startsWith("pos-live-")) {
-        const retrace = (p.maxPnlPercent ?? p.unrealizedPnlPercent) - p.unrealizedPnlPercent;
-        // Trigger if it retraces 5% from its highest point OR if it hits -10% hard stop
-        if (retrace >= 5 || p.unrealizedPnlPercent <= -10) {
-          console.log(`[Auto 5% SL Trigger] Symbol: ${p.symbol}, PnL: ${p.unrealizedPnlPercent}%, Peak: ${p.maxPnlPercent}%`);
-          handleClosePosition(p.id);
+        // A) Auto Shield 5% (Retrace from peak)
+        if (autoStopLoss5Percent) {
+          const retrace = (p.maxPnlPercent ?? p.unrealizedPnlPercent) - p.unrealizedPnlPercent;
+          // Trigger if it retraces 5% from its highest point OR if it hits -10% hard stop
+          if (retrace >= 5 || p.unrealizedPnlPercent <= -10) {
+            console.log(`[Auto 5% SL Trigger] Symbol: ${p.symbol}, PnL: ${p.unrealizedPnlPercent}%, Peak: ${p.maxPnlPercent}%`);
+            handleClosePosition(p.id);
+          }
+        } 
+        // B) Manual Stop Loss Price (If shield is off and a price is set)
+        else if (stopLoss && !isNaN(parseFloat(stopLoss))) {
+          const slPrice = parseFloat(stopLoss);
+          const isTriggered = p.side === "LONG" ? p.currentPrice <= slPrice : p.currentPrice >= slPrice;
+          
+          if (isTriggered) {
+            console.log(`[Manual SL Trigger] Symbol: ${p.symbol}, Price: ${p.currentPrice}, Target: ${slPrice}`);
+            handleClosePosition(p.id);
+          }
         }
       }
     });
-  }, [positions, isLiveTrading, autoStopLoss5Percent, handleClosePosition]);
+  }, [positions, isLiveTrading, autoStopLoss5Percent, stopLoss, handleClosePosition]);
 
   // Simulate offline movement for Futures positions
   useEffect(() => {
@@ -792,16 +807,17 @@ export default function FuturesTrading({
       apiConnection.isConnected &&
       apiConnection.apiKey
     ) {
-      // 1. Pre-flight check for live balance vs required margin
-      if (liveBalance !== null && requiredMargin > liveBalance) {
+      // 1. Pre-flight check for live balance vs required margin (adding a 2% safety buffer for fees)
+      const safetyBufferMultiplier = 1.02;
+      if (liveBalance !== null && (requiredMargin * safetyBufferMultiplier) > liveBalance) {
         if (onTriggerToast) {
           onTriggerToast({
             id: Date.now().toString(),
             symbol: activePair.symbol,
             timestamp: Date.now(),
             isVolatilityWarning: true,
-            aiExplanationAr: `⚠️ رصيد الهامش المطلوب لفتح هذه الصفقة (${requiredMargin.toFixed(2)} USDT) يتجاوز رصيدك الحالي المتاح في محفظة العقود الآجلة على بينانس (${liveBalance.toFixed(2)} USDT). يرجى تقليل حجم الصفقة أو رفع الرافعة المالية لتسهيل الدخول الآمن.`,
-            aiExplanationEn: `⚠️ Required margin ($${requiredMargin.toFixed(2)} USDT) exceeds your available live Binance Futures wallet balance ($${liveBalance.toFixed(2)} USDT). Please reduce your trade size or increase your leverage settings.`,
+            aiExplanationAr: `⚠️ رصيد الهامش المطلوب لفتح هذه الصفقة مع الرسوم التقريبية (${(requiredMargin * safetyBufferMultiplier).toFixed(2)} USDT) يتجاوز رصيدك الحالي المتاح (${liveBalance.toFixed(2)} USDT). يرجى تقليل حجم الصفقة.`,
+            aiExplanationEn: `⚠️ Required margin with fee buffer ($${(requiredMargin * safetyBufferMultiplier).toFixed(2)} USDT) exceeds your available live Binance Futures balance ($${liveBalance.toFixed(2)} USDT). Please reduce your trade size.`,
           });
         }
         return;
@@ -2010,49 +2026,78 @@ export default function FuturesTrading({
 
                   {/* SL/TS Inputs */}
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-rose-400">
-                        {lang === "ar" ? "وقف الخسارة (SL)" : "Stop Loss"}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-rose-400 flex items-center justify-between">
+                        <span>{lang === "ar" ? "نظام إيقاف الخسارة (SL)" : "Stop Loss System"}</span>
+                        <span className="text-[8px] bg-rose-500/10 px-1 rounded text-rose-300">
+                          {autoStopLoss5Percent ? (lang === 'ar' ? 'درع مفعل' : 'Shield On') : (lang === 'ar' ? 'يدوي' : 'Manual')}
+                        </span>
                       </label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={stopLoss}
-                          onChange={(e) => setStopLoss(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 pr-10 text-xs focus:outline-none focus:border-rose-500 font-mono"
-                          placeholder="Price"
-                        />
+                      
+                      <div className="grid grid-cols-2 gap-1 p-1 bg-slate-900/50 rounded-lg border border-slate-800">
                         <button
                           type="button"
-                          disabled={isCalculatingAiSL}
-                          onClick={calculateSmartSL}
-                          className={`absolute right-1 top-1 bottom-1 px-1.5 rounded flex items-center justify-center transition-all ${
-                            isCalculatingAiSL 
-                              ? "bg-slate-800 text-slate-500" 
-                              : "bg-indigo-900/40 text-indigo-400 hover:bg-indigo-800/60"
+                          onClick={() => setAutoStopLoss5Percent(false)}
+                          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+                            !autoStopLoss5Percent 
+                              ? "bg-rose-600 text-white shadow-lg shadow-rose-900/20" 
+                              : "text-slate-400 hover:text-slate-200"
                           }`}
-                          title={lang === 'ar' ? 'حساب SL ذكي' : 'Calculate Smart SL'}
                         >
-                          {isCalculatingAiSL ? (
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Sparkles className="w-3 h-3" />
-                          )}
+                          <MousePointer2 className="w-3 h-3" />
+                          {lang === 'ar' ? 'إعداد يدوي' : 'Manual Set'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAutoStopLoss5Percent(true)}
+                          className={`flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold transition-all ${
+                            autoStopLoss5Percent 
+                              ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/20" 
+                              : "text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          <ShieldCheck className="w-3 h-3" />
+                          {lang === 'ar' ? 'درع تلقائي 5%' : 'Auto Shield 5%'}
                         </button>
                       </div>
 
-                      <div className="flex items-center gap-2 mt-2 p-1.5 bg-rose-950/20 border border-rose-900/30 rounded-lg">
-                        <input
-                          type="checkbox"
-                          id="auto-5-sl"
-                          checked={autoStopLoss5Percent}
-                          onChange={(e) => setAutoStopLoss5Percent(e.target.checked)}
-                          className="accent-rose-500 w-3.5 h-3.5 cursor-pointer"
-                        />
-                        <label htmlFor="auto-5-sl" className="text-[9px] font-bold text-rose-300 cursor-pointer select-none leading-tight">
-                          {lang === 'ar' ? 'درع حماية 5% تلقائي (تتبع ذكي)' : 'Auto 5% Protection Shield (Smart Trail)'}
-                        </label>
-                      </div>
+                      {!autoStopLoss5Percent ? (
+                        <div className="relative group animate-in fade-in slide-in-from-top-1 duration-200">
+                          <input
+                            type="number"
+                            value={stopLoss}
+                            onChange={(e) => setStopLoss(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 pr-10 text-xs focus:outline-none focus:border-rose-500 font-mono text-rose-100"
+                            placeholder={lang === 'ar' ? "أدخل السعر..." : "Enter SL Price..."}
+                          />
+                          <button
+                            type="button"
+                            disabled={isCalculatingAiSL}
+                            onClick={calculateSmartSL}
+                            className={`absolute right-1 top-1 bottom-1 px-1.5 rounded flex items-center justify-center transition-all ${
+                              isCalculatingAiSL 
+                                ? "bg-slate-800 text-slate-500" 
+                                : "bg-indigo-900/40 text-indigo-400 hover:bg-indigo-800/60"
+                            }`}
+                            title={lang === 'ar' ? 'حساب SL ذكي عبر الذكاء الاصطناعي' : 'Calculate Smart AI SL'}
+                          >
+                            {isCalculatingAiSL ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-2 bg-emerald-950/20 border border-emerald-900/30 rounded-lg animate-in zoom-in-95 duration-200">
+                          <p className="text-[9px] text-emerald-300 leading-snug flex items-start gap-1.5">
+                            <Zap className="w-3 h-3 mt-0.5 shrink-0" />
+                            {lang === 'ar' 
+                              ? "درع الحماية نشط: سيتم إغلاق الصفقة فوراً عند تراجع 5% من أعلى قمة سعرية (Trailing) أو وصول الخسارة لـ 10%."
+                              : "Auto Shield Active: Closes instantly at 5% retrace from peak (Trailing) or -10% absolute loss."}
+                          </p>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
@@ -2552,8 +2597,8 @@ export default function FuturesTrading({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3.5">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
                     <label className="text-[10px] text-slate-400 block font-bold">
                       {lang === "ar" ? "هدف جني الأرباح (٪):" : "Take Profit (%):"}
                     </label>
@@ -2567,19 +2612,64 @@ export default function FuturesTrading({
                       className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono text-xs text-slate-200"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-slate-400 block font-bold">
-                      {lang === "ar" ? "حد وقف الخسارة (٪) (سالب):" : "Stop Loss (%) (negative):"}
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-rose-400 flex items-center justify-between">
+                      <span>{lang === "ar" ? "إيقاف الخسارة (SL)" : "Stop Loss (SL)"}</span>
+                      <span className="text-[8px] bg-rose-500/10 px-1 rounded text-rose-300">
+                        {autoStopLoss5Percent ? (lang === 'ar' ? 'الدرع نشط' : 'Shield Active') : (lang === 'ar' ? 'يدوي' : 'Manual')}
+                      </span>
                     </label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      max="-0.01"
-                      min="-100"
-                      value={algoStopLoss}
-                      onChange={(e) => setAlgoStopLoss(parseFloat(e.target.value) || -1.5)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono text-xs text-slate-200"
-                    />
+                    
+                    <div className="grid grid-cols-2 gap-1 p-1 bg-slate-900 border border-slate-800 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => setAutoStopLoss5Percent(false)}
+                        className={`flex items-center justify-center gap-1.5 py-1 rounded text-[9px] font-bold transition-all ${
+                          !autoStopLoss5Percent 
+                            ? "bg-rose-600 text-white shadow-sm" 
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <MousePointer2 className="w-3 h-3" />
+                        {lang === 'ar' ? 'يدوي' : 'Manual'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAutoStopLoss5Percent(true)}
+                        className={`flex items-center justify-center gap-1.5 py-1 rounded text-[9px] font-bold transition-all ${
+                          autoStopLoss5Percent 
+                            ? "bg-emerald-600 text-white shadow-sm" 
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <ShieldCheck className="w-3 h-3" />
+                        {lang === 'ar' ? 'درع 5%' : 'Shield 5%'}
+                      </button>
+                    </div>
+
+                    {!autoStopLoss5Percent ? (
+                      <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                        <input
+                          type="number"
+                          step="0.05"
+                          max="-0.01"
+                          min="-100"
+                          value={algoStopLoss}
+                          onChange={(e) => setAlgoStopLoss(parseFloat(e.target.value) || -1.5)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-rose-500 font-mono text-xs text-rose-200"
+                          placeholder={lang === 'ar' ? "النسبة..." : "Loss %..."}
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-1.5 bg-emerald-950/20 border border-emerald-900/30 rounded-lg animate-in zoom-in-95 duration-200">
+                        <p className="text-[8px] text-emerald-300 leading-tight">
+                          {lang === 'ar' 
+                            ? "الدرع مفعل: إغلاق عند تراجع 5% من القمة."
+                            : "Shield on: Exit at 5% peak retrace."}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
