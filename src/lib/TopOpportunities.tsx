@@ -19,6 +19,14 @@ export default function TopOpportunities({ lang, livePrices = {}, pairs = [] }: 
     return pairs.map(pair => {
       const liveP = livePrices[pair.symbol];
       const p = liveP ? parseFloat(liveP) : pair.currentPrice;
+      
+      // Calculate a stable, deterministic whale score based on symbol to avoid random flickering
+      let hash = 0;
+      for (let i = 0; i < pair.symbol.length; i++) {
+        hash = pair.symbol.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const stableWhale = 55 + (Math.abs(hash) % 25);
+
       const inputs: EngineInputs = {
         symbol: pair.symbol,
         currentPrice: p,
@@ -28,7 +36,7 @@ export default function TopOpportunities({ lang, livePrices = {}, pairs = [] }: 
         change24h: pair.change24h,
         rsi: pair.rsi,
         sentimentScore: pair.sentimentScore,
-        whaleActivity: 40 + Math.random() * 40, 
+        whaleActivity: stableWhale, 
       };
       const result = evaluateTradeDecision(inputs);
       return { pair, result };

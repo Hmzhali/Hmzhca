@@ -204,7 +204,7 @@ export default function App() {
 
   const [toastsMuted, setToastsMuted] = useState<boolean>(() => {
     const saved = localStorage.getItem("almoharif_toasts_muted");
-    return saved === null ? true : saved === "true"; // Defaults to true
+    return saved === null ? false : saved === "true"; // Defaults to false
   });
 
   useEffect(() => {
@@ -240,9 +240,9 @@ export default function App() {
     return saved === "true"; // defaults to false (manual start preferred)
   });
 
-  const [reboundRadarTimeframe, setReboundRadarTimeframe] = useState<"1m" | "5m" | "15m" | "30m">(() => {
+  const [reboundRadarTimeframe, setReboundRadarTimeframe] = useState<"1m" | "5m" | "15m" | "30m" | "1h" | "2h" | "4h">(() => {
     const saved = localStorage.getItem("almoharif_rebound_radar_timeframe");
-    return (saved as "1m" | "5m" | "15m" | "30m") || "5m";
+    return (saved as "1m" | "5m" | "15m" | "30m" | "1h" | "2h" | "4h") || "5m";
   });
 
   const [quickScalpScannerLog, setQuickScalpScannerLog] = useState<any[]>(() => {
@@ -530,7 +530,7 @@ export default function App() {
             
             // For live positions, we trust the server-side sync from FuturesTrading.tsx
             // Recalculating here using Spot prices causes significant discrepancies with Binance
-            if (p.id.startsWith("pos-live-") && isLiveTrading) {
+            if (p.id.startsWith("pos-live-") && isLiveTradingRef.current) {
               return {
                 ...p,
                 currentPrice: match.currentPrice,
@@ -1044,8 +1044,8 @@ export default function App() {
         }),
       });
     } catch (err) {
-      console.error(
-        "[Telegram Guard] Failed to issue alert telegram message:",
+      console.warn(
+        "[Telegram Guard] Failed to issue alert telegram message (handled):",
         err,
       );
     }
@@ -1080,6 +1080,15 @@ export default function App() {
     Record<string, { timestamp: number; price: number }[]>
   >({});
   const priceHistory30mRef = useRef<
+    Record<string, { timestamp: number; price: number }[]>
+  >({});
+  const priceHistory1hRef = useRef<
+    Record<string, { timestamp: number; price: number }[]>
+  >({});
+  const priceHistory2hRef = useRef<
+    Record<string, { timestamp: number; price: number }[]>
+  >({});
+  const priceHistory4hRef = useRef<
     Record<string, { timestamp: number; price: number }[]>
   >({});
   const lastVolatilityTriggerRef = useRef<Record<string, number>>({});
@@ -1249,6 +1258,30 @@ export default function App() {
       const list30m = priceHistory30mRef.current[pair.symbol];
       list30m.push({ timestamp: now, price: pair.currentPrice });
       priceHistory30mRef.current[pair.symbol] = list30m.filter((item) => now - item.timestamp <= 1800000);
+
+      // 1-hour history
+      if (!priceHistory1hRef.current[pair.symbol]) {
+        priceHistory1hRef.current[pair.symbol] = [];
+      }
+      const list1h = priceHistory1hRef.current[pair.symbol];
+      list1h.push({ timestamp: now, price: pair.currentPrice });
+      priceHistory1hRef.current[pair.symbol] = list1h.filter((item) => now - item.timestamp <= 3600000);
+
+      // 2-hour history
+      if (!priceHistory2hRef.current[pair.symbol]) {
+        priceHistory2hRef.current[pair.symbol] = [];
+      }
+      const list2h = priceHistory2hRef.current[pair.symbol];
+      list2h.push({ timestamp: now, price: pair.currentPrice });
+      priceHistory2hRef.current[pair.symbol] = list2h.filter((item) => now - item.timestamp <= 7200000);
+
+      // 4-hour history
+      if (!priceHistory4hRef.current[pair.symbol]) {
+        priceHistory4hRef.current[pair.symbol] = [];
+      }
+      const list4h = priceHistory4hRef.current[pair.symbol];
+      list4h.push({ timestamp: now, price: pair.currentPrice });
+      priceHistory4hRef.current[pair.symbol] = list4h.filter((item) => now - item.timestamp <= 14400000);
 
       // Look for a point in filtered where price has changed by >= 2.0%
       if (filtered.length < 2) return;
@@ -1809,6 +1842,13 @@ export default function App() {
       let botTradeAmount = bot.minTradeAmount !== undefined ? bot.minTradeAmount : 0.5;
       botTradeAmount = Math.max(0.5, botTradeAmount);
 
+      // Calculate stable, deterministic whale activity based on symbol
+      let hash = 0;
+      for (let i = 0; i < resolvedSymbol.length; i++) {
+        hash = resolvedSymbol.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const stableWhale = 55 + (Math.abs(hash) % 25);
+
       const inputs: EngineInputs = {
           symbol: resolvedSymbol,
           currentPrice: targetPairObj.currentPrice,
@@ -1818,7 +1858,7 @@ export default function App() {
           change24h: targetPairObj.change24h,
           rsi: targetPairObj.rsi || 50,
           sentimentScore: targetPairObj.sentimentScore || 50,
-          whaleActivity: Math.random() * 100 
+          whaleActivity: stableWhale 
       };
       
       const decision = evaluateTradeDecision(inputs);
@@ -2285,11 +2325,11 @@ export default function App() {
     triggered: "TP" | "SL",
     currentPrice: number,
   ) => {
-    // 1. Mark this specific order's TP/SL as cleared to prevent re-entrancy
+    // 1. Mark this specific order's TP/SL as cleared and mark as closed to prevent re-entrancy
     setOrders((prevOrders) =>
       prevOrders.map((o) =>
         o.id === order.id
-          ? { ...o, takeProfit: undefined, stopLoss: undefined }
+          ? { ...o, isClosedScalped: true, takeProfit: undefined, stopLoss: undefined }
           : o,
       ),
     );
@@ -2464,7 +2504,7 @@ export default function App() {
       }
     });
 
-    // B) Check Threshold Exits (TP/SL & 1-Cent Scalp Protector)
+    // B) Check Threshold Exits (TP/SL)
     const activeFilledOrders = ordersRef.current.filter(
       (o) => o.status === "FILLED" && !o.isClosedScalped
     );
@@ -2476,113 +2516,41 @@ export default function App() {
       if (!pair) continue;
 
       const currentPrice = pair.currentPrice;
-      let triggered: "TP" | "SL" | "QUICK_SCALP" | "REBOUND_COMPLETED" | null = null;
+      let triggered: "TP" | "SL" | null = null;
 
-      // Check Quick Scalp Trailing Protection Mode (Smart Exit Shield)
-      if (quickScalpProtectorEnabled && order.isQuickBuy) {
-        const savedPeak = peakPricesRef.current[order.id];
-        const peakPrice = savedPeak !== undefined ? savedPeak : (order.peakPrice !== undefined ? order.peakPrice : order.price);
-
-        const isLong = order.side === "BUY";
-        const entryPrice = order.price;
-        const now = Date.now();
-        const tradeAgeMs = now - (order.timestamp || now);
-        
-        // Real-adjustment: Lock in profits/prevent losses at 1% retrace immediately as requested
-        const minProfitMet = isLong 
-          ? (currentPrice > entryPrice * 1.005) // Reduced to 0.5% to allow for fee coverage
-          : (currentPrice < entryPrice * 0.995);
-        
-        const canExitSafe = tradeAgeMs > 10000; // Reduced to 10 seconds to allow fast exits if it dumps
-          
-        if (isLong) {
-          // Adjusted to strict 1% retrace from peak as requested
-          const trailDistance = Math.max(0.01, peakPrice * 0.01); 
-          if (currentPrice <= peakPrice - trailDistance && minProfitMet && canExitSafe) {
-            triggered = "QUICK_SCALP";
-          } else if (currentPrice <= entryPrice * 0.95) { // Stop loss at 5% instead of 15% to prevent deep losses
-            triggered = "QUICK_SCALP";
-          }
-        } else {
-          const trailDistance = Math.max(0.01, peakPrice * 0.01);
-          if (currentPrice >= peakPrice + trailDistance && minProfitMet && canExitSafe) {
-            triggered = "QUICK_SCALP";
-          } else if (currentPrice >= entryPrice * 1.05) { // Stop loss at 5% instead of 15%
-            triggered = "QUICK_SCALP";
-          }
+      // Check standard manually defined/calculated TP/SL thresholds
+      if (order.side === "BUY") {
+        if (
+          order.takeProfit &&
+          order.takeProfit > 0 &&
+          currentPrice >= order.takeProfit
+        ) {
+          triggered = "TP";
+        } else if (
+          order.stopLoss &&
+          order.stopLoss > 0 &&
+          currentPrice <= order.stopLoss
+        ) {
+          triggered = "SL";
         }
-      }
-
-      // Check if 1-minute Trend Rebound cycle is completed/overheated ("وعندما يكتمل ينسحب مباشرة")
-      if (!triggered && order.isQuickBuy) {
-        const hist1m = priceHistoryRef.current[order.symbol] || [];
-        if (hist1m.length >= 3) {
-          const prices = hist1m.map((h) => h.price);
-          const lastPrice = prices[prices.length - 1];
-          const prevPrice = prices[prices.length - 2];
-          
-          let change1m = 0;
-          if (hist1m.length > 1) {
-            const pOld = hist1m[0].price;
-            change1m = ((currentPrice - pOld) / pOld) * 100;
-          }
-          const rsi1m = 50 + change1m * 12;
-
-          const isLong = order.side === "BUY";
-          const isProfitable = isLong 
-             ? (currentPrice > order.price * 1.002) 
-             : (currentPrice < order.price * 0.998);
-
-          // If RSI has reached extremes and starts reversing, the quick wave has fully finished
-          if (isLong && rsi1m > 68 && lastPrice < prevPrice && isProfitable) {
-            triggered = "REBOUND_COMPLETED";
-          } else if (!isLong && rsi1m < 32 && lastPrice > prevPrice && isProfitable) {
-            triggered = "REBOUND_COMPLETED";
-          }
-        }
-      }
-
-      // Check standard manually defined TP/SL thresholds
-      if (!triggered) {
-        if (order.side === "BUY") {
-          if (
-            order.takeProfit &&
-            order.takeProfit > 0 &&
-            currentPrice >= order.takeProfit
-          ) {
-            triggered = "TP";
-          } else if (
-            order.stopLoss &&
-            order.stopLoss > 0 &&
-            currentPrice <= order.stopLoss
-          ) {
-            triggered = "SL";
-          }
-        } else {
-          if (
-            order.takeProfit &&
-            order.takeProfit > 0 &&
-            currentPrice <= order.takeProfit
-          ) {
-            triggered = "TP";
-          } else if (
-            order.stopLoss &&
-            order.stopLoss > 0 &&
-            currentPrice >= order.stopLoss
-          ) {
-            triggered = "SL";
-          }
+      } else {
+        if (
+          order.takeProfit &&
+          order.takeProfit > 0 &&
+          currentPrice <= order.takeProfit
+        ) {
+          triggered = "TP";
+        } else if (
+          order.stopLoss &&
+          order.stopLoss > 0 &&
+          currentPrice >= order.stopLoss
+        ) {
+          triggered = "SL";
         }
       }
 
       if (triggered) {
-        if (triggered === "QUICK_SCALP") {
-          triggerManualQuickScalpExit(order, currentPrice);
-        } else if (triggered === "REBOUND_COMPLETED") {
-          triggerManualQuickScalpExit(order, currentPrice, "REBOUND_COMPLETED");
-        } else {
-          triggerManualTpSl(order, triggered, currentPrice);
-        }
+        triggerManualTpSl(order, triggered, currentPrice);
         break; // Trigger sequentially one order at a time per render tick for secure state updates
       }
     }
@@ -3094,26 +3062,19 @@ export default function App() {
       if (candidates.length > 0) {
         const bestCandidate = candidates[0];
         
-        // Active Bot Orders
-        const activeBotOrders = ordersRef.current.filter(o => o.status === 'FILLED' && !o.isClosedScalped && o.originType === "BOT");
-        
-        if (activeBotOrders.length >= 1) {
-          if (bestCandidate.confidenceScore >= 80) {
-            // Exceptional opportunity found! Close existing bot trades to free up capital
-            activeBotOrders.forEach(o => {
-               const latestCoin = pairsRef.current.find(p => p.symbol === o.symbol);
-               const cPrice = latestCoin ? latestCoin.currentPrice : (o.price || 0);
-               triggerManualQuickScalpExit(o, cPrice, "REBOUND_COMPLETED");
-            });
-          } else {
-            // Wait until current trades are closed
-            return;
-          }
+        // Strict limit: Stop entering new trades if we already have 3 or more active trades (manual or bot)
+        const totalActiveOrdersCount = ordersRef.current.filter(o => o.status === 'FILLED' && !o.isClosedScalped).length;
+        if (totalActiveOrdersCount >= 3) {
+          return;
         }
 
         const coin = bestCandidate.pair;
         const tradeSide = bestCandidate.suggestedSide!;
         
+        // Prevent duplicate active trades on the same coin across manual and bot trades
+        const alreadyTradingThisCoin = ordersRef.current.some(o => o.symbol === coin.symbol && o.status === 'FILLED' && !o.isClosedScalped);
+        if (alreadyTradingThisCoin) return;
+
         // Ensure we don't spam duplicate orders on the same coin too close to each other
         const isDuplicate = ordersRef.current.slice(0, 5).some(o => o.symbol === coin.symbol && o.side === tradeSide);
         if (isDuplicate) return;
@@ -3266,6 +3227,9 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
           if (reboundRadarTimeframe === "1m") hist = priceHistoryRef.current[coin.symbol] || [];
           if (reboundRadarTimeframe === "15m") hist = priceHistory15mRef.current[coin.symbol] || [];
           if (reboundRadarTimeframe === "30m") hist = priceHistory30mRef.current[coin.symbol] || [];
+          if (reboundRadarTimeframe === "1h") hist = priceHistory1hRef.current[coin.symbol] || [];
+          if (reboundRadarTimeframe === "2h") hist = priceHistory2hRef.current[coin.symbol] || [];
+          if (reboundRadarTimeframe === "4h") hist = priceHistory4hRef.current[coin.symbol] || [];
           
           if (hist.length < 2) return best;
           const pCurrent = coin.currentPrice;
@@ -3278,15 +3242,16 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
           const currentScore = Math.max(bullishScore, bearishScore);
           const currentType = bullishScore > bearishScore ? "BULLISH" : "BEARISH";
           
-          let confidence = Math.floor(currentScore * 2000);
+          let confidence = 45 + (currentScore * 4000);
           if (coin.rsi) {
-            if (currentType === "BULLISH" && coin.rsi < 40) confidence += 40;
-            else if (currentType === "BEARISH" && coin.rsi > 60) confidence += 40;
-            else confidence += 20;
+            const rsiWeight = currentType === "BULLISH" 
+              ? Math.max(0, (50 - coin.rsi) * 0.8) 
+              : Math.max(0, (coin.rsi - 50) * 0.8);
+            confidence += rsiWeight;
           } else {
-            confidence += 30;
+            confidence += 15;
           }
-          const finalConfidence = Math.min(99, Math.max(65, confidence));
+          const finalConfidence = Math.min(98, Math.max(35, Math.floor(confidence)));
 
           if (!best || currentScore > best.score) {
             return { symbol: coin.symbol, score: currentScore, type: currentType, confidence: finalConfidence };
@@ -3306,15 +3271,38 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
             msgAr: `🔎 [رادار الارتداد - ${reboundRadarTimeframe}] أفضل فرصة حالية: ${bestCandidate.symbol}\n📈 الاتجاه: ${typeAr}\n🛡️ الثقة: ${bestCandidate.confidence}%`,
             msgEn: `🔎 [Rebound Radar - ${reboundRadarTimeframe}] Best current candidate: ${bestCandidate.symbol}\n📈 Direction: ${typeEn}\n🛡️ Confidence: ${bestCandidate.confidence}%`
           });
+          
+          if (bestCandidate.confidence > 55) {
+            handleTriggerToast({
+              id: Date.now().toString(),
+              symbol: bestCandidate.symbol,
+              timestamp: Date.now(),
+              isMilestone: true,
+              aiExplanationAr: `🔎 [رادار الارتدادات] أفضل فرصة: ${bestCandidate.symbol} (${typeAr}) بثقة ${bestCandidate.confidence}%`,
+              aiExplanationEn: `🔎 [Rebound Radar] Best opportunity: ${bestCandidate.symbol} (${typeEn}) with ${bestCandidate.confidence}% confidence`,
+            });
+          }
+          
           lastRadarSummaryTimeRef.current = now;
         }
       }
 
+      const totalActiveOrders = ordersRef.current.filter(o => o.status === 'FILLED' && !o.isClosedScalped);
+      if (totalActiveOrders.length >= 3) {
+        isScanningRef.current = false;
+        return;
+      }
+      let currentActiveCount = totalActiveOrders.length;
+
       for (const coin of availablePairs) {
+        if (currentActiveCount >= 3) break;
         let selectedHist = priceHistory5mRef.current[coin.symbol] || [];
         if (reboundRadarTimeframe === "1m") selectedHist = priceHistoryRef.current[coin.symbol] || [];
         if (reboundRadarTimeframe === "15m") selectedHist = priceHistory15mRef.current[coin.symbol] || [];
         if (reboundRadarTimeframe === "30m") selectedHist = priceHistory30mRef.current[coin.symbol] || [];
+        if (reboundRadarTimeframe === "1h") selectedHist = priceHistory1hRef.current[coin.symbol] || [];
+        if (reboundRadarTimeframe === "2h") selectedHist = priceHistory2hRef.current[coin.symbol] || [];
+        if (reboundRadarTimeframe === "4h") selectedHist = priceHistory4hRef.current[coin.symbol] || [];
         
         const hist15m = priceHistory15mRef.current[coin.symbol] || [];
         if (selectedHist.length < 2) continue;
@@ -3395,6 +3383,8 @@ Technical Reason: ${reasonEn} (RSI: ${bestCandidate.rsi} / Volatility: ${bestCan
             aiReasonAr: decision.reasons.join(', '),
             aiReasonEn: decision.reasons.join(', ')
           });
+
+          currentActiveCount++;
 
           const label = decision.score >= 95 ? "استثنائية" : decision.score >= 85 ? "قوية" : "عادية";
 
@@ -4012,6 +4002,9 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                     <option value="5m">{lang === "ar" ? "5 دقائق" : "5m"}</option>
                     <option value="15m">{lang === "ar" ? "15 دقيقة" : "15m"}</option>
                     <option value="30m">{lang === "ar" ? "30 دقيقة" : "30m"}</option>
+                    <option value="1h">{lang === "ar" ? "1 ساعة" : "1h"}</option>
+                    <option value="2h">{lang === "ar" ? "2 ساعة" : "2h"}</option>
+                    <option value="4h">{lang === "ar" ? "4 ساعات" : "4h"}</option>
                   </select>
                   <button
                     type="button"
@@ -4021,6 +4014,9 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                         if (reboundRadarTimeframe === "1m") hist = priceHistoryRef.current[coin.symbol] || [];
                         if (reboundRadarTimeframe === "15m") hist = priceHistory15mRef.current[coin.symbol] || [];
                         if (reboundRadarTimeframe === "30m") hist = priceHistory30mRef.current[coin.symbol] || [];
+                        if (reboundRadarTimeframe === "1h") hist = priceHistory1hRef.current[coin.symbol] || [];
+                        if (reboundRadarTimeframe === "2h") hist = priceHistory2hRef.current[coin.symbol] || [];
+                        if (reboundRadarTimeframe === "4h") hist = priceHistory4hRef.current[coin.symbol] || [];
                         
                         if (hist.length < 2) return best;
                         const pCurrent = coin.currentPrice;
@@ -4035,17 +4031,20 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                         const currentScore = Math.max(bullishScore, bearishScore);
                         const currentType = bullishScore > bearishScore ? "BULLISH" : "BEARISH";
                         
-                        // Heuristic confidence: Score + RSI alignment
-                        let confidence = Math.floor(currentScore * 2000); // Base from volatility
+                        // Heuristic confidence: Dynamic base + Price movement + RSI Alignment
+                        let confidence = 45 + (currentScore * 4000); 
                         if (coin.rsi) {
-                          if (currentType === "BULLISH" && coin.rsi < 40) confidence += 40;
-                          else if (currentType === "BEARISH" && coin.rsi > 60) confidence += 40;
-                          else confidence += 20;
+                          // Bonus for RSI alignment: 
+                          // Bullish + Low RSI = High Bonus | Bearish + High RSI = High Bonus
+                          const rsiWeight = currentType === "BULLISH" 
+                            ? Math.max(0, (50 - coin.rsi) * 0.8) 
+                            : Math.max(0, (coin.rsi - 50) * 0.8);
+                          confidence += rsiWeight;
                         } else {
-                          confidence += 30;
+                          confidence += 15;
                         }
                         
-                        const finalConfidence = Math.min(99, Math.max(65, confidence));
+                        const finalConfidence = Math.min(98, Math.max(35, Math.floor(confidence)));
 
                         if (!best || currentScore > best.score) {
                           return { symbol: coin.symbol, score: currentScore, type: currentType, confidence: finalConfidence };
@@ -4066,6 +4065,15 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                           msgAr: `🔎 [أفضل فرصة - ${reboundRadarTimeframe}] تم العثور على ${bestCoin.symbol} كأفضل مرشح!\n📈 نوع الارتداد: ${typeAr}\n🛡️ نسبة الثقة: ${bestCoin.confidence}%`,
                           msgEn: `🔎 [Best Opportunity - ${reboundRadarTimeframe}] ${bestCoin.symbol} identified as best candidate!\n📈 Rebound Type: ${typeEn}\n🛡️ Confidence: ${bestCoin.confidence}%`
                         }, ...prev]);
+                        
+                        handleTriggerToast({
+                          id: Date.now().toString(),
+                          symbol: bestCoin.symbol,
+                          timestamp: Date.now(),
+                          isMilestone: true,
+                          aiExplanationAr: `🔎 [رادار الارتدادات] أفضل فرصة: ${bestCoin.symbol} (${typeAr}) بثقة ${bestCoin.confidence}%`,
+                          aiExplanationEn: `🔎 [Rebound Radar] Best opportunity: ${bestCoin.symbol} (${typeEn}) with ${bestCoin.confidence}% confidence`,
+                        });
                       }
                     }}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/15 cursor-pointer flex items-center gap-1.5 transition"
@@ -4675,6 +4683,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                 isLiveTrading={isLiveTrading}
                 futuresApiError={futuresApiError}
                 setFuturesApiError={handleSetFuturesApiError}
+                priceHistory15m={priceHistory15mRef.current}
               />
             )}
           </div>

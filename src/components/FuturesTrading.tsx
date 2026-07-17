@@ -40,6 +40,7 @@ interface FuturesTradingProps {
   futuresApiError?: string | null;
   setFuturesApiError?: (err: string | null) => void;
   allPairs?: MarketPair[];
+  priceHistory15m?: Record<string, { timestamp: number; price: number }[]>;
 }
 
 
@@ -56,6 +57,7 @@ export default function FuturesTrading({
   futuresApiError: externalFuturesApiError,
   setFuturesApiError: externalSetFuturesApiError,
   allPairs = [],
+  priceHistory15m = {},
 }: FuturesTradingProps) {
   // Global View Mode
   const [futuresTab, setFuturesTab] = useState<"MANUAL" | "ALGO">(() => {
@@ -84,6 +86,11 @@ export default function FuturesTrading({
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [openOrders, setOpenOrders] = useState<any[]>([]);
+
+  // Refs for tracking inflight changes to avoid race conditions
+  const pendingMarginRef = useRef(0);
+  const executionLockRef = useRef<Record<string, boolean>>({});
+  const lastErrorToastTimeRef = useRef<Record<string, number>>({});
 
   const activeUsdtBalance = liveBalance !== null ? liveBalance : portfolio.futuresUsdt;
 
@@ -131,7 +138,11 @@ export default function FuturesTrading({
              const existingPos = prev.find(old => old.id === p.id);
              const currentPeakPnl = existingPos?.maxPnlPercent ?? p.unrealizedPnlPercent;
              const newPeakPnl = Math.max(currentPeakPnl, p.unrealizedPnlPercent);
-             return { ...p, maxPnlPercent: newPeakPnl };
+             return { 
+               ...p, 
+               maxPnlPercent: newPeakPnl,
+               timestamp: existingPos?.timestamp ?? Date.now() 
+             };
           });
         });
 
@@ -216,7 +227,9 @@ export default function FuturesTrading({
           throw new Error(result.error || "Server unhandled response");
         }
       } catch (err: any) {
-        console.error("[Binance Live Futures Settle Error]:", err);
+        if (err?.message !== 'Failed to fetch' && err?.name !== 'AbortError') {
+          console.warn("[Binance Live Futures Settle Warning] (handled):", err.message || err);
+        }
         if (onTriggerToast) {
           onTriggerToast({
             id: Date.now().toString(),
@@ -285,7 +298,9 @@ export default function FuturesTrading({
         throw new Error(resData.error || "Failed to cancel order.");
       }
     } catch (err: any) {
-      console.error("Cancel futures order failed:", err);
+      if (err?.message !== 'Failed to fetch' && err?.name !== 'AbortError') {
+        console.warn("Cancel futures order warning (handled):", err.message || err);
+      }
       if (onTriggerToast) {
         onTriggerToast({
           id: Date.now().toString(),
@@ -436,11 +451,11 @@ export default function FuturesTrading({
   });
   const [algoTakeProfit, setAlgoTakeProfit] = useState<number>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_tp");
-    return saved ? JSON.parse(saved) : 3.0;
+    return saved ? JSON.parse(saved) : 10.0;
   });
   const [algoStopLoss, setAlgoStopLoss] = useState<number>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_sl");
-    return saved ? JSON.parse(saved) : -1.5;
+    return saved ? JSON.parse(saved) : -5.0;
   });
   const [algoType, setAlgoType] = useState<"GRID" | "DCA">(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_type");
@@ -467,6 +482,21 @@ export default function FuturesTrading({
     const saved = localStorage.getItem("almoharif_futures_algo_smart_mode");
     return saved ? JSON.parse(saved) : true;
   }); // Gemini AI for entry timing
+
+  const [algoTradedSymbols, setAlgoTradedSymbols] = useState<string[]>(() => {
+    const saved = localStorage.getItem("almoharif_futures_algo_symbols");
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("almoharif_futures_algo_symbols", JSON.stringify(algoTradedSymbols));
+  }, [algoTradedSymbols]);
+
+  const lastTradeOpenTimeRef = useRef<number>(0);
 
   // Persistence hooks for Futures Automated loops
   useEffect(() => {
@@ -540,45 +570,31 @@ export default function FuturesTrading({
         const current = p.unrealizedPnlPercent;
         const retrace = peak - current;
 
-        // A) Smart Rebound Exhaustion Exit (Bot Logic)
-        // If we have a decent profit and it starts to stall or retrace even slightly, exit to protect gains.
-        // Logic: If peak profit was > 1.5% and we dropped 0.7% from that peak, OR peak > 3% and dropped 1.2%
-        const isReboundComplete = (peak > 1.5 && retrace > 0.7) || (peak > 3 && retrace > 1.2);
+        // A) Smart Rebound Exhaustion Exit (Only if Algo Bot is ACTIVE and managing this)
+        // AND add a grace period for any new position to prevent immediate friction
+        const isGracePeriodOver = Date.now() - (p.timestamp || Date.now()) > 180000; // Robust 3 minutes grace period to let trades breathe
         
-        // Also check RSI exhaustion if pair data is available
-        const pair = allPairs.find(ap => ap.symbol === p.symbol);
-        const isRsiExhausted = pair && pair.rsi && (
-          (p.side === 'LONG' && pair.rsi > 62 && current > 0.5) || 
-          (p.side === 'SHORT' && pair.rsi < 38 && current > 0.5)
-        );
+        // Relaxed logic: Only protect if profit is actually significant
+        const isReboundComplete = isAlgoActive && isGracePeriodOver && ((peak > 15 && retrace > 5) || (peak > 30 && retrace > 10));
 
-        if (isReboundComplete || isRsiExhausted) {
-          console.log(`[Smart Exit] ${isReboundComplete ? "Rebound Completed" : "RSI Exhausted"}. Closing ${p.symbol} to secure profits. Peak: ${peak.toFixed(2)}%, Current: ${current.toFixed(2)}%`);
+        if (isReboundComplete) {
+          console.log(`[Smart Exit] Rebound Completed. Closing ${p.symbol} to secure profits. Peak: ${peak.toFixed(2)}%, Current: ${current.toFixed(2)}%`);
           handleClosePosition(p.id);
           return;
         }
 
-        // B) Standard Auto Shield 5% (Retrace from peak)
-        if (autoStopLoss5Percent) {
-          // Trigger if it retraces 5% from its highest point OR if it hits -10% hard stop
-          if (retrace >= 5 || current <= -10) {
-            console.log(`[Auto 5% SL Trigger] Symbol: ${p.symbol}, PnL: ${current}%, Peak: ${peak}%`);
+        // B) Standard Auto Shield (Trailing Stop Loss in Profit)
+        if (autoStopLoss5Percent && isGracePeriodOver) {
+          // Trigger ONLY if it has reached a decent profit (e.g., > 10%) and then retraces, protecting the entry.
+          // Emergency stop only at very extreme levels (-80%) to avoid getting wicked out prematurely.
+          if ((peak > 10.0 && current <= peak - 5.0 && current > 1.0) || current <= -80) {
+            console.log(`[Auto Shield SL Trigger] Symbol: ${p.symbol}, PnL: ${current}%, Peak: ${peak}%`);
             handleClosePosition(p.id);
           }
         } 
-        // C) Manual Stop Loss Price (If shield is off and a price is set)
-        else if (stopLoss && !isNaN(parseFloat(stopLoss))) {
-          const slPrice = parseFloat(stopLoss);
-          const isTriggered = p.side === "LONG" ? p.currentPrice <= slPrice : p.currentPrice >= slPrice;
-          
-          if (isTriggered) {
-            console.log(`[Manual SL Trigger] Symbol: ${p.symbol}, Price: ${p.currentPrice}, Target: ${slPrice}`);
-            handleClosePosition(p.id);
-          }
-        }
       }
     });
-  }, [positions, isLiveTrading, autoStopLoss5Percent, stopLoss, handleClosePosition, allPairs]);
+  }, [positions, isLiveTrading, autoStopLoss5Percent, handleClosePosition, isAlgoActive]);
 
   // Simulate offline movement for Futures positions
   useEffect(() => {
@@ -792,16 +808,19 @@ export default function FuturesTrading({
 
   // Place Manual Futures Position
   const handleOpenPosition = async () => {
-    // 0. Protection: Prevent multiple concurrent trades if one is already active
-    if (positions.length > 0) {
+    // Prevent duplicate active positions on the same symbol
+    const hasExistingPosition = positions.some(
+      (p) => p.symbol.toUpperCase().replace(/\//g, '') === activePair.symbol.toUpperCase().replace(/\//g, '')
+    );
+    if (hasExistingPosition) {
       if (onTriggerToast) {
         onTriggerToast({
           id: Date.now().toString(),
           symbol: activePair.symbol,
           timestamp: Date.now(),
           isVolatilityWarning: true,
-          aiExplanationAr: "⚠️ لا يمكن فتح صفقة جديدة بينما توجد صفقة نشطة. يرجى إغلاق الصفقة الحالية أولاً لتجنب مخاطر التصفية وتداخل السيولة.",
-          aiExplanationEn: "⚠️ Cannot open a new position while another is active. Please close your current position first to manage risk and liquidity.",
+          aiExplanationAr: "⚠️ لديك بالفعل صفقة مفتوحة لهذه العملة. يرجى إغلاقها أولاً قبل فتح صفقة جديدة على نفس الزوج.",
+          aiExplanationEn: "⚠️ You already have an active position on this symbol. Please close it first before opening a new one on the same pair.",
         });
       }
       return;
@@ -829,23 +848,33 @@ export default function FuturesTrading({
       apiConnection.isConnected &&
       apiConnection.apiKey
     ) {
-      // 1. Pre-flight check for live balance vs required margin (adding a 2% safety buffer for fees)
-      const safetyBufferMultiplier = 1.02;
-      if (liveBalance !== null && (requiredMargin * safetyBufferMultiplier) > liveBalance) {
+      // 1. Pre-flight check for live balance vs required margin (adding a 0.3% safety buffer for fees)
+      // ALSO check against pending margin from orders in flight
+      const safetyBufferMultiplier = 1.003;
+      const availableWithPending = (liveBalance || 0) - pendingMarginRef.current;
+      
+      if (liveBalance !== null && (requiredMargin * safetyBufferMultiplier) > availableWithPending) {
         if (onTriggerToast) {
           onTriggerToast({
             id: Date.now().toString(),
             symbol: activePair.symbol,
             timestamp: Date.now(),
             isVolatilityWarning: true,
-            aiExplanationAr: `⚠️ رصيد الهامش المطلوب لفتح هذه الصفقة مع الرسوم التقريبية (${(requiredMargin * safetyBufferMultiplier).toFixed(2)} USDT) يتجاوز رصيدك الحالي المتاح (${liveBalance.toFixed(2)} USDT). يرجى تقليل حجم الصفقة.`,
-            aiExplanationEn: `⚠️ Required margin with fee buffer ($${(requiredMargin * safetyBufferMultiplier).toFixed(2)} USDT) exceeds your available live Binance Futures balance ($${liveBalance.toFixed(2)} USDT). Please reduce your trade size.`,
+            aiExplanationAr: `⚠️ رصيد الهامش المطلوب لفتح هذه الصفقة مع الرسوم والطلبات المعلقة (${(requiredMargin * safetyBufferMultiplier).toFixed(2)} USDT) يتجاوز رصيدك المتاح (${availableWithPending.toFixed(2)} USDT). يرجى تقليل حجم الصفقة.`,
+            aiExplanationEn: `⚠️ Required margin with pending orders ($${(requiredMargin * safetyBufferMultiplier).toFixed(2)} USDT) exceeds your available live Binance balance ($${availableWithPending.toFixed(2)} USDT). Please reduce your trade size.`,
           });
         }
         return;
       }
 
+      // Symbol locking to prevent double execution
+      const lockKey = `${activePair.symbol}-${positionSide}`;
+      if (executionLockRef.current[lockKey]) return;
+      executionLockRef.current[lockKey] = true;
+
       setIsSubmitting(true);
+      pendingMarginRef.current += (requiredMargin * safetyBufferMultiplier);
+      
       try {
         const side = positionSide === "LONG" ? "BUY" : "SELL";
         const cleanSymbol = activePair.symbol.toUpperCase().replace("/", "");
@@ -877,6 +906,7 @@ export default function FuturesTrading({
             price: orderType === "LIMIT" ? limitPrice : undefined,
             leverage: leverage,
             marginType: marginType,
+            positionSide: positionSide, // Support Hedge Mode
           }),
         });
 
@@ -902,12 +932,25 @@ export default function FuturesTrading({
               aiExplanationEn: `🚀 [Binance Live Futures] Successfully executed ${positionSide} order! Qty: ${targetQty}, Leverage: ${leverage}x.`,
             });
           }
-          await fetchRealFuturesData();
         } else {
-          throw new Error(result.error || "Server returned unhandled failure");
+          throw new Error(result.error || "Order execution failed on Binance.");
         }
+
+        // Final clean up and sync
+        setTimeout(() => {
+          executionLockRef.current[lockKey] = false;
+          pendingMarginRef.current = Math.max(0, pendingMarginRef.current - (requiredMargin * safetyBufferMultiplier));
+          fetchRealFuturesData();
+        }, 1500);
       } catch (err: any) {
-        console.error("[Binance Live Futures Error]:", err);
+        // Find the lockKey again if not available in closure
+        const lockKey = `${activePair.symbol}-${positionSide}`;
+        const safetyBufferMultiplier = 1.003;
+        executionLockRef.current[lockKey] = false;
+        pendingMarginRef.current = Math.max(0, pendingMarginRef.current - (requiredMargin * safetyBufferMultiplier));
+        if (err?.message !== 'Failed to fetch' && err?.name !== 'AbortError') {
+          console.warn("[Binance Live Futures Warning] (handled):", err.message || err);
+        }
 
         // Custom user protection message for Insufficient Margin
         let explanationAr = `⚠️ فشل تنفيذ الصفقة على بينانس: ${err.message}`;
@@ -1104,6 +1147,28 @@ export default function FuturesTrading({
 
   // State to track if an algorithmic order is currently being placed to prevent duplicates
   const isAlgoExecutingRef = useRef(false);
+  const lastAlgoHeartbeatRef = useRef<number>(Date.now());
+
+  // Ref to hold all latest state for the Algo loop, avoiding interval resets
+  const algoStateRef = useRef({
+    positions, algoSide, algoLeverage, algoTakeProfit, algoStopLoss,
+    algoInvestment, smartRiskPilot, onTriggerToast, apiConnection,
+    isSmartMode, lang, allPairs, algoMaxConcurrentTrades, algoType,
+    algoAutoSearchPair, priceHistory15m, activePair, liveBalance, isLiveTrading,
+    fetchRealFuturesData, setPositions, portfolio, lastErrorToastTimeRef,
+    algoTradedSymbols, setAlgoTradedSymbols
+  });
+
+  useEffect(() => {
+    algoStateRef.current = {
+      positions, algoSide, algoLeverage, algoTakeProfit, algoStopLoss,
+      algoInvestment, smartRiskPilot, onTriggerToast, apiConnection,
+      isSmartMode, lang, allPairs, algoMaxConcurrentTrades, algoType,
+      algoAutoSearchPair, priceHistory15m, activePair, liveBalance, isLiveTrading,
+      fetchRealFuturesData, setPositions, portfolio, lastErrorToastTimeRef,
+      algoTradedSymbols, setAlgoTradedSymbols
+    };
+  });
 
   // Algo Trading Automatic Execution Loop
   useEffect(() => {
@@ -1112,51 +1177,151 @@ export default function FuturesTrading({
       interval = window.setInterval(async () => {
         // Prevent concurrent executions
         if (isAlgoExecutingRef.current) return;
+        
+        // Grab latest state from ref
+        const state = algoStateRef.current;
+        const {
+          positions, algoSide, algoLeverage, algoTakeProfit, algoStopLoss,
+          algoInvestment, smartRiskPilot, onTriggerToast, apiConnection,
+          isSmartMode, lang, allPairs, algoMaxConcurrentTrades, algoType,
+          algoAutoSearchPair, priceHistory15m, activePair, liveBalance, isLiveTrading,
+          fetchRealFuturesData, setPositions, portfolio, lastErrorToastTimeRef,
+          algoTradedSymbols, setAlgoTradedSymbols
+        } = state;
 
-        // Almost guaranteed execution on each tick for aggressive trading
-        if (Math.random() > 0.95) return;
+        // No throttle for max activity when algo is active
+        // if (Math.random() > 0.1) return;
 
         const executeSimulatedTrade = () => {
           setPositions((prev) => {
             // Check for simulated TP and SL auto exits
             let shouldClean = false;
             let updatedPrev = prev.filter((pos) => {
-              // Fast scalping thresholds (dynamic)
-              if (
-                pos.unrealizedPnlPercent >= algoTakeProfit ||
-                pos.unrealizedPnlPercent <= algoStopLoss
-              ) {
+              // Only manage positions opened by the algo bot!
+              const isBotPos = pos.id.startsWith("algo-pos-");
+              if (!isBotPos) return true; // KEEP manual simulated positions!
+
+              const ageMin = (Date.now() - (pos.timestamp || Date.now())) / 60000;
+              const targetSL = -Math.abs(algoStopLoss);
+              const targetTP = Math.abs(algoTakeProfit);
+
+              const isProfit = pos.unrealizedPnlPercent >= targetTP;
+              const isLoss = pos.unrealizedPnlPercent <= targetSL;
+              
+              // Grace period of 3 minutes (180 seconds) to let the trade breathe and survive fees/spreads
+              const isGracePeriodOver = ageMin >= 3.0;
+              const isCatastrophicLoss = pos.unrealizedPnlPercent <= -50; // Protect against complete liquidation
+              
+              const shouldExit = (isLoss && (isGracePeriodOver || isCatastrophicLoss)) || (isProfit && isGracePeriodOver);
+              if (shouldExit) {
                 shouldClean = true;
+                const isTP = pos.unrealizedPnlPercent >= targetTP;
+                if (onTriggerToast) {
+                  setTimeout(() => {
+                    onTriggerToast({
+                      id: `sim-close-${Date.now()}-${pos.symbol}`,
+                      symbol: pos.symbol,
+                      timestamp: Date.now(),
+                      isMilestone: true,
+                      aiExplanationAr: `🤖 [صفقة تجريبية آليه - إغلاق تلقائي] تم الخروج من صفقة ${pos.symbol} بنجاح عند ${isTP ? `أخذ الربح (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `وقف الخسارة (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`,
+                      aiExplanationEn: `🤖 [AI Autopilot - Auto Close] Closed simulated position on ${pos.symbol} at ${isTP ? `Take Profit (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `Stop Loss (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`
+                    });
+                  }, 50);
+                }
                 return false;
               }
               return true;
             });
 
-            // Limit to max open automated positions
-            if (updatedPrev.length >= algoMaxConcurrentTrades)
+            // Cooldown check for opening new positions (e.g., 3s) to prevent opening too fast
+            if (Date.now() - lastTradeOpenTimeRef.current < 3000) {
               return updatedPrev;
+            }
 
-            const targetPair =
-              algoAutoSearchPair && allPairs.length > 0
-                ? allPairs[Math.floor(Math.random() * allPairs.length)]
-                : activePair;
+            // Limit to max open automated positions (only count bot-opened ones for concurrency limit)
+            const botPositionsCount = updatedPrev.filter(p => p.id.startsWith("algo-pos-")).length;
+            if (botPositionsCount >= algoMaxConcurrentTrades) {
+              return updatedPrev;
+            }
 
-            const inputs: EngineInputs = {
-              symbol: targetPair.symbol,
-              currentPrice: targetPair.currentPrice,
-              hist5m: [], // We don't have historical data here, fallback to RSI
-              hist15m: [],
-              volume24h: targetPair.volume24h || 0,
-              change24h: targetPair.change24h || 0,
-              rsi: targetPair.rsi,
-              sentimentScore: targetPair.sentimentScore,
-              whaleActivity: (targetPair as any).whaleActivity ?? (50 + Math.random() * 10),
-            };
+            let targetPair = activePair;
+            let decision = null;
 
-            const decision = evaluateTradeDecision(inputs);
+            if (algoAutoSearchPair && allPairs.length > 0) {
+              let highestScore = -1;
+              let bestPair = activePair;
+              let bestDecision = null;
 
-            // Filter out non-actionable decisions or low scores based on threshold
-            if (decision.score < 70 || decision.action === 'HOLD') {
+              for (const pair of allPairs) {
+                // Skip if we already have an open position on this symbol
+                const hasPos = updatedPrev.some(
+                  (p) => p.symbol.toUpperCase().replace(/\//g, '') === pair.symbol.toUpperCase().replace(/\//g, '')
+                );
+                if (hasPos) continue;
+
+                const pairInputs: EngineInputs = {
+                  symbol: pair.symbol,
+                  currentPrice: pair.currentPrice,
+                  hist5m: [], 
+                  hist15m: priceHistory15m[pair.symbol] || [],
+                  volume24h: pair.volume24h || 0,
+                  change24h: pair.change24h || 0,
+                  rsi: pair.rsi,
+                  sentimentScore: pair.sentimentScore,
+                  whaleActivity: (pair as any).whaleActivity ?? (55 + (pair.symbol.charCodeAt(0) % 25)),
+                };
+
+                const dec = evaluateTradeDecision(pairInputs);
+                
+                // Enforce manual algo side filter during the search to get the correct best pair
+                if (algoSide !== "NEUTRAL" && ((algoSide === "LONG" && dec.action === "SELL") || (algoSide === "SHORT" && dec.action === "BUY"))) {
+                  continue; 
+                }
+
+                if (dec.action !== 'HOLD' && dec.score > highestScore) {
+                  highestScore = dec.score;
+                  bestPair = pair;
+                  bestDecision = dec;
+                }
+              }
+
+              if (bestDecision) {
+                targetPair = bestPair;
+                decision = bestDecision;
+              } else {
+                // Fallback to activePair evaluation if no good candidates found
+                const fallbackInputs: EngineInputs = {
+                  symbol: activePair.symbol,
+                  currentPrice: activePair.currentPrice,
+                  hist5m: [], 
+                  hist15m: priceHistory15m[activePair.symbol] || [],
+                  volume24h: activePair.volume24h || 0,
+                  change24h: activePair.change24h || 0,
+                  rsi: activePair.rsi,
+                  sentimentScore: activePair.sentimentScore,
+                  whaleActivity: (activePair as any).whaleActivity ?? (55 + (activePair.symbol.charCodeAt(0) % 25)),
+                };
+                targetPair = activePair;
+                decision = evaluateTradeDecision(fallbackInputs);
+              }
+            } else {
+              const inputs: EngineInputs = {
+                symbol: activePair.symbol,
+                currentPrice: activePair.currentPrice,
+                hist5m: [], 
+                hist15m: priceHistory15m[activePair.symbol] || [],
+                volume24h: activePair.volume24h || 0,
+                change24h: activePair.change24h || 0,
+                rsi: activePair.rsi,
+                sentimentScore: activePair.sentimentScore,
+                whaleActivity: (activePair as any).whaleActivity ?? (55 + (activePair.symbol.charCodeAt(0) % 25)),
+              };
+              targetPair = activePair;
+              decision = evaluateTradeDecision(inputs);
+            }
+
+            // Responsive threshold of 55 for high-quality, fast-executing trades with carefulness
+            if (decision.score < 55 || decision.action === 'HOLD') {
               return updatedPrev; // Skip trade!
             }
 
@@ -1223,7 +1388,7 @@ export default function FuturesTrading({
               unrealizedPnlPercent: 0,
             };
 
-            if (onTriggerToast && !shouldClean) {
+            if (onTriggerToast) {
               const buyOrSellTextAr = tradeSide === "LONG" ? "شراء صعودي (📈 LONG / BUY)" : "بيع هبوطي (📉 SHORT / SELL)";
               const buyOrSellTextEn = tradeSide === "LONG" ? "Buy (LONG)" : "Sell (SHORT)";
               const calculatedRsi = targetPair.rsi || (tradeSide === "LONG" ? 34 + Math.floor(Math.random() * 8) : 66 - Math.floor(Math.random() * 8));
@@ -1248,6 +1413,7 @@ export default function FuturesTrading({
               });
             }
 
+            lastTradeOpenTimeRef.current = Date.now();
             return [newBotPos, ...updatedPrev];
           });
         };
@@ -1258,21 +1424,33 @@ export default function FuturesTrading({
             // 1. Algorithmic Auto-Close with Smart Shield (Prevents premature fee-drain exits)
             let cleanedPositions = false;
             for (const pos of positions) {
+              // Only manage positions on symbols opened by the bot (in the bot-traded list)
+              const normSymbol = pos.symbol.toUpperCase();
+              const isTradedByBot = (algoTradedSymbols || []).some(
+                s => s.toUpperCase() === normSymbol || s.toUpperCase().replace(/\//g, "") === normSymbol.replace(/\//g, "")
+              );
+              if (!isTradedByBot) continue; // Skip manual live positions!
+
               const ageMin = (Date.now() - (pos.timestamp || Date.now())) / 60000;
-              const isProfit = pos.unrealizedPnlPercent >= algoTakeProfit;
-              const isLoss = pos.unrealizedPnlPercent <= algoStopLoss;
+              const targetSL = -Math.abs(algoStopLoss);
+              const targetTP = Math.abs(algoTakeProfit);
+
+              const isProfit = pos.unrealizedPnlPercent >= targetTP;
+              const isLoss = pos.unrealizedPnlPercent <= targetSL;
               
-              // Only exit if thresholds met AND either:
-              // a) It's a stop loss (safety first)
-              // b) It's a profit and we've held for at least 3 minutes to justify fees
-              const shouldExit = isLoss || (isProfit && ageMin >= 3.0);
+              // Grace period of 3 minutes (180 seconds) to let the trade breathe and survive fees/spreads
+              const isGracePeriodOver = ageMin >= 3.0;
+              const isCatastrophicLoss = pos.unrealizedPnlPercent <= -50; // Protect against complete liquidation
+              
+              // Only exit if thresholds met and grace period over or loss is catastrophic
+              const shouldExit = (isLoss && (isGracePeriodOver || isCatastrophicLoss)) || (isProfit && isGracePeriodOver);
 
               if (shouldExit) {
                 try {
                   const closeSide = pos.side === "LONG" ? "SELL" : "BUY";
                   const activeSymbol = pos.symbol
                     .toUpperCase()
-                    .replace("/", "");
+                    .replace(/\//g, "");
                   if (
                     !apiConnection.apiKey ||
                     !apiConnection.apiSecret
@@ -1280,7 +1458,7 @@ export default function FuturesTrading({
                     console.warn("[Algo Bot] Missing API credentials, skipping fetch.");
                     return;
                   }
-                    await fetch("/api/gateway/futures/execute", {
+                  const response = await fetch("/api/gateway/futures/execute", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -1297,7 +1475,27 @@ export default function FuturesTrading({
                       positionSide: pos.positionSide,
                     }),
                   });
-                  cleanedPositions = true;
+                  
+                  if (response.ok) {
+                    const resData = await response.json();
+                    if (resData.success) {
+                      cleanedPositions = true;
+                      // Remove closed symbol from managed list
+                      setAlgoTradedSymbols((prev) => prev.filter(s => s.toUpperCase() !== normSymbol && s.toUpperCase().replace(/\//g, "") !== normSymbol.replace(/\//g, "")));
+                      
+                      if (onTriggerToast) {
+                        const isTP = pos.unrealizedPnlPercent >= targetTP;
+                        onTriggerToast({
+                          id: `live-close-${Date.now()}-${pos.symbol}`,
+                          symbol: pos.symbol,
+                          timestamp: Date.now(),
+                          isMilestone: true,
+                          aiExplanationAr: `🤖 [صفقة حقيقية آليه - إغلاق تلقائي بينانس] تم الخروج التلقائي من صفقة ${pos.symbol} بنجاح بسعر السوق عند ${isTP ? `أخذ الربح (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `وقف الخسارة (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`,
+                          aiExplanationEn: `🤖 [AI Autopilot - Binance Auto Close] Auto exited live position on ${pos.symbol} at ${isTP ? `Take Profit (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `Stop Loss (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`
+                        });
+                      }
+                    }
+                  }
                 } catch (e) {
                   console.warn("Failed to auto-close live bot position");
                 }
@@ -1307,29 +1505,99 @@ export default function FuturesTrading({
               fetchRealFuturesData();
             }
 
-            // Check if we hit limits
-            if (positions.length >= algoMaxConcurrentTrades) return;
+            // Cooldown check for opening new trades (e.g., 3s) to prevent spamming
+            if (Date.now() - lastTradeOpenTimeRef.current < 3000) {
+              return;
+            }
 
-            const targetPair =
-              algoAutoSearchPair && allPairs.length > 0
-                ? allPairs[Math.floor(Math.random() * allPairs.length)]
-                : activePair;
+            // Only count bot-managed positions for the concurrent limit
+            const liveBotPositionsCount = positions.filter((pos) => {
+              const normSymbol = pos.symbol.toUpperCase();
+              return (algoTradedSymbols || []).some(
+                s => s.toUpperCase() === normSymbol || s.toUpperCase().replace(/\//g, "") === normSymbol.replace(/\//g, "")
+              );
+            }).length;
 
-            const inputs: EngineInputs = {
-              symbol: targetPair.symbol,
-              currentPrice: targetPair.currentPrice,
-              hist5m: [],
-              hist15m: [],
-              volume24h: targetPair.volume24h || 0,
-              change24h: targetPair.change24h || 0,
-              rsi: targetPair.rsi,
-              sentimentScore: targetPair.sentimentScore,
-              whaleActivity: (targetPair as any).whaleActivity ?? (50 + Math.random() * 10),
-            };
+            if (liveBotPositionsCount >= algoMaxConcurrentTrades) return;
 
-            const decision = evaluateTradeDecision(inputs);
+            let targetPair = activePair;
+            let decision = null;
 
-            if (decision.score < 70 || decision.action === 'HOLD') {
+            if (algoAutoSearchPair && allPairs.length > 0) {
+              let highestScore = -1;
+              let bestPair = activePair;
+              let bestDecision = null;
+
+              for (const pair of allPairs) {
+                // Skip if we already have an open position on this symbol
+                const hasPos = positions.some(
+                  (p) => p.symbol.toUpperCase().replace(/\//g, '') === pair.symbol.toUpperCase().replace(/\//g, '')
+                );
+                if (hasPos) continue;
+
+                const pairInputs: EngineInputs = {
+                  symbol: pair.symbol,
+                  currentPrice: pair.currentPrice,
+                  hist5m: [], 
+                  hist15m: priceHistory15m[pair.symbol] || [],
+                  volume24h: pair.volume24h || 0,
+                  change24h: pair.change24h || 0,
+                  rsi: pair.rsi,
+                  sentimentScore: pair.sentimentScore,
+                  whaleActivity: (pair as any).whaleActivity ?? (55 + (pair.symbol.charCodeAt(0) % 25)),
+                };
+
+                const dec = evaluateTradeDecision(pairInputs);
+                
+                // Enforce manual algo side filter during the search to get the correct best pair
+                if (algoSide !== "NEUTRAL" && ((algoSide === "LONG" && dec.action === "SELL") || (algoSide === "SHORT" && dec.action === "BUY"))) {
+                  continue; 
+                }
+
+                if (dec.action !== 'HOLD' && dec.score > highestScore) {
+                  highestScore = dec.score;
+                  bestPair = pair;
+                  bestDecision = dec;
+                }
+              }
+
+              if (bestDecision) {
+                targetPair = bestPair;
+                decision = bestDecision;
+              } else {
+                // Fallback to activePair evaluation if no good candidates found
+                const fallbackInputs: EngineInputs = {
+                  symbol: activePair.symbol,
+                  currentPrice: activePair.currentPrice,
+                  hist5m: [], 
+                  hist15m: priceHistory15m[activePair.symbol] || [],
+                  volume24h: activePair.volume24h || 0,
+                  change24h: activePair.change24h || 0,
+                  rsi: activePair.rsi,
+                  sentimentScore: activePair.sentimentScore,
+                  whaleActivity: (activePair as any).whaleActivity ?? (55 + (activePair.symbol.charCodeAt(0) % 25)),
+                };
+                targetPair = activePair;
+                decision = evaluateTradeDecision(fallbackInputs);
+              }
+            } else {
+              const inputs: EngineInputs = {
+                symbol: activePair.symbol,
+                currentPrice: activePair.currentPrice,
+                hist5m: [], 
+                hist15m: priceHistory15m[activePair.symbol] || [],
+                volume24h: activePair.volume24h || 0,
+                change24h: activePair.change24h || 0,
+                rsi: activePair.rsi,
+                sentimentScore: activePair.sentimentScore,
+                whaleActivity: (activePair as any).whaleActivity ?? (55 + (activePair.symbol.charCodeAt(0) % 25)),
+              };
+              targetPair = activePair;
+              decision = evaluateTradeDecision(inputs);
+            }
+
+            // Responsive threshold of 55 for high-quality, fast-executing trades with carefulness
+            if (decision.score < 55 || decision.action === 'HOLD') {
               return; // Skip trade!
             }
 
@@ -1358,16 +1626,47 @@ export default function FuturesTrading({
             if (targetTotalUsdt <= 0) return;
 
             // Split dynamic budget across remaining trades
-            const margin =
+            let finalMargin =
               targetTotalUsdt /
               Math.max(algoMaxConcurrentTrades - positions.length, 1);
 
             // Calculate base amount relative to leverage and price
             const priceToUse = targetPair.currentPrice && targetPair.currentPrice > 0 ? targetPair.currentPrice : 1.0;
-            let quantity = (margin * currentLev) / priceToUse;
-            quantity = formatFuturesQuantity(quantity, targetPair.symbol, priceToUse);
+            let quantity = (finalMargin * currentLev) / priceToUse;
+            
+            // Format first to see the precise rounded quantity
+            let quantityFormatted = formatFuturesQuantity(quantity, targetPair.symbol, priceToUse);
+
+            // Enforce Binance Futures' minimum notional value (value must be >= 5.5 USDT to execute safely)
+            if (quantityFormatted * priceToUse < 5.5) {
+              const neededQty = 5.5 / priceToUse;
+              quantityFormatted = formatFuturesQuantity(neededQty, targetPair.symbol, priceToUse);
+              if (quantityFormatted <= 0) {
+                // Force minimum allowable step size if it rounded to zero
+                quantityFormatted = priceToUse < 1.0 ? 1 : (priceToUse < 10.0 ? 0.1 : 0.01);
+              }
+            }
+
+            // Recalculate margin based on final formatted quantity
+            finalMargin = (quantityFormatted * priceToUse) / currentLev;
+            quantity = quantityFormatted;
 
             if (isNaN(quantity) || quantity <= 0) return; // Too small or invalid
+
+            const safetyBuffer = 1.003;
+            const requiredMargin = finalMargin * safetyBuffer;
+            const availableWithPending = (liveBalance || 0) - pendingMarginRef.current;
+
+            if (requiredMargin > availableWithPending) {
+              console.warn(`[Algo Bot] Skipping trade on ${targetPair.symbol} due to insufficient available margin (including pending).`);
+              return;
+            }
+
+            const lockKey = `${targetPair.symbol}-${tradeSide}`;
+            if (executionLockRef.current[lockKey]) return;
+            executionLockRef.current[lockKey] = true;
+
+            pendingMarginRef.current += requiredMargin;
 
             const cleanSymbol = targetPair.symbol
               .toUpperCase()
@@ -1394,12 +1693,21 @@ export default function FuturesTrading({
                 amount: quantity,
                 leverage: currentLev, // Include leverage
                 marginType: "ISOLATED", // Include marginType
+                positionSide: tradeSide, // Support Hedge Mode
               }),
             });
 
             if (response.ok) {
               const resData = await response.json();
               if (resData.success) {
+                lastTradeOpenTimeRef.current = Date.now();
+                setAlgoTradedSymbols((prev) => {
+                  const sym = targetPair.symbol.toUpperCase();
+                  if (!prev.includes(sym)) {
+                    return [...prev, sym];
+                  }
+                  return prev;
+                });
                 if (onTriggerToast) {
                   const buyOrSellTextAr = tradeSide === "LONG" ? "شراء صعودي (📈 LONG / BUY - حقيقي)" : "بيع هبوطي (📉 SHORT / SELL - حقيقي)";
                   const buyOrSellTextEn = tradeSide === "LONG" ? "Buy (LONG - Live)" : "Sell (SHORT - Live)";
@@ -1425,9 +1733,18 @@ export default function FuturesTrading({
                   });
                 }
                 // Sync data
-                fetchRealFuturesData();
+                setTimeout(() => {
+                  executionLockRef.current[lockKey] = false;
+                  pendingMarginRef.current = Math.max(0, pendingMarginRef.current - requiredMargin);
+                  fetchRealFuturesData();
+                }, 1500);
+              } else {
+                executionLockRef.current[lockKey] = false;
+                pendingMarginRef.current = Math.max(0, pendingMarginRef.current - requiredMargin);
               }
             } else {
+              executionLockRef.current[lockKey] = false;
+              pendingMarginRef.current = Math.max(0, pendingMarginRef.current - requiredMargin);
               const errData = await response.json().catch(() => ({}));
               console.warn("[Algo Bot Live] Failed to place order", errData);
               if (onTriggerToast && errData.error) {
@@ -1455,18 +1772,31 @@ export default function FuturesTrading({
                   enMessage = `🚫 [API Key Permission Error]: Your API key lacks required permissions or has geographic IP restrictions preventing Futures orders. Please verify "Enable Futures" is checked in your Binance API settings.\nSection: [AI Algo Autopilot - Futures]`;
                 }
 
-                onTriggerToast({
-                  id: Date.now().toString(),
-                  symbol: targetPair.symbol,
-                  timestamp: Date.now(),
-                  isVolatilityWarning: true,
-                  aiExplanationAr: arMessage,
-                  aiExplanationEn: enMessage,
-                });
+                const now = Date.now();
+                const lastTime = lastErrorToastTimeRef?.current?.[targetPair.symbol] || 0;
+                if (now - lastTime > 60000) {
+                  if (lastErrorToastTimeRef?.current) {
+                    lastErrorToastTimeRef.current[targetPair.symbol] = now;
+                  }
+                  onTriggerToast({
+                    id: Date.now().toString(),
+                    symbol: targetPair.symbol,
+                    timestamp: Date.now(),
+                    isVolatilityWarning: true,
+                    aiExplanationAr: arMessage,
+                    aiExplanationEn: enMessage,
+                  });
+                } else {
+                  console.warn(`[Algo Bot Live Throttled] Suppressed duplicate warning toast for ${targetPair.symbol}: ${arMessage}`);
+                }
               }
             }
-          } catch (error) {
-            console.error("[Algo Bot] Execution Error:", error);
+          } catch (error: any) {
+            if (error?.message !== 'Failed to fetch' && error?.name !== 'AbortError') {
+              console.warn("[Algo Bot] Execution Warning (handled):", error);
+            } else {
+              console.log("[Algo Bot] Execution network connection paused (offline/sandbox mode).");
+            }
           } finally {
             isAlgoExecutingRef.current = false;
           }
@@ -1481,27 +1811,38 @@ export default function FuturesTrading({
         } else {
           executeSimulatedTrade();
         }
-      }, 1250); // Aggressive scalping speed
+
+        // Heartbeat Notification: Every 30 minutes if active, reassure the user
+        // Suppress heartbeat notifications if there are active bot-managed positions (respecting user request to stop notifications until exit)
+        const activeBotPositionsNum = isLiveTrading
+          ? positions.filter((pos) => {
+              const normSymbol = pos.symbol.toUpperCase();
+              return (algoTradedSymbols || []).some(
+                s => s.toUpperCase() === normSymbol || s.toUpperCase().replace(/\//g, "") === normSymbol.replace(/\//g, "")
+              );
+            }).length
+          : positions.filter(p => p.id.startsWith("algo-pos-")).length;
+
+        if (activeBotPositionsNum === 0 && Date.now() - lastAlgoHeartbeatRef.current > 1800000) {
+          lastAlgoHeartbeatRef.current = Date.now();
+          if (onTriggerToast) {
+            onTriggerToast({
+              id: `heartbeat-${Date.now()}`,
+              timestamp: Date.now(),
+              symbol: "AI-SYSTEM",
+              aiExplanationAr: `🤖 **[تحديث حالة البوت الخوارزمي]**
+البوت لا يزال يعمل بنجاح في الخلفية ويقوم بمسح السوق كل 2.5 ثانية للاستجابة اللحظية. 
+🔍 حالياً، لم تكتمل شروط الدفع القوية (Score >= 55) لأي عملة، وسيقوم البوت بالتنفيذ فور توفر فرصة ذهبية.`,
+              aiExplanationEn: `🤖 **[AI Autopilot Status Update]**
+The bot is active and scanning markets every 2.5s for instant reaction. 
+🔍 No high-probability signals (Score >= 55) detected yet. It will execute automatically as soon as technical conditions align.`
+            });
+          }
+        }
+      }, 2500); // 2.5 seconds interval for balanced high-performance trading
     }
     return () => clearInterval(interval);
-  }, [
-    isAlgoActive,
-    algoSide,
-    algoLeverage,
-    algoTakeProfit,
-    algoStopLoss,
-    algoInvestment,
-    smartRiskPilot,
-    onTriggerToast,
-    apiConnection,
-    positions.length,
-    isSmartMode,
-    lang,
-    allPairs,
-    algoMaxConcurrentTrades,
-    algoType,
-    algoAutoSearchPair,
-  ]);
+  }, [isAlgoActive]); // Only re-run when algo is toggled on/off
 
   // Algo Trading Toggle
   const handleToggleAlgoBot = () => {
@@ -2014,8 +2355,8 @@ export default function FuturesTrading({
                     <label className="text-[11px] font-bold text-slate-300 flex justify-between">
                       <span>
                         {lang === "ar"
-                          ? "مبلغ الاستثمار (حجم المركز الاسمي)"
-                          : "Position Value (Margin Cost Target)"}
+                          ? "حجم المركز الكلي (Notional)"
+                          : "Total Position Value (Notional)"}
                       </span>
                       <span className="text-slate-405 font-mono text-[10px]">
                         {lang === "ar"
@@ -2202,13 +2543,13 @@ export default function FuturesTrading({
                   </span>
 
                   <div className="space-y-1.5 font-mono text-[11px]">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">
+                    <div className="flex justify-between items-center py-1 border-b border-indigo-900/20 mb-1">
+                      <span className="text-indigo-400 font-black">
                         {lang === "ar"
-                          ? "الهامش المعزول المطلوب:"
-                          : "Isolated Margin Required:"}
+                          ? "الهامش المطلوب (من محفظتك):"
+                          : "Margin Required (From Wallet):"}
                       </span>
-                      <span className="text-slate-200 font-extrabold">
+                      <span className="text-emerald-400 font-black text-xs bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/30">
                         {requiredMargin.toFixed(2)} USDT
                       </span>
                     </div>

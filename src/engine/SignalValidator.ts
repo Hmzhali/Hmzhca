@@ -3,7 +3,7 @@ import { EngineInputs } from './types';
 export function validateSignal(inputs: EngineInputs, score: number): { passed: boolean, reason: string | null } {
   // Hard filters that reject a trade immediately
 
-  if (inputs.volume24h < 1000000) {
+  if (inputs.volume24h < 500000) {
     return { passed: false, reason: "Insufficient Liquidity/Volume" };
   }
 
@@ -13,7 +13,7 @@ export function validateSignal(inputs: EngineInputs, score: number): { passed: b
   }
 
   // Must have a minimum score threshold to even consider
-  if (score < 70) {
+  if (score < 50) {
     return { passed: false, reason: `Score too low (${score}/100)` };
   }
 
