@@ -1342,7 +1342,7 @@ export default function FuturesTrading({
             
             const investAmt = parseFloat(algoInvestment);
 
-            const maxUsableUsdt = portfolio?.usdt || 0;
+            const maxUsableUsdt = portfolio?.futuresUsdt !== undefined ? portfolio.futuresUsdt : (portfolio?.usdt || 0);
             const targetTotalUsdt = isNaN(investAmt)
               ? maxUsableUsdt
               : Math.min(investAmt, maxUsableUsdt);
@@ -1353,7 +1353,7 @@ export default function FuturesTrading({
             const margin = Math.max(
               0.5,
               Math.min(
-                portfolio?.usdt || 0.5,
+                (portfolio?.futuresUsdt !== undefined ? portfolio.futuresUsdt : (portfolio?.usdt || 0.5)),
                 targetTotalUsdt /
                 Math.max(algoMaxConcurrentTrades - updatedPrev.length, 1)
               )
@@ -1364,7 +1364,7 @@ export default function FuturesTrading({
             const finalMargin = notionalValue < 5.1 ? (5.1 / currentLev) : margin;
             
             // Re-check if we have enough balance for the adjusted margin
-            if (finalMargin > (portfolio?.usdt || 0)) return updatedPrev;
+            if (finalMargin > (portfolio?.futuresUsdt !== undefined ? portfolio.futuresUsdt : (portfolio?.usdt || 0))) return updatedPrev;
 
             const newBotPos: FuturesPosition = {
               id: `algo-pos-${Date.now()}`,

@@ -48,6 +48,16 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
       score -= 10;
       factors['trend'] = -10;
       reasons.push("Mild Bearish Trend (24h Change < -0.5%)");
+    } else if (inputs.change24h > 0.05) {
+      currentTrend = 'UP';
+      score += 5;
+      factors['trend'] = 5;
+      reasons.push("Micro Bullish Trend (24h Change > 0.05%)");
+    } else if (inputs.change24h < -0.05) {
+      currentTrend = 'DOWN';
+      score -= 5;
+      factors['trend'] = -5;
+      reasons.push("Micro Bearish Trend (24h Change < -0.05%)");
     }
   }
 
@@ -69,6 +79,14 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
     score -= 5;
     factors['rsi'] = -5;
     reasons.push(`Healthy Bearish Momentum`);
+  } else if (rsi < 48) {
+    score += 3;
+    factors['rsi'] = 3;
+    reasons.push(`Slightly Oversold Momentum (RSI: ${rsi})`);
+  } else if (rsi > 52) {
+    score -= 3;
+    factors['rsi'] = -3;
+    reasons.push(`Slightly Overbought Momentum (RSI: ${rsi})`);
   }
 
   // 3. Volume Analysis - max 15 points
@@ -82,6 +100,11 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
     score += currentTrend === 'UP' ? volScore : (currentTrend === 'DOWN' ? -volScore : 0);
     factors['volume'] = volScore;
     reasons.push("Moderate Volume supporting trend");
+  } else if (inputs.volume24h > 100000) { // 100k
+    const volScore = 5;
+    score += currentTrend === 'UP' ? volScore : (currentTrend === 'DOWN' ? -volScore : 0);
+    factors['volume'] = volScore;
+    reasons.push("Low-Moderate Volume supporting trend");
   }
 
   // 4. Whale Activity - max 20 points
@@ -129,7 +152,16 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
   if (rsi > 55 && currentTrend !== 'UP') score -= 15;
 
   // Direction resolution
-  const direction = score > 0 ? 'BUY' : (score < 0 ? 'SELL' : 'NEUTRAL');
+  let direction: 'BUY' | 'SELL' | 'NEUTRAL' = 'NEUTRAL';
+  if (score > 0) {
+    direction = 'BUY';
+  } else if (score < 0) {
+    direction = 'SELL';
+  } else {
+    // If score is exactly 0, resolve to a direction based on RSI to ensure the bot is highly active and never stalls
+    direction = rsi < 50 ? 'BUY' : 'SELL';
+    score = rsi < 50 ? 5 : -5;
+  }
   let absoluteScore = Math.min(Math.abs(score), 100);
   
   // Guarantee super high confidence if we have extreme oversold/overbought and whale alignment

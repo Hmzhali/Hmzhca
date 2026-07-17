@@ -1,8 +1,75 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+    
+    // Helper to get user record
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check if owner
+    function isOwner() {
+      return request.auth != null && (
+        getUserData().role == 'OWNER' || 
+        request.auth.token.email == 'alamryhmzh7@gmail.com'
+      );
+    }
+
+    // Helper to check if signed in user matches document ID
+    function isSelf(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own profile, Owners can read everything
+      allow read: if isSelf(userId) || isOwner();
+      
+      // Creating user profile is allowed for self. Preventing self-assigned role changes.
+      allow create: if isSelf(userId) && (
+        !request.resource.data.keys().hasAny(['role', 'permissions']) || 
+        request.resource.data.role == 'USER' || 
+        request.resource.data.email == 'alamryhmzh7@gmail.com'
+      );
+      
+      // Updating own user profile is permitted, BUT cannot self-promote (cannot change role or permissions unless they are the owner)
+      allow update: if isOwner() || (isSelf(userId) && 
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions']))
+      );
+      
+      // Deleting users is restricted to Owner
+      allow delete: if isOwner();
+    }
+
+    // Platform config / wallet info
+    match /platform/{document=**} {
+      allow read, write: if isOwner();
+    }
+
+    // Trades collection
+    match /trades/{tradeId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner();
+    }
+
+    // System collection
+    match /system/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if isOwner();
+    }
+
+    // Support Tickets
+    match /support_tickets/{ticketId} {
+      allow read, write: if request.auth != null && (ticketId == request.auth.uid || isOwner());
+      
+      match /messages/{msgId} {
+        allow read, write: if request.auth != null && (ticketId == request.auth.uid || isOwner());
+      }
+    }
+
+    // Unresolved queries
+    match /unresolved_queries/{queryId} {
+      allow read, write: if isOwner() || (request.auth != null && request.resource.data.userId == request.auth.uid);
     }
   }
 }

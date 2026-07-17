@@ -245,6 +245,37 @@ app.post('/api/log', express.json(), (req, res) => {
   const priceCacheMap = new Map<string, { data: any; timestamp: number }>();
   const PRICE_CACHE_TTL_MS = 3000;
 
+  // Cache for Binance Futures position side settings (Hedge vs One-way)
+  const dualSideSettingCache = new Map<string, { dualSidePosition: boolean; timestamp: number }>();
+  const DUAL_SIDE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+  async function getBinanceDualSideSetting(apiKey: string, apiSecret: string, useTestnet: boolean): Promise<boolean> {
+    const cacheKey = `${apiKey}_${useTestnet}`;
+    const cached = dualSideSettingCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < DUAL_SIDE_CACHE_TTL)) {
+      return cached.dualSidePosition;
+    }
+
+    try {
+      const baseUrl = useTestnet ? 'https://testnet.binancefuture.com' : 'https://fapi.binance.com';
+      const timestamp = Date.now();
+      const queryString = `timestamp=${timestamp}&recvWindow=60000`;
+      const signature = crypto.createHmac('sha256', apiSecret).update(queryString).digest('hex');
+      const url = `${baseUrl}/fapi/v1/positionSide/dual?${queryString}&signature=${signature}`;
+
+      const resp = await fetch(url, { headers: { 'X-MBX-APIKEY': apiKey } });
+      if (resp.ok) {
+        const data: any = await resp.json();
+        const isDual = data.dualSidePosition === true;
+        dualSideSettingCache.set(cacheKey, { dualSidePosition: isDual, timestamp: Date.now() });
+        return isDual;
+      }
+    } catch (e) {
+      console.error('[Binance Proxy] Error fetching dual side setting:', e);
+    }
+    return false; // Default to One-way mode if fetch fails
+  }
+
   // New endpoint to aggregate real-time prices directly from Binance REST API (24h tickers)
   app.get('/api/gateway/prices', async (req, res) => {
     console.log('[DEBUG] /api/gateway/prices hit');
@@ -1685,7 +1716,7 @@ Communication Guidelines:
   // API Route: Secure Binance Order Placement Proxy
   app.post('/api/gateway/execute', async (req, res) => {
     try {
-      const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, isFutures } = req.body;
+      const { apiKey, apiSecret, useTestnet, symbol, side, type, amount, price, isFutures, positionSide } = req.body;
       if (!apiKey || !apiSecret || !symbol || !side || !type || !amount) {
         res.status(400).json({ success: false, error: 'Incomplete parameters for order dispatch.' });
         return;
@@ -1700,6 +1731,21 @@ Communication Guidelines:
       const cleanSymbol = isFutures ? formatFuturesSymbol(symbol) : symbol.toUpperCase().replace('/', '');
       
       let queryString = `symbol=${cleanSymbol}&side=${side}&type=${type}&quantity=${amount}&timestamp=${timestamp}&recvWindow=60000`;
+      
+      // Futures-specific positionSide logic
+      if (isFutures) {
+        const isHedgeMode = await getBinanceDualSideSetting(apiKey, apiSecret, !!useTestnet);
+        if (isHedgeMode) {
+          // In Hedge Mode, positionSide is required (LONG or SHORT)
+          // If not provided, we try to guess based on side (BUY -> LONG, SELL -> SHORT)
+          const finalPositionSide = positionSide || (side === 'BUY' ? 'LONG' : 'SHORT');
+          queryString += `&positionSide=${finalPositionSide}`;
+        } else {
+          // In One-way Mode, positionSide should be BOTH or omitted
+          queryString += `&positionSide=BOTH`;
+        }
+      }
+
       if (type === 'LIMIT') {
         queryString += `&price=${price}&timeInForce=GTC`;
       }
@@ -2287,7 +2333,32 @@ Communication Guidelines:
         }
       }
 
-      // 3. Dispatch the order
+      // 3. Query Position Side (Hedge Mode vs One-way Mode)
+      let dualSidePosition = false;
+      try {
+        const dualTimestamp = Date.now();
+        const dualQStr = `timestamp=${dualTimestamp}&recvWindow=10000`;
+        const dualSig = crypto.createHmac('sha256', apiSecret).update(dualQStr).digest('hex');
+        const dualResponse = await fetch(`${baseUrl}/fapi/v1/positionSide/dual?${dualQStr}&signature=${dualSig}`, {
+          method: 'GET',
+          headers: {
+            'X-MBX-APIKEY': apiKey,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (dualResponse.ok) {
+          const dualData: any = await dualResponse.json();
+          dualSidePosition = dualData.dualSidePosition;
+          console.log(`[Binance PositionSide Mode Detected]: ${dualSidePosition ? 'HEDGE MODE' : 'ONE-WAY MODE'}`);
+        } else {
+          const errText = await dualResponse.text().catch(() => '');
+          console.warn('[Binance PositionSide Status Check Failed]:', errText);
+        }
+      } catch (dualErr: any) {
+        console.warn('[Binance PositionSide Fetch Error]:', dualErr.message);
+      }
+
+      // 4. Dispatch the order
       const timestamp = Date.now();
       let queryString = `symbol=${cleanSymbol}&side=${side}&type=${type}&quantity=${amount}&timestamp=${timestamp}&recvWindow=10000`;
       
@@ -2295,12 +2366,21 @@ Communication Guidelines:
         queryString += `&price=${price}&timeInForce=GTC`;
       }
 
-      if (reduceOnly === true) {
-        queryString += `&reduceOnly=true`;
-      }
-
-      if (positionSide && positionSide !== 'BOTH' && positionSide !== 'both') {
-        queryString += `&positionSide=${positionSide}`;
+      if (dualSidePosition) {
+        // Hedge Mode is active: positionSide MUST be specified as LONG or SHORT
+        let resolvedPositionSide = 'LONG';
+        if (positionSide && (positionSide.toUpperCase() === 'LONG' || positionSide.toUpperCase() === 'SHORT')) {
+          resolvedPositionSide = positionSide.toUpperCase();
+        } else {
+          resolvedPositionSide = side === 'BUY' ? 'LONG' : 'SHORT';
+        }
+        queryString += `&positionSide=${resolvedPositionSide}`;
+        // Note: reduceOnly is invalid in Hedge Mode
+      } else {
+        // One-way Mode is active: positionSide should NOT be present (omit completely)
+        if (reduceOnly === true) {
+          queryString += `&reduceOnly=true`;
+        }
       }
 
       const signature = crypto

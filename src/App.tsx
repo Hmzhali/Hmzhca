@@ -1900,6 +1900,7 @@ export default function App() {
               side: chosenSide,
               type: "MARKET",
               amount: testAmount,
+              isFutures: activeTab === "futures",
             }),
           });
           const binData = await binResponse.json();
@@ -2124,6 +2125,7 @@ export default function App() {
       total: pair.currentPrice * finalAmount,
       leverage: manualLeverage,
       isQuickBuy: true,
+      isFutures: activeTab === "futures",
     } as any);
 
     // Provide a beautiful success toast feedback
@@ -3444,7 +3446,8 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
       }
       
       isScanningRef.current = false;
-    };
+    }
+
     const blob = new Blob([`
       let timer = null;
       self.onmessage = function(e) {
@@ -3602,13 +3605,24 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         return;
       }
 
+      // Email validation regex check
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailForSignIn.trim())) {
+        setAuthError(
+          lang === "ar"
+            ? "الرجاء إدخال بريد إلكتروني صالح (صيغة غير صحيحة)"
+            : "Please enter a valid email address",
+        );
+        return;
+      }
+
       try {
         if (authMode === "forgot") {
-          await resetPassword(emailForSignIn);
+          await resetPassword(emailForSignIn.trim());
           setAuthSuccess(
             lang === "ar"
-              ? "تم إرسال رابط استعادة كلمة المرور إلى بريدك"
-              : "Password reset link sent to your email",
+              ? "تم إرسال رابط استعادة كلمة المرور بنجاح! يرجى التحقق من بريدك الإلكتروني (وصندوق الرسائل غير المرغوب فيها)."
+              : "Password reset link sent successfully! Please check your email (and spam/junk folder).",
           );
           return;
         }
@@ -3635,111 +3649,159 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
             setMathAnswer("");
             return;
           }
-          await registerWithEmail(emailForSignIn, passwordForSignIn);
-          // Wait to see if user logs in automatically, usually they do
+          await registerWithEmail(emailForSignIn.trim(), passwordForSignIn);
         } else {
           // Login
-          await loginWithEmailProvider(emailForSignIn, passwordForSignIn);
+          await loginWithEmailProvider(emailForSignIn.trim(), passwordForSignIn);
         }
       } catch (err: any) {
         console.error("Auth failed:", err);
-        let msg = err.message || "Authentication error";
-        if (msg.includes("auth/invalid-credential"))
-          msg =
-            lang === "ar" ? "أوراق الاعتماد غير صالحة" : "Invalid credentials";
-        if (msg.includes("auth/network-request-failed"))
-          msg =
-            lang === "ar"
-              ? "فشل الاتصال بالخادم. يرجى التأكد من اتصالك بالإنترنت أو إيقاف مانع الإعلانات، أو استخدم 'تسجيل الدخول عبر Google'."
-              : "Network error. Please check your internet, disable adblockers, or try 'Log In via Google'.";
-        if (msg.includes("auth/email-already-in-use"))
-          msg =
-            lang === "ar"
-              ? "البريد الإلكتروني مستخدم بالفعل"
-              : "Email already in use";
-        if (msg.includes("auth/weak-password"))
-          msg =
-            lang === "ar" ? "كلمة المرور ضعيفة جدًا" : "Password is too weak";
-        setAuthError(msg);
+        const code = err.code || "";
+        const msg = err.message || "";
+        
+        let translatedError = "";
+        
+        if (code === "auth/invalid-credential" || msg.includes("auth/invalid-credential") || msg.includes("wrong-password") || msg.includes("user-not-found")) {
+          translatedError = lang === "ar" 
+            ? "اسم المستخدم أو كلمة المرور غير صحيحة. يرجى التحقق وإعادة المحاولة أو استعادة حسابك إذا نسيت كلمة المرور." 
+            : "Incorrect email or password. Please check your credentials or reset your password if forgotten.";
+        } else if (code === "auth/user-disabled" || msg.includes("auth/user-disabled")) {
+          translatedError = lang === "ar"
+            ? "عذراً، تم حظر أو تعطيل هذا الحساب من قبل الإدارة الفنية. يرجى مراجعة الدعم."
+            : "This account has been disabled by system administration. Please contact support.";
+        } else if (code === "auth/too-many-requests" || msg.includes("auth/too-many-requests")) {
+          translatedError = lang === "ar"
+            ? "تم حظر المحاولات مؤقتاً بسبب كثرة الطلبات الفاشلة. يرجى الانتظار 30 ثانية والمحاولة مجدداً."
+            : "Access temporarily blocked due to too many failed attempts. Please wait 30 seconds.";
+        } else if (code === "auth/email-already-in-use" || msg.includes("auth/email-already-in-use")) {
+          translatedError = lang === "ar"
+            ? "هذا البريد الإلكتروني مسجل مسبقاً لدى مستخدم آخر. حاول تسجيل الدخول بدلاً من ذلك."
+            : "The email address is already in use. Try signing in instead.";
+        } else if (code === "auth/weak-password" || msg.includes("auth/weak-password")) {
+          translatedError = lang === "ar"
+            ? "كلمة المرور ضعيفة جداً. يرجى استخدام 6 رموز على الأقل."
+            : "The password is too weak. Please use at least 6 characters.";
+        } else if (code === "auth/network-request-failed" || msg.includes("auth/network-request-failed")) {
+          translatedError = lang === "ar"
+            ? "فشل الاتصال بالخادم. يرجى التأكد من جودة الإنترنت وعدم استخدام VPN قد يعيق الاتصال."
+            : "Network connection failed. Please check your internet and disable any VPNs that might block the connection.";
+        } else if (code === "auth/invalid-email" || msg.includes("auth/invalid-email")) {
+          translatedError = lang === "ar"
+            ? "صيغة البريد الإلكتروني غير صالحة. تأكد من كتابته بشكل صحيح (مثال: name@domain.com)."
+            : "The email address formatting is invalid. Please check your input.";
+        } else {
+          translatedError = lang === "ar"
+            ? "حدث خطأ غير متوقع: " + (err.message || "يرجى المحاولة لاحقاً")
+            : "An unexpected error occurred: " + (err.message || "Please try again later");
+        }
+        
+        setAuthError(translatedError);
       }
     };
 
     return (
       <div className="min-h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-center p-4 overflow-y-auto relative z-0">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center my-auto relative z-10">
-          <Activity className="w-16 h-16 text-indigo-500 mb-6 animate-pulse" />
-          <h1 className="text-2xl font-black text-white mb-2 font-mono">
-            Al-Moharif AI
-          </h1>
-          <p className="text-slate-400 text-sm mb-6 max-w-sm">
-            {lang === "ar"
-              ? "قم بتسجيل الدخول بأمان إلى منصتك الاحترافية"
-              : "Sign in securely to access your professional trading platform"}
-          </p>
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center my-auto relative z-10 transition-all duration-350">
+          {authMode === "forgot" ? (
+            // Dedicated Independent Forgot Password Card Interface
+            <div className="w-full text-center" dir={lang === "ar" ? "rtl" : "ltr"}>
+              <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-500/20">
+                <ShieldCheck className="w-8 h-8 text-indigo-400" />
+              </div>
+              <h1 className="text-xl font-black text-white mb-2 font-mono flex items-center justify-center gap-2">
+                {lang === "ar" ? "استعادة الوصول للحساب" : "Account Recovery"}
+              </h1>
+              <p className="text-slate-400 text-xs mb-6 leading-relaxed max-w-[280px] mx-auto">
+                {lang === "ar"
+                  ? "أدخل بريدك الإلكتروني المسجل وسنقوم بإرسال رابط آمن لإعادة تعيين كلمة مرورك فوراً."
+                  : "Enter your email address and we will send you a secure link to reset your password immediately."}
+              </p>
+            </div>
+          ) : (
+            <div className="w-full text-center">
+              <Activity className="w-16 h-16 text-indigo-500 mx-auto mb-6 animate-pulse" />
+              <h1 className="text-2xl font-black text-white mb-2 font-mono">
+                Al-Moharif AI
+              </h1>
+              <p className="text-slate-400 text-sm mb-6 max-w-sm mx-auto">
+                {lang === "ar"
+                  ? "قم بتسجيل الدخول بأمان إلى منصتك الاحترافية"
+                  : "Sign in securely to access your professional trading platform"}
+              </p>
+            </div>
+          )}
 
           <form
             onSubmit={handleAuthSubmit}
-            className="w-full space-y-3 mb-4"
+            className="w-full space-y-4 mb-4"
             dir={lang === "ar" ? "rtl" : "ltr"}
           >
-            <input
-              type="email"
-              value={emailForSignIn}
-              onChange={(e) => setEmailForSignIn(e.target.value)}
-              placeholder={
-                lang === "ar" ? "البريد الإلكتروني" : "Email Address"
-              }
-              className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm text-center"
-              required
-            />
-
-            {authMode !== "forgot" && (
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right sm:text-left px-1">
+                {lang === "ar" ? "البريد الإلكتروني" : "Email Address"}
+              </label>
               <input
-                type="password"
-                value={passwordForSignIn}
-                onChange={(e) => setPasswordForSignIn(e.target.value)}
+                type="email"
+                value={emailForSignIn}
+                onChange={(e) => setEmailForSignIn(e.target.value)}
                 placeholder={
-                  lang === "ar" ? "كلمة المرور المشفرة" : "Secure Password"
+                  lang === "ar" ? "mail@example.com" : "mail@example.com"
                 }
-                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 text-sm text-center"
+                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-center font-mono"
                 required
               />
+            </div>
+
+            {authMode !== "forgot" && (
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right sm:text-left px-1">
+                  {lang === "ar" ? "كلمة المرور" : "Password"}
+                </label>
+                <input
+                  type="password"
+                  value={passwordForSignIn}
+                  onChange={(e) => setPasswordForSignIn(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-center"
+                  required
+                />
+              </div>
             )}
 
             {authMode === "register" && (
-              <div className="bg-slate-950/50 border border-slate-800 p-3 rounded-xl space-y-2">
+              <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl space-y-2">
                 <label className="block text-xs font-bold text-slate-400">
                   {lang === "ar"
-                    ? "للتحقق أنك لست روبوت، أجب:"
+                    ? "للتحقق أنك لست روبوت، أجب عن التالي:"
                     : "Anti-bot verification: Answer this:"}{" "}
-                  {mathA} + {mathB} = ?
+                  <span className="text-indigo-400 font-mono text-sm">{mathA} + {mathB} = ?</span>
                 </label>
                 <input
                   type="number"
                   value={mathAnswer}
                   onChange={(e) => setMathAnswer(e.target.value)}
-                  placeholder={lang === "ar" ? "الإجابة" : "Answer"}
-                  className="w-full bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-slate-100 text-center focus:border-indigo-500"
+                  placeholder={lang === "ar" ? "الإجابة الصحيحة" : "Correct answer"}
+                  className="w-full bg-slate-900 border border-slate-750 px-3 py-2 rounded-lg text-slate-100 text-center focus:border-indigo-500 text-sm font-mono"
                   required
                 />
               </div>
             )}
 
             {authError && (
-              <div className="text-rose-400 text-xs font-bold p-2 bg-rose-500/10 rounded-lg border border-rose-500/20">
+              <div className="text-rose-400 text-xs font-bold p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 text-right sm:text-left leading-relaxed">
                 {authError}
               </div>
             )}
 
             {authSuccess && (
-              <div className="text-emerald-400 text-xs font-bold p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+              <div className="text-emerald-400 text-xs font-bold p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-right sm:text-left leading-relaxed">
                 {authSuccess}
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2 pointer-events-auto cursor-pointer relative z-10"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2 pointer-events-auto cursor-pointer relative z-10 shadow-lg"
             >
               {authMode === "login"
                 ? lang === "ar"
@@ -3750,12 +3812,12 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                     ? "إنشاء حساب جديد وتفعيل البريد"
                     : "Create Account & Verify"
                   : lang === "ar"
-                    ? "استعادة كلمة المرور"
-                    : "Reset Password"}
+                    ? "إرسال رابط استعادة الحساب"
+                    : "Send Recovery Link"}
             </button>
           </form>
 
-          <div className="w-full flex justify-between px-2 mb-6 text-xs font-bold text-slate-400">
+          <div className="w-full flex justify-between px-1 mb-6 text-xs font-bold text-slate-400 gap-2">
             {authMode !== "login" && (
               <button
                 type="button"
@@ -3764,11 +3826,11 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                   setAuthError("");
                   setAuthSuccess("");
                 }}
-                className="hover:text-indigo-400 transition"
+                className="hover:text-indigo-400 transition cursor-pointer"
               >
                 {lang === "ar"
-                  ? "لدي حساب بالفعل"
-                  : "I already have an account"}
+                  ? "الرجوع لتسجيل الدخول"
+                  : "Back to Sign In"}
               </button>
             )}
             {authMode !== "register" && (
@@ -3779,9 +3841,9 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                   setAuthError("");
                   setAuthSuccess("");
                 }}
-                className="hover:text-amber-400 transition"
+                className="hover:text-amber-400 transition cursor-pointer"
               >
-                {lang === "ar" ? "إنشاء حساب لأول مرة" : "Create a new account"}
+                {lang === "ar" ? "إنشاء حساب لأول مرة" : "Create Account"}
               </button>
             )}
             {authMode !== "forgot" && (
@@ -3792,7 +3854,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                   setAuthError("");
                   setAuthSuccess("");
                 }}
-                className="hover:text-slate-300 transition"
+                className="hover:text-slate-300 transition cursor-pointer"
               >
                 {lang === "ar" ? "نسيت كلمة المرور؟" : "Forgot password?"}
               </button>
@@ -3811,6 +3873,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
             type="button"
             onClick={async () => {
               setAuthError("");
+              setAuthSuccess("");
               try {
                 await loginWithGoogle();
               } catch (err: any) {
@@ -3821,15 +3884,15 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                     ? "فشل الاتصال بالخادم. يرجى التأكد من اتصالك بالإنترنت أو إيقاف مانع الإعلانات."
                     : "Network error. Please check your internet or disable adblockers.";
                 } else if (msg.includes("popup-closed-by-user")) {
-                  msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول." : "Sign-in popup was closed.";
+                  msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول عبر Google." : "Sign-in popup was closed.";
                 }
                 setAuthError(msg);
               }
             }}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition pointer-events-auto cursor-pointer"
+            className="w-full bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-750 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition pointer-events-auto cursor-pointer"
           >
-            <ShieldAlert className="w-4 h-4" />
-            {lang === "ar" ? "تسجيل الدخول عبر Google" : "Log In via Google"}
+            <ShieldAlert className="w-4 h-4 text-indigo-400" />
+            {lang === "ar" ? "الدخول السريع عبر Google" : "Continue with Google"}
           </button>
         </div>
       </div>

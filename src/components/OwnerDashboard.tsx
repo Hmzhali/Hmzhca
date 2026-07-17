@@ -161,6 +161,17 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
     }
   };
 
+  const toggleUserRole = async (userId: string, currentRole: string) => {
+    try {
+      const newRole = currentRole === "OWNER" ? "USER" : "OWNER";
+      await updateDoc(doc(db, "users", userId), {
+        role: newRole,
+      });
+    } catch (err) {
+      console.error("Failed to toggle user role:", err);
+    }
+  };
+
   const handlePublishUpdate = async (resetReq: boolean) => {
     try {
       await setDoc(doc(db, "system", "update_notification"), {
@@ -336,6 +347,25 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
                               : lang === "ar"
                                 ? "باند (محظور)"
                                 : "Banned"}
+                          </button>
+
+                          <button
+                            onClick={() => toggleUserRole(usr.id, usr.role || "USER")}
+                            className="flex items-center gap-1 px-2 py-1 rounded border bg-indigo-950/30 border-indigo-900/50 text-indigo-400 hover:bg-indigo-900/50 transition"
+                            title={
+                              lang === "ar"
+                                ? "تبديل الصلاحية (مالك/مستخدم)"
+                                : "Toggle User Role"
+                            }
+                          >
+                            <Shield className="w-3 h-3" />
+                            {usr.role === "OWNER"
+                              ? lang === "ar"
+                                ? "مالك"
+                                : "Owner"
+                              : lang === "ar"
+                                ? "عضو"
+                                : "User"}
                           </button>
 
                           <button
