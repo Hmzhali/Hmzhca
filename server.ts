@@ -1278,6 +1278,15 @@ Communication Guidelines:
   let cachedClockOffset = 0;
   let lastClockSync = 0;
 
+  function formatFuturesSymbol(symbol: string): string {
+    const cleanSymbol = String(symbol).toUpperCase().replace(/\//g, '').trim();
+    const memeMappers = ['PEPEUSDT', 'SHIBUSDT', 'FLOKIUSDT', 'LUNCUSDT', 'XECUSDT', 'BONKUSDT', 'RATSUSDT', 'SATSUSDT'];
+    if (memeMappers.includes(cleanSymbol)) {
+      return `1000${cleanSymbol}`;
+    }
+    return cleanSymbol;
+  }
+
   async function getBinanceTimestamp() {
     const now = Date.now();
     // Sync every 3 minutes
@@ -1687,8 +1696,8 @@ Communication Guidelines:
         : (isFutures ? 'https://fapi.binance.com' : 'https://api.binance.com');
       const timestamp = await getBinanceTimestamp();
       
-      // Convert e.g., 'BTC/USDT' -> 'BTCUSDT'
-      const cleanSymbol = symbol.toUpperCase().replace('/', '');
+      // Convert e.g., 'BTC/USDT' -> 'BTCUSDT', and add '1000' prefix if Futures meme coin
+      const cleanSymbol = isFutures ? formatFuturesSymbol(symbol) : symbol.toUpperCase().replace('/', '');
       
       let queryString = `symbol=${cleanSymbol}&side=${side}&type=${type}&quantity=${amount}&timestamp=${timestamp}&recvWindow=60000`;
       if (type === 'LIMIT') {
@@ -2164,7 +2173,7 @@ Communication Guidelines:
       }
 
       const baseUrl = useTestnet ? 'https://testnet.binancefuture.com' : 'https://fapi.binance.com';
-      const cleanSymbol = symbol.toUpperCase().replace('/', '');
+      const cleanSymbol = formatFuturesSymbol(symbol);
       const timestamp = Date.now();
       const queryString = `symbol=${cleanSymbol}&orderId=${orderId}&timestamp=${timestamp}&recvWindow=6000`;
       
@@ -2228,7 +2237,7 @@ Communication Guidelines:
       }
 
       const baseUrl = useTestnet ? 'https://testnet.binancefuture.com' : 'https://fapi.binance.com';
-      const cleanSymbol = String(symbol).toUpperCase().replace(/\//g, '').trim();
+      const cleanSymbol = formatFuturesSymbol(symbol);
 
       // 1. Set Margin Type (Isolated vs Cross)
       if (marginType) {

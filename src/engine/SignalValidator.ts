@@ -13,7 +13,7 @@ export function validateSignal(inputs: EngineInputs, score: number): { passed: b
   }
 
   // Must have a minimum score threshold to even consider
-  if (score < 50) {
+  if (score < 30) {
     return { passed: false, reason: `Score too low (${score}/100)` };
   }
 

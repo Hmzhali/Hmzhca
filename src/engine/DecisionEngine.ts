@@ -41,6 +41,9 @@ export function evaluateTradeDecision(inputs: EngineInputs): DecisionResult {
   } else if (score >= 70) {
     aiAr = `👀 مراقبة (Score: ${score}). إشارات إيجابية لكن تحتاج لتأكيد.`;
     aiEn = `👀 WATCH (Score: ${score}). Positive signs but needs confirmation.`;
+  } else {
+    aiAr = `⚡ إشارة سريعة (Score: ${score}). فرصة دخول مبنية على تذبذب السوق الحالي.`;
+    aiEn = `⚡ SCALP SIGNAL (Score: ${score}). Quick entry based on current market volatility.`;
   }
 
   if (direction === 'SELL') {

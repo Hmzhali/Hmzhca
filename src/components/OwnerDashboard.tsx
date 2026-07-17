@@ -91,11 +91,14 @@ export default function OwnerDashboard({ lang }: OwnerDashboardProps) {
       (err) => console.warn("unresQ error:", err),
     );
 
-    const usersQ = query(collection(db, "users"), limit(100));
+    const usersQ = query(
+      collection(db, "users")
+    );
     const unsubUsers = onSnapshot(
       usersQ,
       (snap) => {
-        const fetched = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        let fetched = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        fetched.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
         setUsersList(fetched);
       },
       (err) => console.warn("usersQ error:", err),

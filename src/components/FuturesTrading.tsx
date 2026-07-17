@@ -1320,8 +1320,8 @@ export default function FuturesTrading({
               decision = evaluateTradeDecision(inputs);
             }
 
-            // Responsive threshold of 55 for high-quality, fast-executing trades with carefulness
-            if (decision.score < 55 || decision.action === 'HOLD') {
+            // Responsive threshold of 40 for higher trade frequency
+            if (decision.score < 40 || decision.action === 'HOLD') {
               return updatedPrev; // Skip trade!
             }
 
@@ -1396,12 +1396,16 @@ export default function FuturesTrading({
               const explanationAr = `🤖 **[البوت الخوارزمي - العقود التجريبية]**
 📊 **الصفقة المفتوحة:** ${buyOrSellTextAr} لزوج **${targetPair.symbol}**
 💵 **الأصل المالي:** سعر الدخول $${targetPair.currentPrice} | رافعة ${currentLev}x | هامش $${margin.toFixed(2)} USDT
-🎯 **سبب الدخول الفني الحاسم:** تم رصد إشارة فنية قوية بناءً على مؤشر القوة النسبية (RSI: ${calculatedRsi.toFixed(0)}). ${tradeSide === "LONG" ? "يظهر تشبع بيعي واضح مع علامات ارتداد للسيولة وانعكاس صعودي يعزز فرص الشراء" : "يظهر تشبع شرائي صريح ورفض فني للمقاومات يعطي مؤشرات انعكاس هابط ممتازة للبيع"} كجزء من تداولك المختار آلياً.`;
+⏱️ **فريم الارتداد:** تم التحقق اللحظي من تقاطع فريم 15 دقيقة مع 5 دقائق لتأكيد نقطة الانعكاس والارتداد بدقة
+🎯 **السبب الفني:** ${decision.aiCommentaryAr} (RSI: ${calculatedRsi.toFixed(0)})
+🧠 **مبررات محرك الذكاء:** ${decision.reasons.join(" | ")}`;
               
               const explanationEn = `🤖 **[AI Autopilot - Paper Trading]**
 📊 **Position Opened:** ${buyOrSellTextEn} on **${targetPair.symbol}**
 💵 **Assets:** Entry $${targetPair.currentPrice} | Leverage ${currentLev}x | Margin $${margin.toFixed(2)} USDT
-🎯 **Technical Trigger:** Calculated RSI is at ${calculatedRsi.toFixed(0)}. ${tradeSide === "LONG" ? "Oversold exhaustion detected with potential bullish liquidity bounce" : "Overbought saturation detected with immediate resistance rejection and bearish momentum pivot"}.`;
+⏱️ **Rebound Timeframe:** Verified crossover on 15m & 5m charts for precise bounce detection
+🎯 **Technical Trigger:** ${decision.aiCommentaryEn} (RSI: ${calculatedRsi.toFixed(0)})
+🧠 **Engine Reasons:** ${decision.reasons.join(" | ")}`;
 
               onTriggerToast({
                 id: Date.now().toString(),
@@ -1596,8 +1600,8 @@ export default function FuturesTrading({
               decision = evaluateTradeDecision(inputs);
             }
 
-            // Responsive threshold of 55 for high-quality, fast-executing trades with carefulness
-            if (decision.score < 55 || decision.action === 'HOLD') {
+            // Responsive threshold of 40 for higher trade frequency
+            if (decision.score < 40 || decision.action === 'HOLD') {
               return; // Skip trade!
             }
 
@@ -1716,12 +1720,16 @@ export default function FuturesTrading({
                   const explanationAr = `🤖 **[ذكاء التداول المباشر - عقود بينانس الحقيقية]**
 📊 **الصفقة المنفذة:** ${buyOrSellTextAr} لزوج **${targetPair.symbol}**
 💵 **بيانات الدخول:** كمية منفذة ${quantity} | رافعة ${currentLev}x | بسعر فوري $${targetPair.currentPrice}
-🎯 **السبب الفني الاستراتيجي:** تم رصد إرهاق سعري للاتجاه الحالي بناءً على القراءة الفورية لمؤشر القوة النسبية (RSI: ${calculatedRsi.toFixed(0)}). ${tradeSide === "LONG" ? "رصدنا ارتداداً من قاع الدعم مصحوباً بتدفق سيولة إيجابية تؤيد الصعود" : "رصدنا عجزاً واضحاً عن كسر قمة المقاومة مما يرجح الهبوط وجدوى الدخول في مركز بيع فوري"}، ليقوم البوت بفتح العقد الحقيقي فوراً بسطوة استباقية.`;
+⏱️ **فريم الارتداد السعري:** تم التقاط الارتداد بالتقاطع بين فريم 15 دقيقة مع 5 دقائق لضمان استباقية الدخول
+🎯 **السبب الفني الاستراتيجي:** ${decision.aiCommentaryAr} (RSI: ${calculatedRsi.toFixed(0)})
+🧠 **مبررات محرك القرار:** ${decision.reasons.join(" | ")}`;
 
                   const explanationEn = `🤖 **[LIVE AUTOMATED TRADING - Binance Real Futures]**
 📊 **Executed Order:** ${buyOrSellTextEn} on **${targetPair.symbol}**
 💵 **Entry Stats:** Qty ${quantity} | Leverage ${currentLev}x | Entry Price $${targetPair.currentPrice}
-🎯 **Technical Reason:** RSI reading at ${calculatedRsi.toFixed(0)} shows trend exhaustion. ${tradeSide === "LONG" ? "Oversold relief detected at support levels with bullish recovery signal" : "Immediate resistance rejection noticed with bearish shift requiring a Short order execution"}.`;
+⏱️ **Rebound Timeframe:** Bounce detected via 15m & 5m crossover for proactive entry
+🎯 **Technical Reason:** ${decision.aiCommentaryEn} (RSI: ${calculatedRsi.toFixed(0)})
+🧠 **Decision Engine:** ${decision.reasons.join(" | ")}`;
 
                   onTriggerToast({
                     id: Date.now().toString(),
@@ -1832,10 +1840,10 @@ export default function FuturesTrading({
               symbol: "AI-SYSTEM",
               aiExplanationAr: `🤖 **[تحديث حالة البوت الخوارزمي]**
 البوت لا يزال يعمل بنجاح في الخلفية ويقوم بمسح السوق كل 2.5 ثانية للاستجابة اللحظية. 
-🔍 حالياً، لم تكتمل شروط الدفع القوية (Score >= 55) لأي عملة، وسيقوم البوت بالتنفيذ فور توفر فرصة ذهبية.`,
+🔍 حالياً، لم تكتمل شروط الدفع القوية (Score >= 40) لأي عملة، وسيقوم البوت بالتنفيذ فور توفر فرصة.`,
               aiExplanationEn: `🤖 **[AI Autopilot Status Update]**
 The bot is active and scanning markets every 2.5s for instant reaction. 
-🔍 No high-probability signals (Score >= 55) detected yet. It will execute automatically as soon as technical conditions align.`
+🔍 No high-probability signals (Score >= 40) detected yet. It will execute automatically as soon as technical conditions align.`
             });
           }
         }
