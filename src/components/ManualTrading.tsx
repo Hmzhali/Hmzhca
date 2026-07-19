@@ -343,6 +343,14 @@ export default function ManualTrading({
 
     const cost = (parsedPrice * parsedAmount) / leverage;
     
+    if (cost < 1) {
+      setMessage({
+        text: lang === 'ar' ? 'الحد الأدنى للهامش للتداول هو 1 دولار.' : 'Minimum margin for trading is $1.',
+        type: 'refused',
+      });
+      return;
+    }
+
     if (orderSide === 'BUY' && cost > portfolio.usdt) {
       setMessage({
         text: lang === 'ar' ? 'عذراً! رصيد USDT غير كافٍ لتغطية هامش هذه الصفقة.' : 'Insufficient USDT margin balance.',
@@ -425,6 +433,14 @@ export default function ManualTrading({
 
     const totalValue = currentPrice * computedAmount;
     const requiredMargin = totalValue / leverage;
+
+    if (requiredMargin < 1) {
+      setMessage({
+        text: lang === 'ar' ? 'الحد الأدنى للهامش للتداول هو 1 دولار.' : 'Minimum margin for trading is $1.',
+        type: 'refused',
+      });
+      return;
+    }
 
     if (side === 'BUY' && requiredMargin > portfolio.usdt) {
       setMessage({

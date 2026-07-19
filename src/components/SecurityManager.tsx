@@ -365,8 +365,8 @@ export default function SecurityManager({
 
     try {
       const messageText = lang === 'ar'
-        ? `🔔 <b>بوابة أمان التداول الهجين (Al-Moharif Emergency Portal)</b>\n\n✅ تم تفعيل اتصال البوت وتأمينه بنجاح!\n⏱️ تفاصيل الإرسال: <code>${new Date().toISOString()}</code>\n🔒 نظام الحماية: <b>نشط ويعمل بالكامل</b>`
-        : `🔔 <b>Hybrid Bot Security Portal (Al-Moharif Emergency Portal)</b>\n\n✅ Bot connection has been initialized and secured successfully!\n⏱️ Dispatch time: <code>${new Date().toISOString()}</code>\n🔒 Protection Shield: <b>ACTIVE & FUNCTIONAL</b>`;
+        ? `🔔 <b>بوابة أمان التداول الهجين (Hamza Al-Moharif Emergency Portal)</b>\n\n✅ تم تفعيل اتصال البوت وتأمينه بنجاح!\n⏱️ تفاصيل الإرسال: <code>${new Date().toISOString()}</code>\n🔒 نظام الحماية: <b>نشط ويعمل بالكامل</b>`
+        : `🔔 <b>Hybrid Bot Security Portal (Hamza Al-Moharif Emergency Portal)</b>\n\n✅ Bot connection has been initialized and secured successfully!\n⏱️ Dispatch time: <code>${new Date().toISOString()}</code>\n🔒 Protection Shield: <b>ACTIVE & FUNCTIONAL</b>`;
 
       const response = await fetch('/api/telegram/send', {
         method: 'POST',
@@ -454,7 +454,7 @@ export default function SecurityManager({
           </div>
           <div className="text-right sm:text-left">
             <h2 className="text-lg font-black text-slate-100 flex items-center gap-2">
-              <span>{displayName || (lang === 'ar' ? 'عضو المحترف' : 'Al-Moharif Member')}</span>
+              <span>{displayName || (lang === 'ar' ? 'عضو حمزه المحترف' : 'Hamza Al-Moharif Member')}</span>
               {userData?.role === 'OWNER' && (
                 <span className="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-black">
                   {lang === 'ar' ? '👑 المالك' : '👑 OWNER'}

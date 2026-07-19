@@ -56,12 +56,12 @@ async function callGeminiWithRetry(params: GenerateContentParameters, retries = 
 
 console.log('[DEBUG] Server starting up...');
 
-const aiSystemPrompt = `أنت المستشار الذكي والتحليلي الفني والمالي لمنصة "المحترف الذكي للكم" (Al-Moharif AI).
+const aiSystemPrompt = `أنت المستشار الذكي والتحليلي الفني والمالي لمنصة "حمزه المحترف" (Hamza Al-Moharif).
 وظيفتك الأساسية هي إجابة استشارات وأسئلة المستخدمين بدقة واحترافية حول كيفية العمل بالمنصة، طرق الاشتراك، الباقات، آليات عمل روبوتات التداول، وحماية الحسابات.
 
-معلومات أساسية وموثقة عن منصة "المحترف الذكي للكم" (يجب عليك استخدامها للإجابة عن أسئلة المستخدمين):
+معلومات أساسية وموثقة عن منصة "حمزه المحترف" (يجب عليك استخدامها للإجابة عن أسئلة المستخدمين):
 1. هوية المنصة ورؤيتها:
-   - "المحترف الذكي للكم" (Al-Moharif AI) هي منصة رائدة متخصصة في التداول الكمي الآلي، وتحليل مؤشرات السيولة، وتتبع تدفقات أموال الحيتان (Whale Flow Tracker) والتحليل الفوري بمساعدة الذكاء الاصطناعي.
+   - "حمزه المحترف" (Hamza Al-Moharif) هي منصة رائدة متخصصة في التداول الكمي الآلي، وتحليل مؤشرات السيولة، وتتبع تدفقات أموال الحيتان (Whale Flow Tracker) والتحليل الفوري بمساعدة الذكاء الاصطناعي.
 
 2. الأنظمة والخدمات الأساسية في المنصة:
    - روبوتات التداول الآلي (Automated Trading Bots): تشمل بوت الشبكة الفورية (Grid Bot) لتداول النطاقات العرضية، وبوت متوسط التكلفة بالدولار (DCA Bot) للاستثمار المتدرج، وبوت الارتداد الهجومي (Aggressive Rebound Bot). تعمل هذه البوتات باستمرار في الخلفية بمجرد تفعيلها حتى يقرر المستخدم إيقافها.
@@ -72,7 +72,7 @@ const aiSystemPrompt = `أنت المستشار الذكي والتحليلي ا
 
 3. باقات الاشتراك وطرق التفعيل (Subscription Tiers):
    - الباقة التجريبية المجانية (Free Trial): توفر ميزة التداول الافتراضي التجريبي (Paper Trading) ببيانات السوق الفورية ومحاكاة كاملة للبوتات، وهي ممتازة لتعلم طرق التداول واختبار الاستراتيجيات مجاناً.
-   - باقة المحترف الفضي (Silver Pro): تسمح للمستخدم بتشغيل وتفعيل ما يصل إلى 3 روبوتات تداول حية مخصصة بالتوازي، وتوفر الوصول لتنبيهات تدفقات الحيتان وتحليلات التجريب التاريخي.
+   - باقة حمزه المحترف الفضي (Silver Pro): تسمح للمستخدم بتشغيل وتفعيل ما يصل إلى 3 روبوتات تداول حية مخصصة بالتوازي، وتوفر الوصول لتنبيهات تدفقات الحيتان وتحليلات التجريب التاريخي.
    - باقة الحوت الذهبي النخبة (Gold Whale / Elite): تفتح جميع ميزات وأدوات المنصة بلا قيود، وتسمح بتشغيل روبوتات تداول وتراكمات غير محدودة، مع ميزة تتبع الحيتان اللحظي عالية السرعة، وتنبيهات مخصصة لأسعار الأصول، ومستشار ذكي فوري.
    - طريقة الاشتراك والتفعيل: يتم الاشتراك أو الترقية عن طريق لوحة التذاكر أو زر الحساب، أو بالتواصل المباشر مع دعم المنصة أو "إدارة المنصة" (المالك والمدير) لتلقي أكواد التفعيل الفوري (Activation Codes) والتسوية الفورية للمدفوعات.
 
@@ -144,14 +144,14 @@ async function startServer() {
     console.error('[BOT] Error loading trades', e);
   }
 
-  // Background Scalping Bot Engine
+  // Background Scalping Bot Engine (Hamza Al-Moharif)
   setInterval(async () => {
     if (!botEnabled) return;
     
     console.log('[BOT] Analyzing market for scalping opportunities...');
     
-    // Simulated Trading Logic (30% chance to trade on each tick)
-    if (Math.random() < 0.3) {
+    // Simulated Trading Logic (50% chance to trade on each tick)
+    if (Math.random() < 0.5) {
         const isLong = Math.random() > 0.5;
         const entryPrice = parseFloat((Math.random() * 50000 + 40000).toFixed(2));
         
@@ -182,7 +182,7 @@ async function startServer() {
             console.error('[BOT] Error executing trade:', e);
         }
     }
-  }, 10000); // Check every 10 seconds
+  }, 6000); // Check every 6 seconds 
 
   // API Route: Server health check
   
@@ -208,6 +208,44 @@ app.post('/api/log', express.json(), (req, res) => {
   // API to get bot trades
   app.get('/api/bot/trades', async (req, res) => {
     res.json({ trades: botTrades });
+  });
+
+  // API to perform Post-Mortem Analysis on losing trades
+  app.post('/api/bot/post-mortem', async (req, res) => {
+    const { lang = 'en' } = req.body;
+    try {
+        const losingTrades = botTrades.filter(t => t.realizedPnl < 0).slice(0, 5);
+        
+        if (losingTrades.length === 0) {
+            return res.json({ 
+                analysis: lang === 'ar' 
+                    ? "لا توجد صفقات خاسرة كافية للتحليل حالياً. أداء البوت مستقر." 
+                    : "Not enough losing trades to analyze. Bot performance is stable." 
+            });
+        }
+
+        const prompt = `Analyze the following losing trades from an automated crypto bot and provide a technical post-mortem. 
+        Compare entry/exit prices and determine if there's a pattern of failure (e.g., catching falling knives, late entries).
+        
+        Trades: ${JSON.stringify(losingTrades)}
+        
+        Response Language: ${lang === 'ar' ? 'Arabic' : 'English'}
+        Format: Professional technical report with bullet points.`;
+
+        const response = await callGeminiWithRetry({
+            model: 'gemini-3.5-flash',
+            contents: prompt,
+            config: {
+                systemInstruction: "You are a quantitative trading risk manager. Analyze trade logs for systemic failures.",
+                temperature: 0.7,
+            },
+        });
+
+        res.json({ analysis: response.text });
+    } catch (err: any) {
+        console.error('[Post-Mortem] Error:', err);
+        res.status(500).json({ error: 'Failed to analyze trades' });
+    }
   });
 
   // API Route: Server health check
@@ -460,26 +498,13 @@ app.post('/api/log', express.json(), (req, res) => {
       }
 
       const cleanSymbol = decodeURIComponent(symbol as string).toUpperCase().replace(/[-\/]/g, '').trim();
-      console.log(`[DEBUG] Original symbol: ${symbol}, Cleaned: ${cleanSymbol}, limit=${limit}`);
-      // Ensure limit is one of the valid values for Binance: [5, 10, 20, 50, 100, 500, 1000, 5000]
       const validLimits = [5, 10, 20, 50, 100, 500, 1000, 5000];
       const limitNum = parseInt(limit as string) || 8;
       const validLimit = validLimits.find(l => l >= limitNum) || 10;
       
       const url = `https://api.binance.com/api/v3/depth?symbol=${cleanSymbol}&limit=${validLimit}`;
-      console.log(`[DEBUG] Final Binance URL: ${url}`);
       const fetchResponse = await fetch(url);
       if (!fetchResponse.ok) {
-        const errorText = await fetchResponse.text();
-        try {
-          const errorData = JSON.parse(errorText);
-          if (errorData.code === -1121) {
-            res.json({ asks: [], bids: [] });
-            return;
-          }
-        } catch(e) {}
-        console.error(`[DEBUG] Binance API Error: ${fetchResponse.status} - ${errorText}`);
-        // Instead of throwing, return an empty object to avoid crashing the whole view
         res.json({ asks: [], bids: [] });
         return;
       }
@@ -554,7 +579,7 @@ app.post('/api/log', express.json(), (req, res) => {
         
         if (lang === 'ar') {
           if (lPrompt.includes('اشتراك') || lPrompt.includes('باقة') || lPrompt.includes('باقات') || lPrompt.includes('سعر') || lPrompt.includes('سعر') || lPrompt.includes('الاشتراك') || lPrompt.includes('الباقة')) {
-            simulatesReply = `### 💳 باقات الاشتراك وتفعيل العمل في منصة المحترف الذكي (Al-Moharif AI)
+            simulatesReply = `### 💳 باقات الاشتراك وتفعيل العمل في منصة حمزه المحترف الذكي (Hamza Al-Moharif)
 
 مرحباً بك! تتوفر في المنصة ثلاثة مستويات أساسية للاستفادة من الأدوات الكمية وروبوتات التداول الآلي والتحليل:
 
@@ -562,7 +587,7 @@ app.post('/api/log', express.json(), (req, res) => {
    - **الميزات**: تداول تجريبي افتراضي كامل بمحاكاة (Paper Trading) حقيقية وفقاً لأسعار السوق المباشرة، مع رادارات فنية أساسية.
    - **الاستخدام الموصى به**: مناسبة تماماً لتعلم وضبط مؤشرات الروبوتات واختبار الاستراتيجيات الشبكية دون المخاطرة بأموالك.
 
-2. **باقة المحترف الفضي (Silver Pro)**:
+2. **باقة حمزه المحترف الفضي (Silver Pro)**:
    - **الميزات**: تتيح لك تشغيل وتفعيل ما يصل إلى **3 روبوتات تداول متزامنة** (Spot Grid أو DCA) على حسابك الحقيقي.
    - **المزايا**: رادارات تتبع الصفقات، وتفعيل كامل لروبوت التجريب التاريخي السريع لاستراتيجيات DCA.
 
@@ -575,9 +600,9 @@ app.post('/api/log', express.json(), (req, res) => {
 * للاشتراك أو الترقية، يمكنك تقديم طلب مباشرة عبر **تذاكر الدعم الفني** أو من خلال زر الترقية في ملفك الشخصي.
 * ستقوم **إدارة المنصة (المالك والمدير)** بمعالجة طلبك وتزويدك بـ **كود تفعيل الباقة (Activation Code)** على الفور لبدء تشغيل الروبوتات!`;
           } else if (lPrompt.includes('api') || lPrompt.includes('أمان') || lPrompt.includes('بينانس') || lPrompt.includes('ربط') || lPrompt.includes('مفتاح') || lPrompt.includes('سحب')) {
-            simulatesReply = `### 🔒 نظام الأمان العالي وحماية الحسابات بالـ API في منصة المحترف الذكي
+            simulatesReply = `### 🔒 نظام الأمان العالي وحماية الحسابات بالـ API في منصة حمزه المحترف الذكي
 
-في منصة **المحترف الذكي للكم (Al-Moharif AI)**، نضع أمان أموالك كأولوية قصوى لا نقاش فيها:
+في منصة **حمزه المحترف (Hamza Al-Moharif)**، نضع أمان أموالك كأولوية قصوى لا نقاش فيها:
 
 1. **قيد السحب المعطل (Withdrawal Disabled) 🚫**:
    - لربط حسابك الحقيقي بالتداول الآلي (مثل منصة Binance)، تشترط المنصة إنشاء مفتاح API مخصص بصلاحية **التداول فقط (Enable Spot & Margin Trading)**.
@@ -587,7 +612,7 @@ app.post('/api/log', express.json(), (req, res) => {
    - بفضل تعطيل قوانين السحب، تظل أموالك وسيولتك النقدية آمنة بنسبة **100% داخل محفظتك الشخصية** على منصة التبادل الأصلية.
    - لا يمكن للمنصة أو لأي طرف خارجي سحب دولار واحد من حسابك، ونطاق عمل الروبوت يقتصر فقط على إرسال أوامر الشراء والبيع الفورية عند تحقق الشروط الفنية الممتازة.`;
           } else if (lPrompt.includes('كيف يعمل') || lPrompt.includes('طريقة العمل') || lPrompt.includes('شغل') || lPrompt.includes('بوت') || lPrompt.includes('الروبوتات') || lPrompt.includes('العمل')) {
-            simulatesReply = `### 🤖 كيف تعمل روبوتات منصة المحترف الذكي (Al-Moharif AI) في الخلفية؟
+            simulatesReply = `### 🤖 كيف تعمل روبوتات منصة حمزه المحترف الذكي (Hamza Al-Moharif) في الخلفية؟
 
 العمل بالمنصة مبني على الأتمتة الكاملة وخوارزميات مخصصة تراقب السوق على مدار الساعة بدلاً منك. إليك آلية عمل الأنظمة:
 
@@ -600,7 +625,7 @@ app.post('/api/log', express.json(), (req, res) => {
 3. **بوت الارتداد الهجومي (Aggressive Rebound Bot)**:
    - يستشعر تراجعات الأسعار الحادة والمفاجئة ليقتنص الارتدادات السريعة ويوجه رأس مالك فوراً لزوج العملات الأعلى تعافياً في وقت قياسي. البوت يعمل باستمرار وبشكل متواصل ولا يتوقف إلا إذا ألغيته بنفسك.`;
           } else {
-            simulatesReply = `### 🏢 مرحباً بك في المستشار الذكي لمنصة المحترف الذكي (Al-Moharif AI)
+            simulatesReply = `### 🏢 مرحباً بك في المستشار الذكي لمنصة حمزه المحترف الذكي (Hamza Al-Moharif)
 
 أنا المحلل الفني والمالي المتكامل بالذكاء الاصطناعي للمنصة. يمكنني مساعدتك الفورية في التداول واستكشاف أسرار العمل بالمنصة:
 
@@ -611,9 +636,9 @@ app.post('/api/log', express.json(), (req, res) => {
           }
         } else {
           if (lPrompt.includes('subscribe') || lPrompt.includes('price') || lPrompt.includes('plan') || lPrompt.includes('pricing') || lPrompt.includes('tier') || lPrompt.includes('subscription')) {
-            simulatesReply = `### 💳 Subscription Tiers & Plans at Al-Moharif AI
+            simulatesReply = `### 💳 Subscription Tiers & Plans at Hamza Al-Moharif
 
-Al-Moharif AI provides 3 dynamic tiers designed to unlock quantitative algorithmic trading:
+Hamza Al-Moharif provides 3 dynamic tiers designed to unlock quantitative algorithmic trading:
 
 1. **Free Trial Tier**:
    - **Features**: Live simulated Paper Trading, basic chart tracking, and standard indicators. Perfect for practicing risk-free.
@@ -628,9 +653,9 @@ Al-Moharif AI provides 3 dynamic tiers designed to unlock quantitative algorithm
 * Contact the support team or open a **Support Ticket** in your dashboard.
 * The **Platform Manager (Owner)** will process your invoice and supply an **Activation Code** to boot all premium bot resources immediately.`;
           } else if (lPrompt.includes('security') || lPrompt.includes('binance') || lPrompt.includes('api') || lPrompt.includes('withdraw') || lPrompt.includes('secure')) {
-            simulatesReply = `### 🔒 Elite API Security Protocols at Al-Moharif AI
+            simulatesReply = `### 🔒 Elite API Security Protocols at Hamza Al-Moharif
 
-At **Al-Moharif AI**, we enforce maximum fund protection policies:
+At **Hamza Al-Moharif**, we enforce maximum fund protection policies:
 
 1. **Required: Withdrawal Disabled 🚫**:
    - When generating an API Key on Binance, connect only with **Trade-only permissions** (Enable Spot/Margin).
@@ -638,7 +663,7 @@ At **Al-Moharif AI**, we enforce maximum fund protection policies:
 2. **100% Asset Isolation**:
    - By disabling withdrawals, your assets remain safely inside your personal exchange wallet. The platform only broadcasts trading signals, leaving your capital fully protected.`;
           } else if (lPrompt.includes('how it works') || lPrompt.includes('start') || lPrompt.includes('work') || lPrompt.includes('bot') || lPrompt.includes('rebound')) {
-            simulatesReply = `### 🤖 Algorithmic Operational Mechanics at Al-Moharif AI
+            simulatesReply = `### 🤖 Algorithmic Operational Mechanics at Hamza Al-Moharif
 
 The platform provides complete cloud automated background runtime tracking for your strategies:
 
@@ -649,7 +674,7 @@ The platform provides complete cloud automated background runtime tracking for y
 3. **Aggressive Rebound Bot (الارتداد الهجومي)**:
    - Targets intense short-term dips to capture rapid reversal points. **Security Parameter Note**: Once turned on by you, the Aggressive Rebound logic or any other active bot remains continuously operational 24/7 inside the backend processor until you explicitly deactivate it yourself.`;
           } else {
-            simulatesReply = `### 🏢 Welcome to the Al-Moharif AI Intelligent Advisor!
+            simulatesReply = `### 🏢 Welcome to the Hamza Al-Moharif Intelligent Advisor!
 
 I am your active quantitative analyst. Ask me anything about the system:
 * **💳 Pricing & Plans**: Ask "What are the subscription plans?"
@@ -658,19 +683,19 @@ I am your active quantitative analyst. Ask me anything about the system:
 * **📊 Live Volatility Analysis**: Toggle the **(Generate Volatility Report)** key to analyze trends instantly!`;
           }
         }
-        
+
         res.json({ reply: simulatesReply });
         return;
       }
 
       // Use the global official @google/genai model client
       const systemInstruction = lang === 'en'
-        ? `You are the elite AI Advisor and Financial Consultant for the 'Al-Moharif AI' platform (المحترف الذكي للكم).
+        ? `You are the elite AI Advisor and Financial Consultant for the 'Hamza Al-Moharif' platform (حمزه المحترف).
 Your core mission is to confidently and professionally resolve user inquiries, consultations, subscription questions, and operational instructions regarding the platform.
 
-Key Knowledge Base of 'Al-Moharif AI':
+Key Knowledge Base of 'Hamza Al-Moharif':
 1. Platform Vision: 
-   - 'Al-Moharif AI' is an advanced, algorithmic crypto quantitative trading terminal specializing in automated bots, blockchain whale tracking metrics, backtesting, and predictive AI dashboards.
+   - 'Hamza Al-Moharif' is an advanced, algorithmic crypto quantitative trading terminal specializing in automated bots, blockchain whale tracking metrics, backtesting, and predictive AI dashboards.
 2. Core Features:
    - Automated Trading Bots: Spot Grid, Dollar-Cost Averaging (DCA), and the Aggressive Rebound Bot (الارتداد الهجومي). Once configured, they run indefinitely in the background until disabled.
    - Whale Tracking: Monitors live block transactions across Binance and blockchain networks to issue fast transaction-depth mappings and flow alerts.
@@ -720,6 +745,7 @@ Guidelines:
       res.status(500).json({ error: err.message || 'Error occurred inside the backend analysis module.' });
     }
   });
+
 
   // API Route: Secure server-side Gemini sentiment analysis gauge
   app.post('/api/gemini/sentiment', async (req, res) => {
@@ -1130,7 +1156,7 @@ Guidelines:
 **💡 كيف أشحن حسابي أو أشترك؟**
 تفعيل الحسابات حقيقي أو ترقية الباقة يتم بأمان تام وموثق. اطلب كود التفعيل من مالك المنصة الفني أو المدير هنا عبر لوحة الدعم الذكي بفتح تذكرة، وسيقوم المالك على الفور بإرسال كود التفعيل المباشر وفاتورة الدفع الآمنة الموثقة لتنشيط حسابك فوراً وبأعلى الميزات.`;
           } else if (queryLower.includes("ربط") || queryLower.includes("بينانس") || queryLower.includes("مفتاح") || queryLower.includes("api") || queryLower.includes("أمن") || queryLower.includes("امان") || queryLower.includes("تفعيل")) {
-            fallbackReply = `### 🔒 تفعيل التداول الحقيقي وأمن الـ API على Al-Moharif AI:
+            fallbackReply = `### 🔒 تفعيل التداول الحقيقي وأمن الـ API على Hamza Al-Moharif:
 ربط المنصة بحساب بينانس حقيقي سهل ومؤمن بالكامل عبر اتباع الخطوات الفنية التالية:
 
 1. اذهب لحسابك في **بينانس (Binance)** وقم بإنشاء كود API جديد مخصص للعمل الخارجي.
@@ -1162,7 +1188,7 @@ Guidelines:
             fallbackEscalated = true;
             fallbackConfidence = 50;
           } else {
-            fallbackReply = `### 🤖 أهلاً بك في الدعم الذكي لمنصة "المحترف الذكي للكم" (Al-Moharif AI):
+            fallbackReply = `### 🤖 أهلاً بك في الدعم الذكي لمنصة "حمزه المحترف" (Hamza Al-Moharif):
 أنا مستشارك الفني ومساعدك هنا للإجابة عن كل ما يخص التداول والعمل بالمنصة:
 
 - **إذا كنت تستفسر عن الباقات والترقية**: اكتب كلمة "اشتراك" أو "باقة".
@@ -1174,7 +1200,7 @@ Guidelines:
           }
         } else {
           if (queryLower.includes("sub") || queryLower.includes("price") || queryLower.includes("tier") || queryLower.includes("plan") || queryLower.includes("cost") || queryLower.includes("pay") || queryLower.includes("pricing")) {
-            fallbackReply = `### 💎 Subscription Plans and Costs for Al-Moharif AI:
+            fallbackReply = `### 💎 Subscription Plans and Costs for Hamza Al-Moharif:
 Our platform provides structured tiers tailored for every professional:
 
 1. **Trial/Free Tier**:
@@ -1193,7 +1219,7 @@ Our platform provides structured tiers tailored for every professional:
 Subscriptions and tier upgrades are handled securely through invoicing or activation tokens. Simply text me or open a support ticket, and our Platform Manager will directly send you your secure payment invoice and activation key instantly!`;
           } else if (queryLower.includes("link") || queryLower.includes("api") || queryLower.includes("binance") || queryLower.includes("key") || queryLower.includes("security") || queryLower.includes("safe")) {
             fallbackReply = `### 🔒 Active Exchange API Integration & Asset Security:
-Connecting Al-Moharif AI to your live exchange is fully secure and isolated:
+Connecting Hamza Al-Moharif to your live exchange is fully secure and isolated:
 
 1. Navigate to your **Binance account** and register a new security API key.
 2. **Covenant Permissions**: Enable strictly **"Read-only/Enable Reading"** and **"Spot & Margin Trading"** permissions.
@@ -1207,7 +1233,7 @@ The **Aggressive Rebound** strategy is highly robust for capturing rapid reversi
 - **Persistence guarantee**: **This toggle state resides securely in your long-term local storage. Once activated, it stays fully running in Al-Moharif background indefinitely until you choose to explicitly click and deactivate it yourself.**
 - Bypasses raw timing latency to buy dynamic oversold bottoms perfectly.`;
           } else if (queryLower.includes("bot") || queryLower.includes("robot") || queryLower.includes("grid") || queryLower.includes("dca") || queryLower.includes("auto")) {
-            fallbackReply = `### 🤖 Automated Quant Trading Bots on Al-Moharif AI:
+            fallbackReply = `### 🤖 Automated Quant Trading Bots on Hamza Al-Moharif:
 Three continuous background systems execute your trading strategies perfectly 24/7:
 
 1. **Grid Bot (روبوت الشبكة)**:
@@ -1224,7 +1250,7 @@ Need personalized help from a human administrator?
             fallbackEscalated = true;
             fallbackConfidence = 50;
           } else {
-            fallbackReply = `### 🤖 Welcome to Al-Moharif AI Smart Support Advisor:
+            fallbackReply = `### 🤖 Welcome to Hamza Al-Moharif Smart Support Advisor:
 I am your professional AI co-pilot, ready to assist you with any topic regarding our quantitative system:
 
 - **Subscriptions / Pricing**: Ask about "prices", "tiers", or "subscriptions".
@@ -1240,12 +1266,12 @@ I am your professional AI co-pilot, ready to assist you with any topic regarding
         return;
       }
 
-      const systemInstruction = `You are the highly professional Elite AI Advisor and Customer Support Consultant for 'Al-Moharif AI' (منصة المحترف الذكي للكم).
+      const systemInstruction = `You are the highly professional Elite AI Advisor and Customer Support Consultant for 'Hamza Al-Moharif' (منصة حمزه المحترف).
 Your goal is to answer users' consultations, questions, subscription queries, and operational instructions with technical elegance, helpfulness, and precision.
 
-Key knowledge about 'Al-Moharif AI' Platform to use when answering questions:
+Key knowledge about 'Hamza Al-Moharif' Platform to use when answering questions:
 1. Platform Identity & Vision:
-   - Al-Moharif AI (المحترف الذكي) is a world-class, algorithmic and quant crypto trading terminal.
+   - Hamza Al-Moharif (المحترف الذكي) is a world-class, algorithmic and quant crypto trading terminal.
    - It specializes in continuous automated trading bots, smart data aggregation, real-time whale flow tracking, and intelligent sentiment indexes.
 
 2. Core Systems & Features:
@@ -2465,7 +2491,7 @@ Communication Guidelines:
         model: 'gemini-3.5-flash',
         contents: prompt,
         config: {
-          systemInstruction: "You are a professional trader and financial analyst for Al-Moharif AI.",
+          systemInstruction: "You are a professional trader and financial analyst for Hamza Al-Moharif.",
           temperature: 0.5,
         },
       });
@@ -2604,6 +2630,44 @@ Communication Guidelines:
       }
     });
   }
+
+  // API Route: AI Trailing Stop Analysis
+  app.post('/api/gemini/analyze-trailing-stop', async (req, res) => {
+    try {
+      const { symbol, entryPrice, side, marketData } = req.body;
+      
+      const prompt = `Analyze the current market volatility for the cryptocurrency pair '${symbol}'.
+      The user is currently in a ${side} position with an entry price of ${entryPrice}.
+      
+      Recent Market Data: ${JSON.stringify(marketData)}
+      
+      Based on the volatility and standard Binance trading fees (0.02% to 0.05%), calculate:
+      1. An optimal 'Callback Rate' (percentage of price retracement) to avoid "stop hunts" or noise, while protecting significant profit.
+      2. An 'Activation Profit Margin' (percentage above entry price for Long, below for Short) that covers fees and secures a small initial profit before the trailing stop starts mounding the price.
+      
+      Respond ONLY with a JSON object containing:
+      {
+        "callbackRate": number (e.g. 1.5 for 1.5%),
+        "activationProfitMargin": number (e.g. 0.3 for 0.3% profit),
+        "reasonEn": "short reasoning in English",
+        "reasonAr": "short reasoning in Arabic"
+      }`;
+
+      const response = await callGeminiWithRetry({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      const analysis = JSON.parse(response.text || '{}');
+      res.json({ success: true, analysis });
+    } catch (err: any) {
+      console.error('[Gemini Trailing Analysis] Error:', err);
+      res.status(500).json({ success: false, error: 'Failed to analyze trailing stop parameters.' });
+    }
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server initiated. Routing port: ${PORT}`);

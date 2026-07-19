@@ -7,7 +7,7 @@ export function evaluateTradeDecision(inputs: EngineInputs): DecisionResult {
   const { score, reasons, direction, factors } = calculateScore(inputs);
   
   // 1. Initial Validation
-  const validation = validateSignal(inputs, score);
+  const validation = validateSignal(inputs, score, direction);
   if (!validation.passed) {
     reasons.push(validation.reason || "Validation Failed");
     return generateRejectResponse(inputs, reasons, score, direction);

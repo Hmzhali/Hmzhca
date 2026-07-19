@@ -1,6 +1,6 @@
 {
-  "name": "Al-Moharif AI",
-  "description": "Al-Moharif AI Crypto Trading Terminal",
+  "name": "Hamza Al-Moharif",
+  "description": "Hamza Al-Moharif Crypto Trading Terminal",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

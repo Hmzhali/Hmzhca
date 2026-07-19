@@ -55,8 +55,13 @@ import {
   Pause,
   Zap,
   X,
+  ShieldCheck,
+  AlertCircle,
+  Languages,
+  Globe,
 } from "lucide-react";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import {
   auth,
   loginWithGoogle,
@@ -100,9 +105,16 @@ export default function App() {
   );
   const [authError, setAuthError] = useState<string>("");
   const [authSuccess, setAuthSuccess] = useState<string>("");
-  const [mathA, setMathA] = useState(Math.floor(Math.random() * 10) + 1);
-  const [mathB, setMathB] = useState(Math.floor(Math.random() * 10) + 1);
-  const [mathAnswer, setMathAnswer] = useState("");
+
+  const [resetPasswordCode, setResetPasswordCode] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState<string | null>(null);
+  const [resetVerifying, setResetVerifying] = useState<boolean>(false);
+  const [resetVerified, setResetVerified] = useState<boolean>(false);
+  const [newPassword, setNewPassword] = useState<string>("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState<string>("");
+  const [resetLoading, setResetLoading] = useState<boolean>(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -152,6 +164,110 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("almoharif_lang", lang);
   }, [lang]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("oobCode");
+    const mode = params.get("mode");
+    const isResetPath = window.location.pathname === "/reset-password";
+    
+    if (code && (mode === "resetPassword" || isResetPath)) {
+      setResetPasswordCode(code);
+      setResetVerifying(true);
+      setResetError(null);
+      verifyPasswordResetCode(auth, code)
+        .then((email) => {
+          setResetEmail(email);
+          setResetVerified(true);
+          setResetVerifying(false);
+        })
+        .catch((err: any) => {
+          console.error("Failed to verify password reset code:", err);
+          let errMsg = "";
+          if (err.code === "auth/invalid-action-code" || err.code === "auth/expired-action-code") {
+            errMsg = lang === "ar"
+              ? "رابط استعادة كلمة المرور غير صالح أو منتهي الصلاحية. يرجى طلب رابط جديد."
+              : "The password reset link is invalid or has expired. Please request a new link.";
+          } else {
+            errMsg = err.message || "Failed to verify link";
+          }
+          setResetError(errMsg);
+          setResetVerifying(false);
+        });
+    } else if (isResetPath) {
+      setResetError(
+        lang === "ar"
+          ? "الرجاء استخدام رابط إعادة تعيين كلمة المرور الذي تلقيته في البريد الإلكتروني."
+          : "Please use the password reset link you received in your email."
+      );
+    }
+  }, [lang]);
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPasswordCode) return;
+    
+    setResetLoading(true);
+    setResetError(null);
+    setResetSuccess(null);
+    
+    if (newPassword.length < 6) {
+      setResetError(
+        lang === "ar"
+          ? "يجب أن تكون كلمة المرور الجديدة مكونة من 6 أحرف على الأقل."
+          : "New password must be at least 6 characters long."
+      );
+      setResetLoading(false);
+      return;
+    }
+    
+    if (newPassword !== confirmNewPassword) {
+      setResetError(
+        lang === "ar"
+          ? "كلمتا المرور غير متطابقتين!"
+          : "Passwords do not match!"
+      );
+      setResetLoading(false);
+      return;
+    }
+    
+    try {
+      await confirmPasswordReset(auth, resetPasswordCode, newPassword);
+      setResetSuccess(
+        lang === "ar"
+          ? "تم إعادة تعيين كلمة المرور بنجاح! يمكنك الآن تسجيل الدخول باستخدام كلمة المرور الجديدة."
+          : "Password has been successfully reset! You can now log in with your new password."
+      );
+      setTimeout(() => {
+        const url = new URL(window.location.href);
+        url.search = "";
+        url.pathname = "/";
+        window.history.replaceState({}, "", url.toString());
+        setResetPasswordCode(null);
+        setResetVerified(false);
+        setAuthMode("login");
+      }, 4000);
+    } catch (err: any) {
+      console.error("Failed to reset password:", err);
+      let errMsg = "";
+      if (err.code === "auth/expired-action-code") {
+        errMsg = lang === "ar"
+          ? "انتهت صلاحية الرمز. يرجى طلب رمز جديد لاستعادة حسابك."
+          : "The code has expired. Please request a new recovery link.";
+      } else if (err.code === "auth/weak-password") {
+        errMsg = lang === "ar"
+          ? "كلمة المرور ضعيفة للغاية. يرجى استخدام كلمة مرور أقوى."
+          : "The password is too weak. Please choose a stronger password.";
+      } else {
+        errMsg = err.message || "Failed to reset password";
+      }
+      setResetError(errMsg);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const isResetting = !!resetPasswordCode || window.location.pathname === "/reset-password";
 
   // Day/Night (Light/Dark) theme state
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -449,10 +565,30 @@ export default function App() {
     localStorage.setItem("almoharif_manual_orders", JSON.stringify(orders));
   }, [orders]);
 
-  // Active Automated Bots list (defaults to empty [] to prevent fake spammy startup bots)
+  // Active Automated Bots list
   const [activeBots, setActiveBots] = useState<TradingBot[]>(() => {
     const saved = localStorage.getItem("almoharif_active_bots");
-    return saved ? JSON.parse(saved) : [];
+    if (saved) return JSON.parse(saved);
+    
+    // Default starter bot to ensure immediate activity
+    return [{
+      id: "system-starter-bot",
+      symbol: "BTC/USDT",
+      type: "GRID",
+      config: {
+        lowerPrice: 85000,
+        upperPrice: 115000,
+        gridLines: 10,
+        investmentAmount: 1000,
+        sensitivity: "MEDIUM"
+      },
+      status: "RUNNING",
+      isSmartMode: true,
+      accumulatedProfit: 0,
+      profitPercentage: 0,
+      arbitrageCount: 0,
+      createdTime: Date.now()
+    }];
   });
 
   useEffect(() => {
@@ -963,7 +1099,7 @@ export default function App() {
     }
 
     const isAr = lang === "ar";
-    let title = "🔔 <b>تنبيه منصة التداول الهجين (Al-Moharif Hybrid bot)</b>";
+    let title = "🔔 <b>تنبيه منصة التداول الهجين (Hamza Al-Moharif Hybrid bot)</b>";
     let body = "";
     let asciiChart = "";
 
@@ -1031,7 +1167,7 @@ export default function App() {
         : `📊 <b>Order Execution Capture ratio:</b>\n<code>[████████░░ 80%] SUCCESSFUL MATCH</code>`;
     }
 
-    const finalMessage = `${title}\n\n${body}\n\n${asciiChart}\n\n🤖 <i>إشعار آلي آمن ومباشر من خدمة الأمان لـ المحترف Al-Moharif</i>`;
+    const finalMessage = `${title}\n\n${body}\n\n${asciiChart}\n\n🤖 <i>إشعار آلي آمن ومباشر من خدمة الأمان لـ حمزه المحترف</i>`;
 
     try {
       await fetch("/api/telegram/send", {
@@ -1093,6 +1229,7 @@ export default function App() {
   >({});
   const lastVolatilityTriggerRef = useRef<Record<string, number>>({});
   const peakPricesRef = useRef<Record<string, number>>({});
+  const klineCacheRef = useRef<Record<string, { data: any[], lastFetch: number }>>({});
 
   // Browser-native push notification dispatcher
   const dispatchBrowserNotification = (
@@ -1839,8 +1976,29 @@ export default function App() {
       
       const resolvedSymbol = topOpportunity.symbol;
       const targetPairObj = topOpportunity.pairObj;
-      let botTradeAmount = bot.minTradeAmount !== undefined ? bot.minTradeAmount : 0.5;
-      botTradeAmount = Math.max(0.5, botTradeAmount);
+
+      // 1. Fetch/Update Kline History for accurate Technical Analysis
+      let hist15m: { price: number }[] = [];
+      try {
+        const cache = klineCacheRef.current[resolvedSymbol];
+        if (cache && (Date.now() - cache.lastFetch < 1000 * 60 * 5)) { // 5 min cache
+          hist15m = cache.data;
+        } else {
+          const kResp = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(resolvedSymbol)}&interval=15m&limit=210`);
+          if (kResp.ok) {
+            const rawK = await kResp.json();
+            if (Array.isArray(rawK)) {
+              hist15m = rawK.map((k: any) => ({ price: parseFloat(k[4]) })); // Index 4 is close price
+              klineCacheRef.current[resolvedSymbol] = { data: hist15m, lastFetch: Date.now() };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[Bot Engine] History fetch failed, using minimal inputs", err);
+      }
+
+      let botTradeAmount = bot.minTradeAmount !== undefined ? bot.minTradeAmount : 1.0;
+      botTradeAmount = Math.max(1.0, botTradeAmount);
 
       // Calculate stable, deterministic whale activity based on symbol
       let hash = 0;
@@ -1853,7 +2011,7 @@ export default function App() {
           symbol: resolvedSymbol,
           currentPrice: targetPairObj.currentPrice,
           hist5m: [],
-          hist15m: [],
+          hist15m: hist15m,
           volume24h: targetPairObj.volume24h,
           change24h: targetPairObj.change24h,
           rsi: targetPairObj.rsi || 50,
@@ -1864,7 +2022,7 @@ export default function App() {
       const decision = evaluateTradeDecision(inputs);
       
       // If the unified engine rejects it or score is too low, bots can't force trades
-      if (decision.action === 'HOLD' || decision.score < 70) return; 
+      if (decision.action === 'HOLD' || decision.score < 35) return; 
 
       let chosenSide: "BUY" | "SELL" = decision.action;
       let aiExplanationEn = `🤖 [DECISION ENGINE] Score: ${decision.score}%. ${decision.aiCommentaryEn}`;
@@ -2093,6 +2251,14 @@ export default function App() {
     }
 
     const marginCost = quickBuyAmountUsdt;
+    if (marginCost < 1) {
+      alert(
+        lang === "ar"
+          ? "❌ خطأ: الحد الأدنى للهامش للتداول السريع هو 1 دولار."
+          : "❌ Error: Minimum margin for quick buy is $1."
+      );
+      return;
+    }
     if (marginCost > portfolio.usdt) {
       alert(
         lang === "ar"
@@ -2858,7 +3024,7 @@ export default function App() {
 
     // Use Futures balance for Whale Radar
     // Smart Compounding: Use 15% to 30% of portfolio for whales, or the set quick buy amount, whichever is larger
-    let sizeInUsdt = Math.max(quickBuyAmountUsdt, portfolio.futuresUsdt * 0.15);
+    let sizeInUsdt = Math.max(1, Math.max(quickBuyAmountUsdt, portfolio.futuresUsdt * 0.15));
     const minimumTradeSize = isLiveTrading ? 5.1 : 0.5; // Enforce Binance $5 minimum for live trading
 
     if (portfolio.futuresUsdt < sizeInUsdt) {
@@ -3096,7 +3262,7 @@ export default function App() {
           dynamicLeverage = Math.round(10 + ((bestCandidate.confidenceScore - 75) / 25) * 10); // max 20x
         }
 
-        let sizeInUsdt = baseSizing * scalingMultiplier;
+        let sizeInUsdt = Math.max(1, baseSizing * scalingMultiplier);
         const currentPortfolio = portfolioRef.current;
         const minimumTradeSize = isLiveTrading ? 5.1 : 0.5;
 
@@ -3591,6 +3757,168 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
   }
 
   if (!user) {
+    if (isResetting) {
+      return (
+        <div className="min-h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-center p-4 overflow-y-auto relative z-0">
+          <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center my-auto relative z-10 transition-all duration-350">
+            <div className="w-full text-center" dir={lang === "ar" ? "rtl" : "ltr"}>
+              <div className="w-16 h-16 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-500/20">
+                <ShieldCheck className="w-8 h-8 text-indigo-400" />
+              </div>
+              <h1 className="text-xl font-black text-white mb-2 font-mono flex items-center justify-center gap-2">
+                {lang === "ar" ? "إعادة تعيين كلمة المرور" : "Reset Your Password"}
+              </h1>
+              <p className="text-slate-400 text-xs mb-6 leading-relaxed max-w-[280px] mx-auto">
+                {lang === "ar"
+                  ? "تحديث كلمة مرور حسابك مباشرة وبأمان داخل المنصة لتجنب مشاكل انتهاء الصلاحية."
+                  : "Update your password securely and directly within the platform to avoid link expiration."}
+              </p>
+            </div>
+
+            {/* Brand header & Language toggle bar */}
+            <div className="w-full flex justify-between items-center mb-6 border-b border-slate-800/60 pb-4" dir={lang === "ar" ? "rtl" : "ltr"}>
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-bold text-slate-400">
+                  {lang === "ar" ? "اللغة الحالية" : "Language"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+                className="text-xs font-extrabold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 cursor-pointer"
+              >
+                <Languages className="w-3 h-3" />
+                {lang === "ar" ? "English" : "العربية"}
+              </button>
+            </div>
+
+            {resetVerifying ? (
+              <div className="flex flex-col items-center justify-center space-y-4 py-8">
+                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm font-bold text-slate-400 animate-pulse">
+                  {lang === "ar" ? "جاري التحقق من صحة الرابط..." : "Verifying action link..."}
+                </p>
+              </div>
+            ) : resetVerified ? (
+              <form
+                onSubmit={handleConfirmReset}
+                className="w-full space-y-4 mb-4"
+                dir={lang === "ar" ? "rtl" : "ltr"}
+              >
+                {resetEmail && (
+                  <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl mb-2 text-center w-full">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      {lang === "ar" ? "الحساب المستهدف" : "Target Account"}
+                    </span>
+                    <span className="text-xs font-mono text-emerald-400 font-bold">
+                      {resetEmail}
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-1 w-full">
+                  <label className="block text-xs font-bold text-slate-400 text-start px-1">
+                    {lang === "ar" ? "كلمة المرور الجديدة" : "New Password"}
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-start font-mono"
+                    required
+                    disabled={resetLoading}
+                  />
+                </div>
+
+                <div className="space-y-1 w-full">
+                  <label className="block text-xs font-bold text-slate-400 text-start px-1">
+                    {lang === "ar" ? "تأكيد كلمة المرور الجديدة" : "Confirm New Password"}
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-start font-mono"
+                    required
+                    disabled={resetLoading}
+                  />
+                </div>
+
+                {resetError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-rose-400 text-xs font-bold p-3.5 bg-rose-500/10 rounded-xl border border-rose-500/20 text-start leading-relaxed flex items-start gap-2 shadow-md w-full"
+                  >
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{resetError}</span>
+                  </motion.div>
+                )}
+
+                {resetSuccess && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-emerald-400 text-xs font-bold p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-start leading-relaxed flex items-start gap-2 shadow-md w-full"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    <span>{resetSuccess}</span>
+                  </motion.div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={resetLoading || !!resetSuccess}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2 pointer-events-auto cursor-pointer relative z-10 shadow-lg"
+                >
+                  {resetLoading ? (
+                    <span className="animate-pulse">{lang === "ar" ? "جاري الحفظ..." : "Saving..."}</span>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      {lang === "ar" ? "حفظ كلمة المرور الجديدة" : "Save New Password"}
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <div className="w-full space-y-4" dir={lang === "ar" ? "rtl" : "ltr"}>
+                {resetError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-rose-400 text-xs font-bold p-3.5 bg-rose-500/10 rounded-xl border border-rose-500/20 text-start leading-relaxed flex items-start gap-2 shadow-md mb-4 w-full"
+                  >
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{resetError}</span>
+                  </motion.div>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = new URL(window.location.href);
+                    url.search = "";
+                    url.pathname = "/";
+                    window.history.replaceState({}, "", url.toString());
+                    setResetPasswordCode(null);
+                    setResetVerified(false);
+                    setAuthMode("login");
+                  }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 px-4 rounded-xl transition text-sm flex justify-center items-center gap-2 pointer-events-auto cursor-pointer shadow-lg"
+                >
+                  {lang === "ar" ? "الرجوع لتسجيل الدخول" : "Back to Sign In"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     const handleAuthSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       setAuthError("");
@@ -3637,27 +3965,28 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         }
 
         if (authMode === "register") {
-          const expectedAnswer = (mathA + mathB).toString();
-          if (mathAnswer !== expectedAnswer) {
-            setAuthError(
-              lang === "ar"
-                ? "إجابة التحقق البشري خاطئة"
-                : "Incorrect human verification answer",
-            );
-            setMathA(Math.floor(Math.random() * 10) + 1);
-            setMathB(Math.floor(Math.random() * 10) + 1);
-            setMathAnswer("");
-            return;
-          }
           await registerWithEmail(emailForSignIn.trim(), passwordForSignIn);
         } else {
           // Login
           await loginWithEmailProvider(emailForSignIn.trim(), passwordForSignIn);
         }
       } catch (err: any) {
-        console.error("Auth failed:", err);
         const code = err.code || "";
         const msg = err.message || "";
+        
+        const expectedCodes = [
+          "auth/invalid-credential",
+          "auth/wrong-password",
+          "auth/user-not-found",
+          "auth/invalid-email",
+          "auth/weak-password",
+          "auth/email-already-in-use",
+          "auth/too-many-requests"
+        ];
+        const isExpected = expectedCodes.includes(code) || expectedCodes.some(c => msg.includes(c));
+        if (!isExpected) {
+          console.warn("Auth failed:", err);
+        }
         
         let translatedError = "";
         
@@ -3721,7 +4050,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
             <div className="w-full text-center">
               <Activity className="w-16 h-16 text-indigo-500 mx-auto mb-6 animate-pulse" />
               <h1 className="text-2xl font-black text-white mb-2 font-mono">
-                Al-Moharif AI
+                Hamza Al-Moharif
               </h1>
               <p className="text-slate-400 text-sm mb-6 max-w-sm mx-auto">
                 {lang === "ar"
@@ -3731,30 +4060,46 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
             </div>
           )}
 
+          {/* Brand header & Language toggle bar */}
+          <div className="w-full flex justify-between items-center mb-6 border-b border-slate-800/60 pb-4" dir={lang === "ar" ? "rtl" : "ltr"}>
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs font-bold text-slate-400">
+                {lang === "ar" ? "اللغة الحالية" : "Language"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+              className="text-xs font-extrabold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 cursor-pointer"
+            >
+              <Languages className="w-3 h-3" />
+              {lang === "ar" ? "English" : "العربية"}
+            </button>
+          </div>
+
           <form
             onSubmit={handleAuthSubmit}
             className="w-full space-y-4 mb-4"
             dir={lang === "ar" ? "rtl" : "ltr"}
           >
             <div className="space-y-1">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right sm:text-left px-1">
+              <label className="block text-xs font-bold text-slate-400 text-start px-1">
                 {lang === "ar" ? "البريد الإلكتروني" : "Email Address"}
               </label>
               <input
                 type="email"
                 value={emailForSignIn}
                 onChange={(e) => setEmailForSignIn(e.target.value)}
-                placeholder={
-                  lang === "ar" ? "mail@example.com" : "mail@example.com"
-                }
-                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-center font-mono"
+                placeholder="mail@example.com"
+                className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-start font-mono"
                 required
               />
             </div>
 
             {authMode !== "forgot" && (
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right sm:text-left px-1">
+                <label className="block text-xs font-bold text-slate-400 text-start px-1">
                   {lang === "ar" ? "كلمة المرور" : "Password"}
                 </label>
                 <input
@@ -3762,41 +4107,32 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                   value={passwordForSignIn}
                   onChange={(e) => setPasswordForSignIn(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-center"
-                  required
-                />
-              </div>
-            )}
-
-            {authMode === "register" && (
-              <div className="bg-slate-950/50 border border-slate-800 p-4 rounded-xl space-y-2">
-                <label className="block text-xs font-bold text-slate-400">
-                  {lang === "ar"
-                    ? "للتحقق أنك لست روبوت، أجب عن التالي:"
-                    : "Anti-bot verification: Answer this:"}{" "}
-                  <span className="text-indigo-400 font-mono text-sm">{mathA} + {mathB} = ?</span>
-                </label>
-                <input
-                  type="number"
-                  value={mathAnswer}
-                  onChange={(e) => setMathAnswer(e.target.value)}
-                  placeholder={lang === "ar" ? "الإجابة الصحيحة" : "Correct answer"}
-                  className="w-full bg-slate-900 border border-slate-750 px-3 py-2 rounded-lg text-slate-100 text-center focus:border-indigo-500 text-sm font-mono"
+                  className="w-full bg-slate-950 border border-slate-800 px-4 py-3 rounded-xl text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500 text-sm text-start"
                   required
                 />
               </div>
             )}
 
             {authError && (
-              <div className="text-rose-400 text-xs font-bold p-3 bg-rose-500/10 rounded-xl border border-rose-500/20 text-right sm:text-left leading-relaxed">
-                {authError}
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-rose-400 text-xs font-bold p-3.5 bg-rose-500/10 rounded-xl border border-rose-500/20 text-start leading-relaxed flex items-start gap-2 shadow-md shadow-rose-950/20"
+              >
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <span>{authError}</span>
+              </motion.div>
             )}
 
             {authSuccess && (
-              <div className="text-emerald-400 text-xs font-bold p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-right sm:text-left leading-relaxed">
-                {authSuccess}
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-emerald-400 text-xs font-bold p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-start leading-relaxed flex items-start gap-2 shadow-md shadow-emerald-950/20"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span>{authSuccess}</span>
+              </motion.div>
             )}
 
             <button
@@ -3817,7 +4153,7 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
             </button>
           </form>
 
-          <div className="w-full flex justify-between px-1 mb-6 text-xs font-bold text-slate-400 gap-2">
+          <div className="w-full flex justify-between px-1 mb-6 text-xs font-bold text-slate-400 gap-2" dir={lang === "ar" ? "rtl" : "ltr"}>
             {authMode !== "login" && (
               <button
                 type="button"
@@ -3877,16 +4213,28 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
               try {
                 await loginWithGoogle();
               } catch (err: any) {
-                console.error("Google Auth failed:", err);
-                let msg = err.message || "Authentication error";
+                const code = err.code || "";
+                const msg = err.message || "";
+                
+                const expectedCodes = [
+                  "auth/popup-closed-by-user",
+                  "auth/cancelled-popup-request",
+                  "auth/invalid-credential"
+                ];
+                const isExpected = expectedCodes.includes(code) || expectedCodes.some(c => msg.includes(c));
+                if (!isExpected) {
+                  console.warn("Google Auth failed:", err);
+                }
+                
+                let errorMsg = msg || "Authentication error";
                 if (msg.includes("auth/network-request-failed")) {
-                  msg = lang === "ar"
+                  errorMsg = lang === "ar"
                     ? "فشل الاتصال بالخادم. يرجى التأكد من اتصالك بالإنترنت أو إيقاف مانع الإعلانات."
                     : "Network error. Please check your internet or disable adblockers.";
                 } else if (msg.includes("popup-closed-by-user")) {
-                  msg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول عبر Google." : "Sign-in popup was closed.";
+                  errorMsg = lang === "ar" ? "تم إغلاق نافذة تسجيل الدخول عبر Google." : "Sign-in popup was closed.";
                 }
-                setAuthError(msg);
+                setAuthError(errorMsg);
               }
             }}
             className="w-full bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-750 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition pointer-events-auto cursor-pointer"

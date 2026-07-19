@@ -220,7 +220,9 @@ export interface FuturesPosition {
   takeProfit?: number;
   // Trailing Stop Fields
   trailingStopEnabled?: boolean;
-  trailingStopOffset?: number; // e.g. 0.05 for $0.05 retrace
+  isSmartTrailing?: boolean; // New: AI-powered trailing stop
+  activationPrice?: number; // New: Price where trailing stop becomes active
+  trailingStopOffset?: number; // e.g. 0.05 for $0.05 retrace or %
   // Trailing Take-Profit Fields
   trailingTakeProfitEnabled?: boolean;
   trailingTakeProfitOffset?: number; // e.g. 0.02 for 2%

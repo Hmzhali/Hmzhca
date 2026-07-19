@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import BotTradesHistory from './BotTradesHistory';
+import { PostMortemAnalysis } from './PostMortemAnalysis';
 import { MarketPair, TradingBot, BotType, GridBotConfig, DcaBotConfig } from '../types';
 import { ARABIC_DICT, INITIAL_PAIRS } from '../utils/marketData';
 import { Play, Pause, Trash2, Cpu, Sparkles, TrendingUp, DollarSign, Layers, Wallet, Percent, ShieldAlert, AlertTriangle, TrendingDown, BarChart3, Sliders, Search, Activity, Zap, CheckCircle2, Compass, Crosshair, Award } from 'lucide-react';
@@ -112,7 +113,7 @@ export default function BotTrading({
       };
     } else if (item.recBotType === 'DCA') {
       botConfig = {
-        baseOrderSize: parseFloat((portfolio?.usdt !== undefined && portfolio.usdt <= 15 ? 0.5 : 2.0).toFixed(1)),
+        baseOrderSize: parseFloat((portfolio?.usdt !== undefined && portfolio.usdt <= 15 ? 1.0 : 2.0).toFixed(1)),
         safetyOrderSize: parseFloat((portfolio?.usdt !== undefined && portfolio.usdt <= 15 ? 1.0 : 4.0).toFixed(1)),
         priceDeviation: 1.5,
         maxSafetyOrders: 4,
@@ -143,7 +144,7 @@ export default function BotTrading({
       isSmartMode: true,
       reboundFocusEnabled: true,
       reboundTimeframes: ['15m', '30m', '1h'],
-      minTradeAmount: 0.5
+      minTradeAmount: 1.0
     };
 
     onCreateBot(newBot as any);
@@ -237,7 +238,7 @@ export default function BotTrading({
   // Rebound Focus States (Multi-Timeframe 15m, 30m, 1h Reversion Tracker)
   const [reboundFocusEnabled, setReboundFocusEnabled] = useState<boolean>(true);
   const [reboundTimeframes, setReboundTimeframes] = useState<string[]>(['15m', '30m', '1h']);
-  const [minTradeAmount, setMinTradeAmount] = useState<string>('0.5');
+  const [minTradeAmount, setMinTradeAmount] = useState<string>('1.0');
   const [autoRebalance, setAutoRebalance] = useState<boolean>(false);
 
   // GRID States
@@ -365,7 +366,7 @@ export default function BotTrading({
           isSmartMode: true,
           reboundFocusEnabled: true,
           reboundTimeframes: ['15m', '30m'],
-          minTradeAmount: 0.5
+          minTradeAmount: 1.0
         },
         {
           symbol: 'ETH/USDT',
@@ -384,7 +385,7 @@ export default function BotTrading({
           isSmartMode: true,
           reboundFocusEnabled: true,
           reboundTimeframes: ['30m', '1h'],
-          minTradeAmount: 0.5
+          minTradeAmount: 1.0
         },
         {
           symbol: 'SOL/USDT',
@@ -403,7 +404,7 @@ export default function BotTrading({
           isSmartMode: true,
           reboundFocusEnabled: true,
           reboundTimeframes: ['15m', '1h'],
-          minTradeAmount: 0.5
+          minTradeAmount: 1.0
         },
         {
           symbol: 'BNB/USDT',
@@ -422,7 +423,7 @@ export default function BotTrading({
           isSmartMode: true,
           reboundFocusEnabled: true,
           reboundTimeframes: ['15m', '30m', '1h'],
-          minTradeAmount: 0.5
+          minTradeAmount: 1.0
         }
       ];
 
@@ -484,7 +485,7 @@ export default function BotTrading({
         isSmartMode,
         reboundFocusEnabled,
         reboundTimeframes,
-        minTradeAmount: Math.max(0.5, parseFloat(minTradeAmount) || 0.5),
+        minTradeAmount: Math.max(1.0, parseFloat(minTradeAmount) || 1.0),
         autoRebalance
       });
     } else if (selectedBotType === 'DCA') {
@@ -516,7 +517,7 @@ export default function BotTrading({
         isSmartMode,
         reboundFocusEnabled,
         reboundTimeframes,
-        minTradeAmount: Math.max(0.5, parseFloat(minTradeAmount) || 0.5),
+        minTradeAmount: Math.max(1.0, parseFloat(minTradeAmount) || 1.0),
         autoRebalance
       });
     } else if (selectedBotType === 'RSI') {
@@ -547,7 +548,7 @@ export default function BotTrading({
         isSmartMode,
         reboundFocusEnabled,
         reboundTimeframes,
-        minTradeAmount: Math.max(0.5, parseFloat(minTradeAmount) || 0.5),
+        minTradeAmount: Math.max(1.0, parseFloat(minTradeAmount) || 1.0),
         autoRebalance
       });
     }
@@ -896,6 +897,9 @@ export default function BotTrading({
       <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col justify-between" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
         <div>
           <BotTradesHistory lang={lang} />
+          <div className="mt-8">
+            <PostMortemAnalysis lang={lang} />
+          </div>
           
           {/* Bot switch category tabs */}
           <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-5 text-[11px] overflow-x-auto whitespace-nowrap hide-scrollbar">

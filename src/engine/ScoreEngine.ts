@@ -8,23 +8,27 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
   const pCurrent = inputs.currentPrice;
   const p15m = (inputs.hist15m || []).map(h => h.price);
 
-  // 1. Trend Analysis (EMA 50 vs EMA 200 or 24h Change fallback) - max 15 points
+  // 1. Trend Analysis (EMA 50 vs EMA 200 or 24h Change fallback) - max 20 points
   let currentTrend: 'UP' | 'DOWN' | 'SIDEWAYS' = 'SIDEWAYS';
+  const ema200 = p15m.length >= 200 
+    ? p15m.slice(-200).reduce((a, b) => a + b, 0) / 200 
+    : (p15m.length > 0 ? p15m.reduce((a, b) => a + b, 0) / p15m.length : pCurrent);
   
   if (p15m.length > 50) {
     const ema50 = p15m.slice(-50).reduce((a, b) => a + b, 0) / 50;
-    const ema200 = p15m.length > 200 ? p15m.slice(-200).reduce((a, b) => a + b, 0) / 200 : pCurrent;
     
-    if (ema50 > ema200 * 1.001) {
+    if (ema50 > ema200 * 1.002) {
       currentTrend = 'UP';
-      score += 15;
-      factors['trend'] = 15;
-      reasons.push("Bullish Trend Confirmed (EMA50 > EMA200)");
-    } else if (ema50 < ema200 * 0.999) {
+      score += 20;
+      factors['trend'] = 20;
+      reasons.push("Strong Bullish Trend (EMA50 > EMA200)");
+    } else if (ema50 < ema200 * 0.998) {
       currentTrend = 'DOWN';
-      score -= 15;
-      factors['trend'] = -15;
-      reasons.push("Bearish Trend Confirmed (EMA50 < EMA200)");
+      score -= 20;
+      factors['trend'] = -20;
+      reasons.push("Strong Bearish Trend (EMA50 < EMA200)");
+    } else {
+      reasons.push("Consolidation Phase (EMA50/200 tight)");
     }
   } else {
     // Fallback to 24h change if not enough history
@@ -61,16 +65,42 @@ export function calculateScore(inputs: EngineInputs): { score: number, reasons: 
     }
   }
 
-  // 2. Momentum (RSI) - max 10 points
+  // 1.5 Volatility Analysis (Bollinger Bands) - max 10 points
+  if (p15m.length >= 20) {
+    const last20 = p15m.slice(-20);
+    const mean = last20.reduce((a, b) => a + b, 0) / 20;
+    const stdDev = Math.sqrt(last20.reduce((s, x) => s + Math.pow(x - mean, 2), 0) / 20);
+    const upperBand = mean + (2 * stdDev);
+    const lowerBand = mean - (2 * stdDev);
+    const bandwidth = ((upperBand - lowerBand) / mean) * 100;
+
+    if (bandwidth < 0.6) {
+      // Extremely low volatility - likely sideways
+      score -= 15;
+      factors['volatility'] = -15;
+      reasons.push(`Low Volatility Sideways (Bandwidth: ${bandwidth.toFixed(2)}%)`);
+    } else if (bandwidth > 5) {
+      // High volatility
+      score += 5;
+      factors['volatility'] = 5;
+      reasons.push(`Healthy Volatility (Bandwidth: ${bandwidth.toFixed(2)}%)`);
+    }
+  }
+
+  // 2. Momentum (RSI) - max 15 points
   const rsi = inputs.rsi ?? 50;
-  if (rsi < 30) {
-    score += 10;
-    factors['rsi'] = 10;
-    reasons.push(`Oversold (RSI: ${rsi})`);
-  } else if (rsi > 70) {
-    score -= 10;
-    factors['rsi'] = -10;
-    reasons.push(`Overbought (RSI: ${rsi})`);
+  if (rsi < 40) {
+    // RSI < 40 is the new BUY threshold
+    const rsiScore = Math.round((40 - rsi) / 2) + 5;
+    score += rsiScore;
+    factors['rsi'] = rsiScore;
+    reasons.push(`Oversold/Discount Zone (RSI: ${rsi.toFixed(1)})`);
+  } else if (rsi > 60) {
+    // RSI > 60 is the new SELL threshold
+    const rsiScore = Math.round((rsi - 60) / 2) + 5;
+    score -= rsiScore;
+    factors['rsi'] = -rsiScore;
+    reasons.push(`Overbought/Premium Zone (RSI: ${rsi.toFixed(1)})`);
   } else if (rsi > 50 && currentTrend === 'UP') {
     score += 5;
     factors['rsi'] = 5;

@@ -138,10 +138,23 @@ export default function FuturesTrading({
              const existingPos = prev.find(old => old.id === p.id);
              const currentPeakPnl = existingPos?.maxPnlPercent ?? p.unrealizedPnlPercent;
              const newPeakPnl = Math.max(currentPeakPnl, p.unrealizedPnlPercent);
+             
+             const currentPeakPrice = existingPos?.peakPrice ?? p.currentPrice;
+             let newPeakPrice = currentPeakPrice;
+             if (p.side === 'LONG') {
+               newPeakPrice = Math.max(currentPeakPrice, p.currentPrice);
+             } else {
+               newPeakPrice = Math.min(currentPeakPrice, p.currentPrice);
+             }
+
              return { 
                ...p, 
                maxPnlPercent: newPeakPnl,
-               timestamp: existingPos?.timestamp ?? Date.now() 
+               peakPrice: newPeakPrice,
+               timestamp: existingPos?.timestamp ?? Date.now(),
+               isSmartTrailing: existingPos?.isSmartTrailing,
+               activationPrice: existingPos?.activationPrice,
+               trailingStopOffset: existingPos?.trailingStopOffset,
              };
           });
         });
@@ -371,6 +384,10 @@ export default function FuturesTrading({
   const [trailingStopOffset, setTrailingStopOffset] = useState<string>("");
   const [trailingTakeProfitEnabled, setTrailingTakeProfitEnabled] = useState<boolean>(false);
   const [trailingTakeProfitOffset, setTrailingTakeProfitOffset] = useState<string>("");
+  const [aiTrailingStopEnabled, setAiTrailingStopEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem("almoharif_futures_ai_trailing");
+    return saved ? JSON.parse(saved) : false;
+  });
   const [limitPrice, setLimitPrice] = useState<string>(
     activePair.currentPrice.toString(),
   );
@@ -434,7 +451,11 @@ export default function FuturesTrading({
       "almoharif_futures_auto_sl_5",
       JSON.stringify(autoStopLoss5Percent),
     );
-  }, [positionSide, marginType, leverage, orderAmountUsdt, orderType, autoStopLoss5Percent]);
+    localStorage.setItem(
+      "almoharif_futures_ai_trailing",
+      JSON.stringify(aiTrailingStopEnabled),
+    );
+  }, [positionSide, marginType, leverage, orderAmountUsdt, orderType, autoStopLoss5Percent, aiTrailingStopEnabled]);
 
   // Algorithmic Automatic Bot Configuration
   const [isAlgoActive, setIsAlgoActive] = useState<boolean>(() => {
@@ -590,8 +611,32 @@ export default function FuturesTrading({
           if ((peak > 10.0 && current <= peak - 5.0 && current > 1.0) || current <= -80) {
             console.log(`[Auto Shield SL Trigger] Symbol: ${p.symbol}, PnL: ${current}%, Peak: ${peak}%`);
             handleClosePosition(p.id);
+            return;
           }
-        } 
+        }
+
+        // C) AI Smart Trailing Stop Logic
+        if (p.isSmartTrailing && p.activationPrice && p.trailingStopOffset) {
+          const isActivated = p.side === 'LONG' 
+            ? p.currentPrice >= p.activationPrice 
+            : p.currentPrice <= p.activationPrice;
+
+          if (isActivated) {
+            const currentPrice = p.currentPrice;
+            const peakPrice = p.peakPrice || (p.side === 'LONG' ? 0 : 9999999);
+            
+            // Calculate retrace percentage from peak
+            const retracePercent = p.side === 'LONG'
+              ? ((peakPrice - currentPrice) / peakPrice) * 100
+              : ((currentPrice - peakPrice) / peakPrice) * 100;
+
+            if (retracePercent >= p.trailingStopOffset) {
+               console.log(`[AI Smart Trailing Trigger] Symbol: ${p.symbol}, Retrace: ${retracePercent.toFixed(2)}%, Offset: ${p.trailingStopOffset}%`);
+               handleClosePosition(p.id);
+               return;
+            }
+          }
+        }
       }
     });
   }, [positions, isLiveTrading, autoStopLoss5Percent, handleClosePosition, isAlgoActive]);
@@ -841,6 +886,20 @@ export default function FuturesTrading({
       return;
     }
 
+    if (requiredMargin < 1) {
+      if (onTriggerToast) {
+        onTriggerToast({
+          id: Date.now().toString(),
+          symbol: activePair.symbol,
+          timestamp: Date.now(),
+          isVolatilityWarning: true,
+          aiExplanationAr: "⚠️ الحد الأدنى لهامش التداول هو 1 دولار. يرجى زيادة حجم الصفقة أو تقليل الرافعة المالية.",
+          aiExplanationEn: "⚠️ Minimum trading margin is $1. Please increase your trade size or reduce leverage.",
+        });
+      }
+      return;
+    }
+
     // Live Binance API execution path
     if (
       isLiveTrading &&
@@ -1033,9 +1092,66 @@ export default function FuturesTrading({
           2,
         ),
       ),
+      isSmartTrailing: aiTrailingStopEnabled,
     };
 
     setPositions((prev) => [newPosition, ...prev]);
+
+    // Handle AI Trailing Stop Analysis trigger
+    if (aiTrailingStopEnabled) {
+      setTimeout(async () => {
+        try {
+          const entryPrice = newPosition.entryPrice;
+          const klineResp = await fetch(`/api/gateway/klines?symbol=${encodeURIComponent(activePair.symbol)}&interval=1h&limit=10`);
+          const marketData = await klineResp.json();
+
+          const resp = await fetch("/api/gemini/analyze-trailing-stop", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              symbol: activePair.symbol,
+              entryPrice,
+              side: positionSide,
+              marketData
+            }),
+          });
+          const data = await resp.json();
+          if (data.success && data.analysis) {
+            const { callbackRate, activationProfitMargin, reasonEn, reasonAr } = data.analysis;
+            
+            // Calculate activation price
+            // Long: activationPrice = entryPrice * (1 + activationProfitMargin/100)
+            // Short: activationPrice = entryPrice * (1 - activationProfitMargin/100)
+            const activationPrice = positionSide === 'LONG' 
+              ? entryPrice * (1 + activationProfitMargin / 100)
+              : entryPrice * (1 - activationProfitMargin / 100);
+
+            setPositions(prev => prev.map(p => {
+              if (p.id === newPosition.id) {
+                return {
+                  ...p,
+                  activationPrice,
+                  trailingStopOffset: callbackRate, // Store as percentage
+                };
+              }
+              return p;
+            }));
+
+            if (onTriggerToast) {
+              onTriggerToast({
+                id: `ai-trail-${Date.now()}`,
+                symbol: activePair.symbol,
+                timestamp: Date.now(),
+                aiExplanationAr: `🎯 تم تفعيل ميزة التتبع الذكي: سيتم بدء الملاحقة عند سعر ${activationPrice.toFixed(2)} بنسبة تراجع ${callbackRate}%. ${reasonAr}`,
+                aiExplanationEn: `🎯 AI Trailing Activated: Tracking starts at ${activationPrice.toFixed(2)} with ${callbackRate}% callback. ${reasonEn}`,
+              });
+            }
+          }
+        } catch (e) {
+          console.error("AI Trailing analysis failed", e);
+        }
+      }, 2000);
+    }
 
     if (onTriggerToast) {
       onTriggerToast({
@@ -2474,6 +2590,39 @@ The bot is active and scanning markets every 2.5s for instant reaction.
                         </div>
                       )}
                     </div>
+                    <div className="space-y-2 col-span-2 pb-2 border-b border-slate-800/50">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 text-[10px] font-bold text-indigo-400 cursor-pointer">
+                          <div className="relative inline-flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={aiTrailingStopEnabled}
+                              onChange={(e) => setAiTrailingStopEnabled(e.target.checked)}
+                              className="sr-only peer"
+                            />
+                            <div className="w-8 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
+                          </div>
+                          <span className="flex items-center gap-1">
+                            <Cpu className="w-3 h-3" />
+                            {lang === "ar" ? "إيقاف خسارة متحرك ذكي (AI)" : "AI Smart Trailing Stop"}
+                          </span>
+                        </label>
+                        {aiTrailingStopEnabled && (
+                          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+                            <Sparkles className="w-2.5 h-2.5 text-indigo-400 animate-pulse" />
+                            <span className="text-[8px] text-indigo-400 font-bold uppercase tracking-tighter">AI Active</span>
+                          </div>
+                        )}
+                      </div>
+                      {aiTrailingStopEnabled && (
+                        <p className="text-[9px] text-slate-500 leading-tight">
+                          {lang === 'ar' 
+                            ? "سيقوم Gemini بتحليل التذبذب لتحديد نسبة التراجع المناسبة آلياً ولن يبدأ التتبع إلا بعد تخطي نقطة التعادل."
+                            : "Gemini will analyze volatility to auto-set callback rates and only activates once break-even profit is secured."}
+                        </p>
+                      )}
+                    </div>
+
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
                         <input

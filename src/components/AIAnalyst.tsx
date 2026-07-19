@@ -55,7 +55,7 @@ export default function AIAnalyst({ lang, activeBots = [], allPairs = [] }: AIAn
       tag: 'api_security',
       label_ar: 'ما خطورة تفعيل خيار السحب (Withdraw) في الـ API؟',
       label_en: 'What is the danger of enabling API withdrawals?',
-      prompt: 'اشرح لي بالتفصيل الفني ما خطورة تمكين صلاحيات السحب (Withdrawals) على مفاتيح API الخاصة بالبوتات، وكيف يقيّمني المحترف المالي من خطر تصفية الحساب أو تهريب الأرصدة؟',
+      prompt: 'اشرح لي بالتفصيل الفني ما خطورة تمكين صلاحيات السحب (Withdrawals) على مفاتيح API الخاصة بالبوتات، وكيف يقيّمني حمزه المحترف المالي من خطر تصفية الحساب أو تهريب الأرصدة؟',
     },
     {
       tag: 'dca_vs_grid',

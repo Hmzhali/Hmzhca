@@ -46,7 +46,7 @@ export default function HamzaLiveMarkets({ lang, pairs = [], onAddPair }: HamzaL
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-100 mt-1">
-              {lang === 'ar' ? 'أسواق حمزة كربيتو الحية 🚀' : 'Hamza Crypto Live Markets 🚀'}
+              {lang === 'ar' ? 'أسواق حمزة المحترف الحية 🚀' : 'Hamza Al-Moharif Live Markets 🚀'}
             </h2>
             <p className="text-slate-400 text-xs leading-normal max-w-2xl">
               {lang === 'ar'

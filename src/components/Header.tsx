@@ -202,7 +202,7 @@ export default function Header({
   const d = ARABIC_DICT;
 
   const tabs = [
-    { id: 'dashboard', label_ar: 'أسواق حمزة الحية 🚀', label_en: 'Hamza Live Markets 🚀' },
+    { id: 'dashboard', label_ar: 'حمزه المحترف 🚀', label_en: 'Hamza Al-Moharif 🚀' },
     { id: 'spot', label_ar: 'التداول الفوري ⚡', label_en: 'Spot Trading ⚡' },
         { id: 'futures', label_ar: 'العقود الآجلة 📈', label_en: 'Futures Trading 📈' },
                 { id: 'whales', label_ar: 'رادار الحيتان 🐋', label_en: 'Whale Radar 🐋' },
@@ -228,7 +228,7 @@ export default function Header({
           </div>
           <div className="hidden sm:block">
             <h1 className="text-sm font-extrabold tracking-tight text-white flex items-center gap-1.5">
-              {lang === 'ar' ? 'حمزه كاربيتو' : 'Hamza Crypto'}
+              {lang === 'ar' ? 'حمزه المحترف' : 'Hamza Al-Moharif'}
               <span className="text-[9px] bg-indigo-950 text-indigo-400 font-mono px-1.5 py-0.5 rounded border border-indigo-900">PRO</span>
             </h1>
           </div>
@@ -614,7 +614,7 @@ export default function Header({
               </div>
               <div>
                 <h3 className="text-sm font-extrabold text-white">
-                  {lang === 'ar' ? 'تثبيت تطبيق حمزه كاربيتو على حسابك 📱' : 'Install Hamza Crypto App'}
+                  {lang === 'ar' ? 'تثبيت تطبيق حمزه المحترف على حسابك 📱' : 'Install Hamza Al-Moharif App'}
                 </h3>
               </div>
             </div>
