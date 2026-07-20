@@ -4,3 +4,4 @@ export * from './RiskManager';
 export * from './SignalValidator';
 export * from './DecisionEngine';
 export * from './SelfLearning';
+export * from './TradeExecution';

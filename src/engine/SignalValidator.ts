@@ -1,16 +1,18 @@
 import { EngineInputs } from './types';
+import { checkTradeEntry } from './TradeExecution';
 
 export function validateSignal(inputs: EngineInputs, score: number, direction: string): { passed: boolean, reason: string | null } {
   // Hard filters that reject a trade immediately
   const pCurrent = inputs.currentPrice;
   const p15m = (inputs.hist15m || []).map(h => h.price);
 
-  // 1. Trend Filter (EMA 200) - Removed hard block to increase trade frequency
-  /*
-  if (p15m.length >= 20) {
-    ...
+  // 1. Trend Filter (EMA 200) - Enforced via checkTradeEntry to prevent trading against the trend
+  if (direction === 'BUY' || direction === 'SELL') {
+    const trendCheck = checkTradeEntry(inputs, direction as 'BUY' | 'SELL');
+    if (!trendCheck.passed) {
+      return { passed: false, reason: trendCheck.reason };
+    }
   }
-  */
 
   // 1.5 Volatility Filter
   if (p15m.length >= 20) {

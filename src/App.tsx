@@ -682,11 +682,15 @@ export default function App() {
             const initialMargin = (p.amount * p.entryPrice) / p.leverage;
             const uPnlPercent = (unrealPnl / initialMargin) * 100;
 
+            const currentMax = p.maxPnlPercent !== undefined ? p.maxPnlPercent : 0;
+            const newMax = Math.max(currentMax, uPnlPercent);
+
             return {
               ...p,
               currentPrice: match.currentPrice,
               unrealizedPnl: unrealPnl,
               unrealizedPnlPercent: uPnlPercent,
+              maxPnlPercent: newMax,
             };
           }
           return p;

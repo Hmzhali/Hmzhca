@@ -460,23 +460,23 @@ export default function FuturesTrading({
   // Algorithmic Automatic Bot Configuration
   const [isAlgoActive, setIsAlgoActive] = useState<boolean>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_active");
-    return saved ? JSON.parse(saved) : false;
+    return saved ? JSON.parse(saved) : true;
   });
   const [algoSide, setAlgoSide] = useState<"LONG" | "SHORT" | "NEUTRAL">(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_side");
-    return saved ? JSON.parse(saved) : "NEUTRAL";
+    return saved ? JSON.parse(saved) : "LONG";
   });
   const [algoLeverage, setAlgoLeverage] = useState<number>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_lev");
-    return saved ? JSON.parse(saved) : 20;
+    return saved ? JSON.parse(saved) : 11.5;
   });
   const [algoTakeProfit, setAlgoTakeProfit] = useState<number>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_tp");
-    return saved ? JSON.parse(saved) : 10.0;
+    return saved ? JSON.parse(saved) : 8.5;
   });
   const [algoStopLoss, setAlgoStopLoss] = useState<number>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_sl");
-    return saved ? JSON.parse(saved) : -5.0;
+    return saved ? JSON.parse(saved) : -4.5;
   });
   const [algoType, setAlgoType] = useState<"GRID" | "DCA">(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_type");
@@ -484,7 +484,7 @@ export default function FuturesTrading({
   });
   const [algoInvestment, setAlgoInvestment] = useState<string>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_inv");
-    return saved ? JSON.parse(saved) : "500";
+    return saved ? JSON.parse(saved) : "";
   });
   const [algoMaxConcurrentTrades, setAlgoMaxConcurrentTrades] =
     useState<number>(() => {
@@ -516,6 +516,34 @@ export default function FuturesTrading({
   useEffect(() => {
     localStorage.setItem("almoharif_futures_algo_symbols", JSON.stringify(algoTradedSymbols));
   }, [algoTradedSymbols]);
+
+  // Migrate extremely narrow SL/TP local storage values on load to prevent instant stop outs
+  useEffect(() => {
+    const savedSL = localStorage.getItem("almoharif_futures_algo_sl");
+    if (savedSL) {
+      try {
+        const parsed = JSON.parse(savedSL);
+        if (parsed === -0.2) {
+          localStorage.setItem("almoharif_futures_algo_sl", JSON.stringify(-4.5));
+          setAlgoStopLoss(-4.5);
+        }
+      } catch (e) {
+        // Safe fallback
+      }
+    }
+    const savedTP = localStorage.getItem("almoharif_futures_algo_tp");
+    if (savedTP) {
+      try {
+        const parsed = JSON.parse(savedTP);
+        if (parsed === 0.5) {
+          localStorage.setItem("almoharif_futures_algo_tp", JSON.stringify(8.5));
+          setAlgoTakeProfit(8.5);
+        }
+      } catch (e) {
+        // Safe fallback
+      }
+    }
+  }, []);
 
   const lastTradeOpenTimeRef = useRef<number>(0);
 
@@ -1323,12 +1351,31 @@ export default function FuturesTrading({
 
               const isProfit = pos.unrealizedPnlPercent >= targetTP;
               const isLoss = pos.unrealizedPnlPercent <= targetSL;
+
+              // Trailing Stop Loss: activates when underlying asset price profit reaches 0.5%
+              // (Price change % = unrealizedPnlPercent / leverage)
+              // Activation threshold in ROE %: 0.5% * leverage (e.g., 5.75% ROE at 11.5x leverage)
+              // Trailing callback/offset in ROE %: 0.15% * leverage (e.g., 1.725% ROE at 11.5x leverage)
+              // This is highly robust, prevents instant stop-out due to bid-ask spread and secures a healthy profit!
+              const activationThreshold = 0.5 * pos.leverage;
+              const trailingOffset = 0.15 * pos.leverage;
+              const peakPnl = pos.maxPnlPercent !== undefined ? pos.maxPnlPercent : pos.unrealizedPnlPercent;
+              let isTrailingStopTriggered = false;
+              if (peakPnl >= activationThreshold) {
+                const trailingSLThreshold = peakPnl - trailingOffset;
+                if (pos.unrealizedPnlPercent <= trailingSLThreshold) {
+                  isTrailingStopTriggered = true;
+                }
+              }
               
               // Grace period of 3 minutes (180 seconds) to let the trade breathe and survive fees/spreads
               const isGracePeriodOver = ageMin >= 3.0;
               const isCatastrophicLoss = pos.unrealizedPnlPercent <= -50; // Protect against complete liquidation
               
-              const shouldExit = (isLoss && (isGracePeriodOver || isCatastrophicLoss)) || (isProfit && isGracePeriodOver);
+              const shouldExit = (isLoss && (isGracePeriodOver || isCatastrophicLoss)) || 
+                                 (isProfit && isGracePeriodOver) ||
+                                 isTrailingStopTriggered;
+
               if (shouldExit) {
                 shouldClean = true;
                 const isTP = pos.unrealizedPnlPercent >= targetTP;
@@ -1339,8 +1386,8 @@ export default function FuturesTrading({
                       symbol: pos.symbol,
                       timestamp: Date.now(),
                       isMilestone: true,
-                      aiExplanationAr: `🤖 [صفقة تجريبية آليه - إغلاق تلقائي] تم الخروج من صفقة ${pos.symbol} بنجاح عند ${isTP ? `أخذ الربح (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `وقف الخسارة (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`,
-                      aiExplanationEn: `🤖 [AI Autopilot - Auto Close] Closed simulated position on ${pos.symbol} at ${isTP ? `Take Profit (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `Stop Loss (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`
+                      aiExplanationAr: `🤖 [صفقة تجريبية آليه - إغلاق تلقائي] تم الخروج من صفقة ${pos.symbol} بنجاح عند ${isTrailingStopTriggered ? `الوقف المتحرك لتأمين الأرباح (🎯 Trailing SL: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : isTP ? `أخذ الربح (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `وقف الخسارة (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`,
+                      aiExplanationEn: `🤖 [AI Autopilot - Auto Close] Closed simulated position on ${pos.symbol} at ${isTrailingStopTriggered ? `Trailing SL to lock profit (🎯 Trailing SL: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : isTP ? `Take Profit (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `Stop Loss (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`
                     });
                   }, 50);
                 }
@@ -1351,6 +1398,12 @@ export default function FuturesTrading({
 
             // Cooldown check for opening new positions (e.g., 3s) to prevent opening too fast
             if (Date.now() - lastTradeOpenTimeRef.current < 3000) {
+              return updatedPrev;
+            }
+
+            // Prevent opening any trade if there is currently any open losing simulated position (unrealizedPnl < 0)
+            const hasLosingPosition = updatedPrev.some(p => p.id.startsWith("algo-pos-") && p.unrealizedPnl < 0);
+            if (hasLosingPosition) {
               return updatedPrev;
             }
 
@@ -1557,13 +1610,31 @@ export default function FuturesTrading({
 
               const isProfit = pos.unrealizedPnlPercent >= targetTP;
               const isLoss = pos.unrealizedPnlPercent <= targetSL;
+
+              // Trailing Stop Loss: activates when underlying asset price profit reaches 0.5%
+              // (Price change % = unrealizedPnlPercent / leverage)
+              // Activation threshold in ROE %: 0.5% * leverage (e.g., 5.75% ROE at 11.5x leverage)
+              // Trailing callback/offset in ROE %: 0.15% * leverage (e.g., 1.725% ROE at 11.5x leverage)
+              // This is highly robust, prevents instant stop-out due to bid-ask spread and secures a healthy profit!
+              const activationThreshold = 0.5 * pos.leverage;
+              const trailingOffset = 0.15 * pos.leverage;
+              const peakPnl = pos.maxPnlPercent !== undefined ? pos.maxPnlPercent : pos.unrealizedPnlPercent;
+              let isTrailingStopTriggered = false;
+              if (peakPnl >= activationThreshold) {
+                const trailingSLThreshold = peakPnl - trailingOffset;
+                if (pos.unrealizedPnlPercent <= trailingSLThreshold) {
+                  isTrailingStopTriggered = true;
+                }
+              }
               
               // Grace period of 3 minutes (180 seconds) to let the trade breathe and survive fees/spreads
               const isGracePeriodOver = ageMin >= 3.0;
               const isCatastrophicLoss = pos.unrealizedPnlPercent <= -50; // Protect against complete liquidation
               
               // Only exit if thresholds met and grace period over or loss is catastrophic
-              const shouldExit = (isLoss && (isGracePeriodOver || isCatastrophicLoss)) || (isProfit && isGracePeriodOver);
+              const shouldExit = (isLoss && (isGracePeriodOver || isCatastrophicLoss)) || 
+                                 (isProfit && isGracePeriodOver) ||
+                                 isTrailingStopTriggered;
 
               if (shouldExit) {
                 try {
@@ -1610,8 +1681,8 @@ export default function FuturesTrading({
                           symbol: pos.symbol,
                           timestamp: Date.now(),
                           isMilestone: true,
-                          aiExplanationAr: `🤖 [صفقة حقيقية آليه - إغلاق تلقائي بينانس] تم الخروج التلقائي من صفقة ${pos.symbol} بنجاح بسعر السوق عند ${isTP ? `أخذ الربح (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `وقف الخسارة (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`,
-                          aiExplanationEn: `🤖 [AI Autopilot - Binance Auto Close] Auto exited live position on ${pos.symbol} at ${isTP ? `Take Profit (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `Stop Loss (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`
+                          aiExplanationAr: `🤖 [صفقة حقيقية آليه - إغلاق تلقائي بينانس] تم الخروج التلقائي من صفقة ${pos.symbol} بنجاح بسعر السوق عند ${isTrailingStopTriggered ? `الوقف المتحرك الذكي لتأمين الأرباح (🎯 Trailing SL: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : isTP ? `أخذ الربح (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `وقف الخسارة (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`,
+                          aiExplanationEn: `🤖 [AI Autopilot - Binance Auto Close] Auto exited live position on ${pos.symbol} at ${isTrailingStopTriggered ? `Trailing SL to lock profit (🎯 Trailing SL: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : isTP ? `Take Profit (✅ TP: +${pos.unrealizedPnlPercent.toFixed(1)}%)` : `Stop Loss (❌ SL: ${pos.unrealizedPnlPercent.toFixed(1)}%)`}.`
                         });
                       }
                     }
@@ -1629,6 +1700,16 @@ export default function FuturesTrading({
             if (Date.now() - lastTradeOpenTimeRef.current < 3000) {
               return;
             }
+
+            // Prevent opening any trade if there is currently any open losing bot position (unrealizedPnl < 0)
+            const hasLiveLosingPosition = positions.some((pos) => {
+              const normSymbol = pos.symbol.toUpperCase();
+              const isBotManaged = (algoTradedSymbols || []).some(
+                s => s.toUpperCase() === normSymbol || s.toUpperCase().replace(/\//g, "") === normSymbol.replace(/\//g, "")
+              );
+              return isBotManaged && pos.unrealizedPnl < 0;
+            });
+            if (hasLiveLosingPosition) return;
 
             // Only count bot-managed positions for the concurrent limit
             const liveBotPositionsCount = positions.filter((pos) => {
@@ -3279,13 +3360,13 @@ The bot is active and scanning markets every 2.5s for instant reaction.
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center font-mono">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
                     <div className="bg-slate-900/60 p-2.5 rounded border border-slate-850">
                       <span className="text-[9px] text-slate-500 block">
                         {lang === "ar" ? "العائد غير المحقق" : "UPnL"}
                       </span>
-                      <span className="text-xs font-bold text-emerald-400">
-                        +$28.45 (+5.6%)
+                      <span className="text-xs font-black text-[#10b981] font-mono block mt-1" dir="ltr">
+                        {lang === "ar" ? "(5.6%+) $28.45+" : "+$28.45 (+5.6%)"}
                       </span>
                     </div>
                     <div className="bg-slate-900/60 p-2.5 rounded border border-slate-850">
@@ -3294,8 +3375,8 @@ The bot is active and scanning markets every 2.5s for instant reaction.
                           ? "أوامر الشبكة المفعلة"
                           : "Grids Filled"}
                       </span>
-                      <span className="text-xs font-bold text-slate-200">
-                        12 / 20
+                      <span className="text-xs font-black text-slate-200 font-mono block mt-1" dir="ltr">
+                        {lang === "ar" ? "20 / 12" : "12 / 20"}
                       </span>
                     </div>
                     <div className="bg-slate-900/60 p-2.5 rounded border border-slate-850">
@@ -3304,17 +3385,17 @@ The bot is active and scanning markets every 2.5s for instant reaction.
                           ? "مستويات الشراء الفائتة"
                           : "Pyramid Steps"}
                       </span>
-                      <span className="text-xs font-bold text-emerald-400">
-                        4 Safeties hit
+                      <span className="text-xs font-black text-[#10b981] font-sans block mt-1">
+                        {lang === "ar" ? "Safeties hit 4" : "4 Safeties hit"}
                       </span>
                     </div>
                     <div className="bg-slate-900/60 p-2.5 rounded border border-slate-850">
                       <span className="text-[9px] text-slate-500 block">
                         {lang === "ar" ? "الرافعة الديناميكية" : "Dynamic Lev"}
                       </span>
-                      <span className="text-xs font-bold text-indigo-400">
+                      <span className="text-xs font-black text-indigo-400 font-sans block mt-1" dir="ltr">
                         {smartRiskPilot
-                          ? `${algoLeverage / 2}x (Smart AI)`
+                          ? `${(algoLeverage / 2).toFixed(2).replace(/\.00$/, "")}x (Smart AI)`
                           : `${algoLeverage}x`}
                       </span>
                     </div>
