@@ -32,9 +32,64 @@ export function validateSignal(inputs: EngineInputs, score: number, direction: s
     return { passed: false, reason: "Insufficient Liquidity/Volume" };
   }
 
-  // Must have a minimum score threshold
-  if (score < 20) { 
-    return { passed: false, reason: `Score too low (${score}/100)` };
+  // 2. Strict Score Threshold for very strong signals (تطاريد الصفقات لا تفتح إلا بإشارة قوية جداً)
+  // Raise threshold from 20 to 85 to ensure we only execute the absolute best trades
+  if (score < 85) { 
+    return { passed: false, reason: `Score too low (${score}/100). Requires a very strong signal (>= 85)` };
+  }
+
+  // 3. Strong Momentum & Overbought/Oversold Filter (زخم قوي وتشبع بيعي أو شرائي قوية)
+  const rsi = inputs.rsi ?? 50;
+  if (direction === 'BUY') {
+    const isOversold = rsi <= 38;
+    const isStrongMomentum = rsi >= 55;
+    if (!isOversold && !isStrongMomentum) {
+      return { 
+        passed: false, 
+        reason: `Momentum Filter: No extreme oversold (RSI: ${rsi.toFixed(1)} > 38) and no strong upward momentum (RSI < 55)` 
+      };
+    }
+  } else if (direction === 'SELL') {
+    const isOverbought = rsi >= 62;
+    const isStrongMomentum = rsi <= 45;
+    if (!isOverbought && !isStrongMomentum) {
+      return { 
+        passed: false, 
+        reason: `Momentum Filter: No extreme overbought (RSI: ${rsi.toFixed(1)} < 62) and no strong downward momentum (RSI > 45)` 
+      };
+    }
+  }
+
+  // 4. Candlestick Reversal Confirmation (بداية ارتداد والشموع تمام)
+  if (p15m.length >= 2) {
+    const lastClosedPrice = p15m[p15m.length - 1];
+    if (direction === 'BUY' && pCurrent <= lastClosedPrice) {
+      return { 
+        passed: false, 
+        reason: `Candle Filter: Waiting for price to show upward rebound/reversal (Current Price $${pCurrent.toFixed(4)} <= Last 15m Price $${lastClosedPrice.toFixed(4)})` 
+      };
+    }
+    if (direction === 'SELL' && pCurrent >= lastClosedPrice) {
+      return { 
+        passed: false, 
+        reason: `Candle Filter: Waiting for price to show downward retrace/reversal (Current Price $${pCurrent.toFixed(4)} >= Last 15m Price $${lastClosedPrice.toFixed(4)})` 
+      };
+    }
+  }
+
+  // 5. Whale Radar Filter (رادار الحيتان)
+  const whaleAct = inputs.whaleActivity ?? 50;
+  if (direction === 'BUY' && whaleAct < 55) {
+    return { 
+      passed: false, 
+      reason: `Whale Radar: Weak accumulation activity (${whaleAct}% < 55%)` 
+    };
+  }
+  if (direction === 'SELL' && whaleAct > 45) {
+    return { 
+      passed: false, 
+      reason: `Whale Radar: Weak distribution activity (${whaleAct}% > 45%)` 
+    };
   }
 
   return { passed: true, reason: null };

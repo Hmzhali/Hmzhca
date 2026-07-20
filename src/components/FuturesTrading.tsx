@@ -91,6 +91,7 @@ export default function FuturesTrading({
   const pendingMarginRef = useRef(0);
   const executionLockRef = useRef<Record<string, boolean>>({});
   const lastErrorToastTimeRef = useRef<Record<string, number>>({});
+  const lastCloseTimeRef = useRef<Record<string, number>>({});
 
   const activeUsdtBalance = liveBalance !== null ? liveBalance : portfolio.futuresUsdt;
 
@@ -225,6 +226,7 @@ export default function FuturesTrading({
 
         const result = await response.json();
         if (result.success) {
+          lastCloseTimeRef.current[target.symbol.toUpperCase()] = Date.now();
           if (onTriggerToast) {
             onTriggerToast({
               id: Date.now().toString(),
@@ -258,6 +260,7 @@ export default function FuturesTrading({
       }
     } else {
       // Local/Simulated position close
+      lastCloseTimeRef.current[target.symbol.toUpperCase()] = Date.now();
       setPositions((prev) => prev.filter((p) => p.id !== id));
       if (onTriggerToast) {
         onTriggerToast({
@@ -472,7 +475,7 @@ export default function FuturesTrading({
   });
   const [algoTakeProfit, setAlgoTakeProfit] = useState<number>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_tp");
-    return saved ? JSON.parse(saved) : 8.5;
+    return saved ? JSON.parse(saved) : 18.5;
   });
   const [algoStopLoss, setAlgoStopLoss] = useState<number>(() => {
     const saved = localStorage.getItem("almoharif_futures_algo_sl");
@@ -634,9 +637,11 @@ export default function FuturesTrading({
 
         // B) Standard Auto Shield (Trailing Stop Loss in Profit)
         if (autoStopLoss5Percent && isGracePeriodOver) {
-          // Trigger ONLY if it has reached a decent profit (e.g., > 10%) and then retraces, protecting the entry.
-          // Emergency stop only at very extreme levels (-80%) to avoid getting wicked out prematurely.
-          if ((peak > 10.0 && current <= peak - 5.0 && current > 1.0) || current <= -80) {
+          // بدلاً من إغلاق سريع عند -1% تراجع، زدنا نسبة الأمان (Buffer) ونضيف شرطاً لا يغلق إلا إذا تراجع السعر عن نقطة الدخول بمسافة أمان
+          const retraceTrigger = peak > 15.0 ? 8.0 : 5.0; // زيادة التراجع المسموح به إلى 8% في الصفقات الرابحة
+          
+          if ((peak > 15.0 && current <= peak - retraceTrigger) || current <= -25.0) { 
+            // رفعنا حد الخسارة المطلق لـ -25% لنتجنب التصفية الكارثية ونعطي صفقات البوت المجال الكافي للتنفس
             console.log(`[Auto Shield SL Trigger] Symbol: ${p.symbol}, PnL: ${current}%, Peak: ${peak}%`);
             handleClosePosition(p.id);
             return;
@@ -1300,7 +1305,7 @@ export default function FuturesTrading({
     isSmartMode, lang, allPairs, algoMaxConcurrentTrades, algoType,
     algoAutoSearchPair, priceHistory15m, activePair, liveBalance, isLiveTrading,
     fetchRealFuturesData, setPositions, portfolio, lastErrorToastTimeRef,
-    algoTradedSymbols, setAlgoTradedSymbols
+    algoTradedSymbols, setAlgoTradedSymbols, lastCloseTimeRef
   });
 
   useEffect(() => {
@@ -1310,7 +1315,7 @@ export default function FuturesTrading({
       isSmartMode, lang, allPairs, algoMaxConcurrentTrades, algoType,
       algoAutoSearchPair, priceHistory15m, activePair, liveBalance, isLiveTrading,
       fetchRealFuturesData, setPositions, portfolio, lastErrorToastTimeRef,
-      algoTradedSymbols, setAlgoTradedSymbols
+      algoTradedSymbols, setAlgoTradedSymbols, lastCloseTimeRef
     };
   });
 
@@ -1330,7 +1335,7 @@ export default function FuturesTrading({
           isSmartMode, lang, allPairs, algoMaxConcurrentTrades, algoType,
           algoAutoSearchPair, priceHistory15m, activePair, liveBalance, isLiveTrading,
           fetchRealFuturesData, setPositions, portfolio, lastErrorToastTimeRef,
-          algoTradedSymbols, setAlgoTradedSymbols
+          algoTradedSymbols, setAlgoTradedSymbols, lastCloseTimeRef
         } = state;
 
         // No throttle for max activity when algo is active
@@ -1355,10 +1360,10 @@ export default function FuturesTrading({
               // Trailing Stop Loss: activates when underlying asset price profit reaches 0.5%
               // (Price change % = unrealizedPnlPercent / leverage)
               // Activation threshold in ROE %: 0.5% * leverage (e.g., 5.75% ROE at 11.5x leverage)
-              // Trailing callback/offset in ROE %: 0.15% * leverage (e.g., 1.725% ROE at 11.5x leverage)
+              // Trailing callback/offset in ROE %: 0.30% * leverage (e.g., 3.45% ROE at 11.5x leverage)
               // This is highly robust, prevents instant stop-out due to bid-ask spread and secures a healthy profit!
               const activationThreshold = 0.5 * pos.leverage;
-              const trailingOffset = 0.15 * pos.leverage;
+              const trailingOffset = 0.30 * pos.leverage;
               const peakPnl = pos.maxPnlPercent !== undefined ? pos.maxPnlPercent : pos.unrealizedPnlPercent;
               let isTrailingStopTriggered = false;
               if (peakPnl >= activationThreshold) {
@@ -1378,6 +1383,7 @@ export default function FuturesTrading({
 
               if (shouldExit) {
                 shouldClean = true;
+                lastCloseTimeRef.current[pos.symbol.toUpperCase()] = Date.now();
                 const isTP = pos.unrealizedPnlPercent >= targetTP;
                 if (onTriggerToast) {
                   setTimeout(() => {
@@ -1428,6 +1434,10 @@ export default function FuturesTrading({
                 );
                 if (hasPos) continue;
 
+                // 5-minute (300,000 ms) cooldown check for each specific pair/symbol after last close
+                const lastClose = lastCloseTimeRef.current[pair.symbol.toUpperCase()] || 0;
+                if (Date.now() - lastClose < 300000) continue;
+
                 const pairInputs: EngineInputs = {
                   symbol: pair.symbol,
                   currentPrice: pair.currentPrice,
@@ -1459,6 +1469,11 @@ export default function FuturesTrading({
                 decision = bestDecision;
               } else {
                 // Fallback to activePair evaluation if no good candidates found
+                const lastCloseFallback = lastCloseTimeRef.current[activePair.symbol.toUpperCase()] || 0;
+                if (Date.now() - lastCloseFallback < 300000) {
+                  return updatedPrev;
+                }
+
                 const fallbackInputs: EngineInputs = {
                   symbol: activePair.symbol,
                   currentPrice: activePair.currentPrice,
@@ -1474,6 +1489,12 @@ export default function FuturesTrading({
                 decision = evaluateTradeDecision(fallbackInputs);
               }
             } else {
+              // 5-minute cooldown check for the single activePair
+              const lastCloseActive = lastCloseTimeRef.current[activePair.symbol.toUpperCase()] || 0;
+              if (Date.now() - lastCloseActive < 300000) {
+                return updatedPrev;
+              }
+
               const inputs: EngineInputs = {
                 symbol: activePair.symbol,
                 currentPrice: activePair.currentPrice,
@@ -1489,8 +1510,8 @@ export default function FuturesTrading({
               decision = evaluateTradeDecision(inputs);
             }
 
-            // Responsive threshold of 40 for higher trade frequency
-            if (decision.score < 40 || decision.action === 'HOLD') {
+            // Enforce very strong signal threshold (Score >= 85)
+            if (decision.score < 85 || decision.action === 'HOLD') {
               return updatedPrev; // Skip trade!
             }
 
@@ -1614,10 +1635,10 @@ export default function FuturesTrading({
               // Trailing Stop Loss: activates when underlying asset price profit reaches 0.5%
               // (Price change % = unrealizedPnlPercent / leverage)
               // Activation threshold in ROE %: 0.5% * leverage (e.g., 5.75% ROE at 11.5x leverage)
-              // Trailing callback/offset in ROE %: 0.15% * leverage (e.g., 1.725% ROE at 11.5x leverage)
+              // Trailing callback/offset in ROE %: 0.30% * leverage (e.g., 3.45% ROE at 11.5x leverage)
               // This is highly robust, prevents instant stop-out due to bid-ask spread and secures a healthy profit!
               const activationThreshold = 0.5 * pos.leverage;
-              const trailingOffset = 0.15 * pos.leverage;
+              const trailingOffset = 0.30 * pos.leverage;
               const peakPnl = pos.maxPnlPercent !== undefined ? pos.maxPnlPercent : pos.unrealizedPnlPercent;
               let isTrailingStopTriggered = false;
               if (peakPnl >= activationThreshold) {
@@ -1671,6 +1692,7 @@ export default function FuturesTrading({
                     const resData = await response.json();
                     if (resData.success) {
                       cleanedPositions = true;
+                      lastCloseTimeRef.current[normSymbol] = Date.now();
                       // Remove closed symbol from managed list
                       setAlgoTradedSymbols((prev) => prev.filter(s => s.toUpperCase() !== normSymbol && s.toUpperCase().replace(/\//g, "") !== normSymbol.replace(/\//g, "")));
                       
@@ -1736,6 +1758,10 @@ export default function FuturesTrading({
                 );
                 if (hasPos) continue;
 
+                // Skip if the symbol is in the 5-minute cooldown after closing
+                const lastClose = lastCloseTimeRef.current[pair.symbol.toUpperCase()] || 0;
+                if (Date.now() - lastClose < 300000) continue;
+
                 const pairInputs: EngineInputs = {
                   symbol: pair.symbol,
                   currentPrice: pair.currentPrice,
@@ -1767,6 +1793,11 @@ export default function FuturesTrading({
                 decision = bestDecision;
               } else {
                 // Fallback to activePair evaluation if no good candidates found
+                const lastCloseFallback = lastCloseTimeRef.current[activePair.symbol.toUpperCase()] || 0;
+                if (Date.now() - lastCloseFallback < 300000) {
+                  return;
+                }
+
                 const fallbackInputs: EngineInputs = {
                   symbol: activePair.symbol,
                   currentPrice: activePair.currentPrice,
@@ -1782,6 +1813,12 @@ export default function FuturesTrading({
                 decision = evaluateTradeDecision(fallbackInputs);
               }
             } else {
+              // 5-minute cooldown check for the single activePair
+              const lastCloseActive = lastCloseTimeRef.current[activePair.symbol.toUpperCase()] || 0;
+              if (Date.now() - lastCloseActive < 300000) {
+                return;
+              }
+
               const inputs: EngineInputs = {
                 symbol: activePair.symbol,
                 currentPrice: activePair.currentPrice,
@@ -1797,8 +1834,8 @@ export default function FuturesTrading({
               decision = evaluateTradeDecision(inputs);
             }
 
-            // Responsive threshold of 40 for higher trade frequency
-            if (decision.score < 40 || decision.action === 'HOLD') {
+            // Enforce very strong signal threshold (Score >= 85)
+            if (decision.score < 85 || decision.action === 'HOLD') {
               return; // Skip trade!
             }
 
@@ -3213,7 +3250,7 @@ The bot is active and scanning markets every 2.5s for instant reaction.
                       min="0.01"
                       max="100"
                       value={algoTakeProfit}
-                      onChange={(e) => setAlgoTakeProfit(parseFloat(e.target.value) || 3.0)}
+                      onChange={(e) => setAlgoTakeProfit(parseFloat(e.target.value) || 18.5)}
                       className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 font-mono text-xs text-slate-200"
                     />
                   </div>
