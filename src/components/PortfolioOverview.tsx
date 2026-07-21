@@ -193,9 +193,9 @@ export default function PortfolioOverview({
     title: lang === 'ar' ? 'تحليل وتوزيع المحفظة' : 'Portfolio Asset Weights',
     subtitle: lang === 'ar' ? 'تتبع أصولك المسعرة مباشرة بالدولار وتوزيعها الاستراتيجي' : 'Live balance weights tracked and analyzed in real-time USD equivalent',
     realTimeFeed: lang === 'ar' ? 'تزامن مباشر مع Binance' : 'Real-Time Binance Sync',
-    demoFeed: lang === 'ar' ? 'محاكاة المحفظة الافتراضية' : 'Demo Sandbox Ledger',
-    apiConnected: lang === 'ar' ? 'شبكة API متصلة ومفتوحة للتداول' : 'Binance API Channel Opened',
-    apiDisconnected: lang === 'ar' ? 'وضع الحساب الافتراضي التراكمي' : 'Offline Paper Sandbox Mode',
+    demoFeed: lang === 'ar' ? 'بانتظار ربط الحساب الحقيقي' : 'Waiting for Live Account Link',
+    apiConnected: lang === 'ar' ? 'محفظة Binance الحقيقية نشطة' : 'Real Binance Wallet Active',
+    apiDisconnected: lang === 'ar' ? 'الحساب غير متصل ببينانس' : 'Account Not Linked to Binance',
     totalBalance: lang === 'ar' ? 'إجمالي رأس المال (Spot + Futures)' : 'Total Net Equity',
     chartDisplayMode: lang === 'ar' ? 'عرض الرسم البياني بـ' : 'Chart Base',
     amount: lang === 'ar' ? 'الكمية الفعلية' : 'Coin Amount',
@@ -287,24 +287,7 @@ export default function PortfolioOverview({
 
       {/* Real-time sync feedback and helper directives */}
       <div className="w-full" id="live-sync-feedback-wrapper" style={{ direction: lang === 'ar' ? 'rtl' : 'ltr' }}>
-        {/* Scenario 1: API Connected but currently in Paper Trading mode */}
-        {isConnected && !isLiveTrading && (
-          <div className="bg-amber-950/20 border border-amber-900/40 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-right sm:text-left select-none animate-in fade-in duration-300">
-            <div className="flex gap-2.5 items-start">
-              <Info className="w-4.5 h-4.5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-bold text-amber-300 block text-right" style={{ direction: 'rtl' }}>
-                  {lang === 'ar' ? 'ℹ️ تم ربط مفاتيح API بنجاح، ولكن التداول التجريبي نشط حالياً' : 'ℹ️ API Linked successfully, but Paper Trading is active'}
-                </span>
-                <p className="text-[10px] text-slate-300 leading-normal text-right" style={{ direction: 'rtl' }}>
-                  {lang === 'ar'
-                    ? 'لعرض وتحديث محفظتك الحقيقية وأرصدتك المباشرة من منصة بينانس داخل هذا الجدول، يرجى تفعيل الزر الأخضر "تداول حقيقي 🟢" المتواجد في شريط رأس الصفحة بالأعلى.'
-                    : 'To fetch, sync, and display your real Binance assets inside this window, please toggle the green "Live Trade 🟢" switch on the main header bar above.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+
 
         {/* Scenario 2: API Connected and in Live Trading mode but wants to refresh or has error */}
         {isConnected && isLiveTrading && (
@@ -386,33 +369,7 @@ export default function PortfolioOverview({
           </div>
         )}
 
-        {/* Scenario 3b: API is NOT connected and Paper Trading is active - Showcase a guide to setup and linkage */}
-        {!isConnected && !isLiveTrading && (
-          <div className="bg-indigo-950/15 border border-indigo-900/30 rounded-xl p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 select-none animate-in fade-in duration-300">
-            <div className="flex gap-2.5 items-start">
-              <KeyRound className="w-4.5 h-4.5 text-indigo-400 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-bold text-indigo-300 block">
-                  {lang === 'ar' ? '🔌 هل ترغب بربط محفظتك الحقيقية في بينانس؟' : '🔌 Connect and Sync Your Real Binance Wallet'}
-                </span>
-                <p className="text-[10px] text-slate-400 leading-normal">
-                  {lang === 'ar'
-                    ? 'يمكنك دمج رصيدك ومحافظ تداولك الفردية الحقيقية من بينانس لمراقبة صفقاتك والتمتع بذكاء بوت التداول التلقائي دون قلق حيال الأمان (خيار السحب معطل تماماً بموجب إعداداتك).'
-                    : 'Analyze your real exchange net worth, and empower high-speed grid and DCA algorithms to manage transactions. Full API lock security ensures we cannot withdraw any funds.'}
-                </p>
-              </div>
-            </div>
 
-            <button
-              type="button"
-              onClick={() => onTabChange && onTabChange('security')}
-              className="px-3.5 py-1.5 text-[11px] font-bold text-slate-950 bg-indigo-400 hover:bg-indigo-300 rounded-lg transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-[0_0_12px_rgba(129,140,248,0.25)] hover:shadow-[0_0_15px_rgba(129,140,248,0.45)] cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5 animate-pulse text-indigo-950" />
-              <span>{lang === 'ar' ? 'ربط حساب بينانس مجاناً ⚡' : 'Connect Binance API ⚡'}</span>
-            </button>
-          </div>
-        )}
       </div>
 
       <PortfolioGrowthChart lang={lang} />

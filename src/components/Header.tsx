@@ -20,7 +20,6 @@ interface HeaderProps {
   futuresEquity: number;
   isConnected: boolean;
   isLiveTrading: boolean;
-  setIsLiveTrading: (val: boolean) => void;
   balanceSyncError?: string | null;
   futuresApiError?: string | null;
   userData?: any;
@@ -40,7 +39,6 @@ export default function Header({
   futuresEquity,
   isConnected,
   isLiveTrading,
-  setIsLiveTrading,
   balanceSyncError,
   futuresApiError,
   userData,
@@ -277,27 +275,12 @@ export default function Header({
             </div>
           </div>
 
-          {/* Modes Toggle */}
-          <div className="flex items-center bg-slate-950 p-0.5 rounded border border-slate-800 shrink-0">
-            <button
-              onClick={() => setIsLiveTrading(false)}
-              className={`px-2 py-1 text-[10px] font-bold rounded-sm transition ${!isLiveTrading ? 'bg-amber-400 text-slate-950 shadow-[0_0_8px_rgba(245,158,11,0.3)]' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-               {lang === 'ar' ? 'تجريبي' : 'PAPER'}
-            </button>
-            <button
-              onClick={() => {
-                setIsLiveTrading(true);
-                if (!isConnected) {
-                  setActiveTab('security');
-                  setTimeout(() => alert(lang === 'ar' ? '⚡ تم التبديل. يرجى إدخال API بينانس.' : '⚡ Switched. Please input Binance API.'), 120);
-                }
-              }}
-              className={`px-2 py-1 text-[10px] font-bold rounded-sm transition flex gap-1 items-center ${isLiveTrading ? 'bg-emerald-400 text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.3)] animate-pulse' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-               {isLiveTrading && <span className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
-               {lang === 'ar' ? 'حقيقي' : 'LIVE'}
-            </button>
+          {/* Modes Toggle - Fixed to Live */}
+          <div className="flex items-center bg-emerald-500/10 px-2.5 py-1.5 rounded border border-emerald-500/30 shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.1)]">
+            <span className="flex items-center gap-1.5 text-[10px] font-black text-emerald-400 uppercase tracking-tight">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+              {lang === 'ar' ? 'التداول الحقيقي نشط ⚡' : 'LIVE TRADING ACTIVE ⚡'}
+            </span>
           </div>
 
           {/* Install App */}

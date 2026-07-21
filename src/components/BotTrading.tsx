@@ -19,7 +19,7 @@ interface BotTradingProps {
   onDeleteBot: (id: string) => void;
   onToggleStatus: (id: string) => void;
   onResumeAllBots?: () => void;
-  portfolio?: { usdt: number };
+  portfolio?: { usdt: number; futuresUsdt: number; btc: number };
   onUpdateBotConfig?: (id: string, updatedConfig: any) => void;
   pairs?: MarketPair[];
   isLiveTrading?: boolean;
@@ -113,8 +113,8 @@ export default function BotTrading({
       };
     } else if (item.recBotType === 'DCA') {
       botConfig = {
-        baseOrderSize: parseFloat((portfolio?.usdt !== undefined && portfolio.usdt <= 15 ? 1.0 : 2.0).toFixed(1)),
-        safetyOrderSize: parseFloat((portfolio?.usdt !== undefined && portfolio.usdt <= 15 ? 1.0 : 4.0).toFixed(1)),
+        baseOrderSize: parseFloat((portfolio?.futuresUsdt !== undefined && portfolio.futuresUsdt <= 15 ? 1.0 : 2.0).toFixed(1)),
+        safetyOrderSize: parseFloat((portfolio?.futuresUsdt !== undefined && portfolio.futuresUsdt <= 15 ? 1.0 : 4.0).toFixed(1)),
         priceDeviation: 1.5,
         maxSafetyOrders: 4,
         investmentInterval: '2H',
@@ -274,22 +274,22 @@ export default function BotTrading({
     setUpperPrice((activePair.currentPrice * 1.15).toFixed(1));
   }, [activePair.symbol]);
 
-  // Adjust defaults depending on available USDT (useful for micro-funds / small balance down to $1)
+  // Adjust defaults depending on available Futures USDT (useful for micro-funds / small balance down to $1)
   useEffect(() => {
-    if (portfolio?.usdt !== undefined && portfolio.usdt > 0) {
-      if (portfolio.usdt <= 15) {
-        setGridInvestment(portfolio.usdt.toFixed(2));
-        setDcaInvestment(portfolio.usdt.toFixed(2));
-        setBaseOrderSize((portfolio.usdt * 0.15).toFixed(2));
-        setSafetyOrderSize((portfolio.usdt * 0.25).toFixed(2));
-      } else if (portfolio.usdt < 500) {
-        setGridInvestment((portfolio.usdt * 0.5).toFixed(2));
-        setDcaInvestment((portfolio.usdt * 0.5).toFixed(2));
-        setBaseOrderSize((portfolio.usdt * 0.1).toFixed(2));
-        setSafetyOrderSize((portfolio.usdt * 0.18).toFixed(2));
+    if (portfolio?.futuresUsdt !== undefined && portfolio.futuresUsdt > 0) {
+      if (portfolio.futuresUsdt <= 15) {
+        setGridInvestment(portfolio.futuresUsdt.toFixed(2));
+        setDcaInvestment(portfolio.futuresUsdt.toFixed(2));
+        setBaseOrderSize((portfolio.futuresUsdt * 0.15).toFixed(2));
+        setSafetyOrderSize((portfolio.futuresUsdt * 0.25).toFixed(2));
+      } else if (portfolio.futuresUsdt < 500) {
+        setGridInvestment((portfolio.futuresUsdt * 0.5).toFixed(2));
+        setDcaInvestment((portfolio.futuresUsdt * 0.5).toFixed(2));
+        setBaseOrderSize((portfolio.futuresUsdt * 0.1).toFixed(2));
+        setSafetyOrderSize((portfolio.futuresUsdt * 0.18).toFixed(2));
       }
     }
-  }, [portfolio?.usdt]);
+  }, [portfolio?.futuresUsdt]);
 
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanResults, setScanResults] = useState<{ symbol: string; score: number; type: string; details: string }[]>([]);
@@ -1158,35 +1158,35 @@ export default function BotTrading({
                     onChange={(e) => setGridInvestment(e.target.value)}
                     className="w-full bg-slate-950 text-slate-100 font-mono text-sm px-3 py-2 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                   />
-                  {portfolio?.usdt !== undefined && (
+                  {portfolio?.futuresUsdt !== undefined && (
                     <div className="flex gap-1.5 mt-1.5 flex-wrap">
                       <button
                         type="button"
-                        onClick={() => setGridInvestment((portfolio.usdt * 0.25).toFixed(2))}
+                        onClick={() => setGridInvestment((portfolio.futuresUsdt * 0.25).toFixed(2))}
                         className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[9px] font-bold text-slate-400 hover:text-white cursor-pointer transition"
                       >
                         25%
                       </button>
                       <button
                         type="button"
-                        onClick={() => setGridInvestment((portfolio.usdt * 0.5).toFixed(2))}
+                        onClick={() => setGridInvestment((portfolio.futuresUsdt * 0.5).toFixed(2))}
                         className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[9px] font-bold text-slate-400 hover:text-white cursor-pointer transition"
                       >
                         50%
                       </button>
                       <button
                         type="button"
-                        onClick={() => setGridInvestment((portfolio.usdt * 0.75).toFixed(2))}
+                        onClick={() => setGridInvestment((portfolio.futuresUsdt * 0.75).toFixed(2))}
                         className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[9px] font-bold text-slate-400 hover:text-white cursor-pointer transition"
                       >
                         75%
                       </button>
                       <button
                         type="button"
-                        onClick={() => setGridInvestment(portfolio.usdt.toFixed(2))}
+                        onClick={() => setGridInvestment(portfolio.futuresUsdt.toFixed(2))}
                         className="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-black text-indigo-400 hover:bg-indigo-500/25 cursor-pointer transition"
                       >
-                        {lang === 'ar' ? '100% (أقصى رصيد)' : '100% (Max)'} (${portfolio.usdt.toFixed(1)})
+                        {lang === 'ar' ? '100% (أقصى رصيد)' : '100% (Max)'} (${portfolio.futuresUsdt.toFixed(1)})
                       </button>
                     </div>
                   )}
@@ -1268,12 +1268,12 @@ export default function BotTrading({
                       onChange={(e) => setDcaInvestment(e.target.value)}
                       className="w-full bg-slate-950 text-slate-100 font-mono text-sm px-3 py-2 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                     />
-                    {portfolio?.usdt !== undefined && (
+                    {portfolio?.futuresUsdt !== undefined && (
                       <div className="flex gap-1.5 mt-1.5 flex-wrap">
                         <button
                           type="button"
                           onClick={() => {
-                            const val = portfolio.usdt * 0.25;
+                            const val = portfolio.futuresUsdt * 0.25;
                             setDcaInvestment(val.toFixed(2));
                             setBaseOrderSize((val * 0.15).toFixed(2));
                             setSafetyOrderSize((val * 0.25).toFixed(2));
@@ -1285,7 +1285,7 @@ export default function BotTrading({
                         <button
                           type="button"
                           onClick={() => {
-                            const val = portfolio.usdt * 0.50;
+                            const val = portfolio.futuresUsdt * 0.50;
                             setDcaInvestment(val.toFixed(2));
                             setBaseOrderSize((val * 0.15).toFixed(2));
                             setSafetyOrderSize((val * 0.25).toFixed(2));
@@ -1297,7 +1297,7 @@ export default function BotTrading({
                         <button
                           type="button"
                           onClick={() => {
-                            const val = portfolio.usdt * 0.75;
+                            const val = portfolio.futuresUsdt * 0.75;
                             setDcaInvestment(val.toFixed(2));
                             setBaseOrderSize((val * 0.15).toFixed(2));
                             setSafetyOrderSize((val * 0.25).toFixed(2));
@@ -1309,14 +1309,14 @@ export default function BotTrading({
                         <button
                           type="button"
                           onClick={() => {
-                            const val = portfolio.usdt;
+                            const val = portfolio.futuresUsdt;
                             setDcaInvestment(val.toFixed(2));
                             setBaseOrderSize((val * 0.15).toFixed(2));
                             setSafetyOrderSize((val * 0.25).toFixed(2));
                           }}
                           className="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-black text-indigo-400 hover:bg-indigo-500/25 cursor-pointer transition"
                         >
-                          {lang === 'ar' ? '100% (أقصى رصيد)' : '100% (Max)'} (${portfolio.usdt.toFixed(1)})
+                          {lang === 'ar' ? '100% (أقصى رصيد)' : '100% (Max)'} (${portfolio.futuresUsdt.toFixed(1)})
                         </button>
                       </div>
                     )}
@@ -1462,12 +1462,12 @@ export default function BotTrading({
                     onChange={(e) => setRsiTradeAmount(e.target.value)}
                     className="w-full bg-slate-950 text-slate-100 font-mono text-sm px-3 py-2 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                   />
-                  {portfolio?.usdt !== undefined && (
+                  {portfolio?.futuresUsdt !== undefined && (
                     <div className="flex gap-1.5 mt-1.5 flex-wrap">
                       <button
                         type="button"
                         onClick={() => {
-                          const val = portfolio.usdt * 0.15;
+                          const val = portfolio.futuresUsdt * 0.15;
                           setRsiTradeAmount(val.toFixed(2));
                         }}
                         className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[9px] font-bold text-slate-400 hover:text-white cursor-pointer transition"
@@ -1477,7 +1477,7 @@ export default function BotTrading({
                       <button
                         type="button"
                         onClick={() => {
-                          const val = portfolio.usdt * 0.25;
+                          const val = portfolio.futuresUsdt * 0.25;
                           setRsiTradeAmount(val.toFixed(2));
                         }}
                         className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[9px] font-bold text-slate-400 hover:text-white cursor-pointer transition"
@@ -1777,7 +1777,7 @@ export default function BotTrading({
               <p className="text-[11px] text-slate-500 max-w-sm">
                 {lang === 'ar' 
                   ? 'اختر الاستراتيجية وضبط خطوط الشبكة والاستثمار على اليمين ثم اطلق البوت لمتابعة عمليات موازنة السيولة.' 
-                  : 'Specify boundaries and resources in the configurator to start collecting simulated margin rewards.'}
+                  : 'Specify boundaries and resources in the configurator to initiate automated live trading execution.'}
               </p>
             </div>
           ) : (
@@ -2542,9 +2542,9 @@ export default function BotTrading({
           <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
           <p>
             {lang === 'ar' ? (
-              'يتم محاكاة أرباح البوتات والشبكة بناءً على خوارزميات تسعير السوق المتواترة. تذكر الالتزام بإدارة مخاطر صارمة.'
+              'يتم تنفيذ صفقات البوتات والشبكات عبر حسابك الحقيقي مباشرة. تذكر الالتزام بإدارة مخاطر صارمة ومتابعة الهامش المتوفر.'
             ) : (
-              'Performance values mathematically increment based on relative volatility steps to reflect accurate grid harvests.'
+              'Bot execution and grid harvesting are performed directly via your live Binance account. Maintain strict risk management and monitor available margin.'
             )}
           </p>
         </div>

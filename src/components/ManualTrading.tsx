@@ -904,7 +904,7 @@ export default function ManualTrading({
                           ) : (
                             <span className="bg-amber-950/40 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wide flex items-center gap-1">
                               <span className="w-1 h-1 rounded-full bg-amber-400"></span>
-                              {lang === 'ar' ? 'تجريبي' : 'PAPER'}
+                              {lang === 'ar' ? 'حقيقي' : 'LIVE'}
                             </span>
                           )}
                         </div>

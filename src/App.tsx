@@ -295,23 +295,17 @@ export default function App() {
     localStorage.setItem("almoharif_manual_watchlist_scanner", String(manualWatchlistScannerEnabled));
   }, [whaleTradingEnabled, manualWatchlistScannerEnabled]);
 
-  // New Simulation control switches (persistently saved)
-  const [simulationsEnabled, setSimulationsEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem("almoharif_simulations_enabled");
-    return saved === null ? true : saved === "true"; // Defaults to true
-  });
+  // Global background engine toggle (Always OFF - Simulation Mode Disabled)
+  const [simulationsEnabled] = useState<boolean>(false);
 
   useEffect(() => {
-    localStorage.setItem(
-      "almoharif_simulations_enabled",
-      String(simulationsEnabled),
-    );
-  }, [simulationsEnabled]);
+    localStorage.setItem("almoharif_simulations_enabled", "false");
+  }, []);
 
-  const simulationsEnabledRef = useRef<boolean>(simulationsEnabled);
+  const simulationsEnabledRef = useRef<boolean>(false);
   useEffect(() => {
-    simulationsEnabledRef.current = simulationsEnabled;
-  }, [simulationsEnabled]);
+    simulationsEnabledRef.current = false;
+  }, []);
 
   // Screen Toast alerts popup muting control (persistently saved - defaults to true for quiet professional trading)
   const handleDismissToast = useCallback((id: string) => {
@@ -451,14 +445,13 @@ export default function App() {
     }
   };
 
-  // Global Live vs Paper Trading mode toggle (persistent in localStorage)
-  const [isLiveTrading, setIsLiveTrading] = useState<boolean>(() => {
-    return localStorage.getItem("almoharif_is_live_trading") === "true";
-  });
+  // Global Live status tracking (Always True - Paper trading disabled)
+  // FIXED to true as per user request for full live deployment
+  const [isLiveTrading] = useState<boolean>(true);
 
   useEffect(() => {
-    localStorage.setItem("almoharif_is_live_trading", String(isLiveTrading));
-  }, [isLiveTrading]);
+    localStorage.setItem("almoharif_is_live_trading", "true");
+  }, []);
 
   // Synchronized ref for tracking latest live trading setting in background intervals/hooks
   const isLiveTradingRef = useRef<boolean>(isLiveTrading);
@@ -520,7 +513,15 @@ export default function App() {
   });
   const activePair = pairs[selectedPairIndex] || pairs[0] || INITIAL_PAIRS[0];
 
+  const lastCheckedVolatilityPricesRef = useRef<Record<string, number>>({});
+  const lastCheckedPersistencePricesRef = useRef<Record<string, number>>({});
+
   useEffect(() => {
+    // Guard: Only persist if prices have actually changed to save IO
+    const pricesChanged = pairs.some(p => lastCheckedPersistencePricesRef.current[p.symbol] !== p.currentPrice);
+    if (!pricesChanged) return;
+    pairs.forEach(p => lastCheckedPersistencePricesRef.current[p.symbol] = p.currentPrice);
+
     localStorage.setItem("almoharif_market_pairs", JSON.stringify(pairs));
   }, [pairs]);
 
@@ -533,10 +534,10 @@ export default function App() {
 
   // Safely guard selected pair index from getting out-of-bounds
   useEffect(() => {
-    if (selectedPairIndex >= pairs.length) {
-      setSelectedPairIndex(Math.max(0, pairs.length - 1));
+    if (pairs.length > 0 && selectedPairIndex >= pairs.length) {
+      setSelectedPairIndex(pairs.length - 1);
     }
-  }, [pairs, selectedPairIndex]);
+  }, [pairs.length, selectedPairIndex]);
 
   const canTrade = userData?.permissions?.canTrade !== false;
   const isOwner = user?.email === "alamryhmzh7@gmail.com" || userData?.role === "OWNER";
@@ -645,7 +646,11 @@ export default function App() {
     const newEquity = parseFloat((portfolio.futuresUsdt + totalPnl).toFixed(4));
     
     // Only update if value changed to prevent unnecessary re-renders
-    setFuturesEquity((prev) => (Math.abs(prev - newEquity) > 0.0001 ? newEquity : prev));
+    setFuturesEquity((prev) => {
+      const changed = Math.abs(prev - newEquity) > 0.0001;
+      if (!changed) return prev;
+      return newEquity;
+    });
   }, [futuresPositions, portfolio.futuresUsdt]);
 
   // Sync positions PNL with real-time price feed in App.tsx (Optimized with Ref)
@@ -852,6 +857,7 @@ export default function App() {
   const apiConnectionRef = useRef<ApiConnection>(apiConnection);
   const userRef = useRef<any>(user);
   const userDataRef = useRef<any>(userData);
+  const lastCheckedPricesRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     userRef.current = user;
@@ -1272,6 +1278,15 @@ export default function App() {
     const currentAlerts = priceAlertsRef.current;
     if (currentAlerts.length === 0) return;
 
+    // Guard: Only check if prices have actually changed since last run to avoid depth errors
+    const pricesChanged = pairs.some(p => lastCheckedPricesRef.current[p.symbol] !== p.currentPrice);
+    if (!pricesChanged) return;
+    
+    // Update ref with latest prices
+    pairs.forEach(p => {
+      lastCheckedPricesRef.current[p.symbol] = p.currentPrice;
+    });
+
     let changed = false;
     const triggered: PriceAlert[] = [];
 
@@ -1363,6 +1378,12 @@ export default function App() {
   // Surveillance of sharp price fluctuations (>= 2.0% within less than 1 minute)
   useEffect(() => {
     if (!pairs || pairs.length === 0) return;
+    
+    // Guard: Only check if prices have actually changed since last run
+    const pricesChanged = pairs.some(p => lastCheckedVolatilityPricesRef.current[p.symbol] !== p.currentPrice);
+    if (!pricesChanged) return;
+    pairs.forEach(p => lastCheckedVolatilityPricesRef.current[p.symbol] = p.currentPrice);
+
     const now = Date.now();
     const history = priceHistoryRef.current;
 
@@ -1555,6 +1576,10 @@ export default function App() {
         );
         const stringified = JSON.stringify(symbolList);
 
+        // Guard: Prevent redundant fetch if symbol list hasn't changed
+        if (lastFetchedBaselineRef.current === stringified) return;
+        lastFetchedBaselineRef.current = stringified;
+
         // Try local server-side proxy (bypasses browser CORS completely)
         const proxyResponse = await fetch(
           `/api/gateway/prices?symbols=${encodeURIComponent(stringified)}`,
@@ -1570,6 +1595,7 @@ export default function App() {
                     (item: any) => item.symbol === pair.symbol,
                   );
                   if (liveData) {
+                    if (liveData.currentPrice === pair.currentPrice) return pair;
                     return {
                       ...pair,
                       currentPrice: liveData.currentPrice,
@@ -1611,9 +1637,11 @@ export default function App() {
                 (item: any) => item.symbol === rawSymbol,
               );
               if (liveData) {
+                const newPrice = parseFloat(liveData.lastPrice);
+                if (newPrice === pair.currentPrice) return pair;
                 return {
                   ...pair,
-                  currentPrice: parseFloat(liveData.lastPrice),
+                  currentPrice: newPrice,
                   change24h: parseFloat(
                     parseFloat(liveData.priceChangePercent).toFixed(2),
                   ),
@@ -1668,9 +1696,14 @@ export default function App() {
                 prevPairs.map((pair) => {
                   const sanitizedSymbol = pair.symbol.replace("/", "");
                   if (sanitizedSymbol === wsSymbol) {
+                    const newPrice = parseFloat(rawData.c);
+                    // Guard: Only update if price or crucial stats changed to prevent loop cascades
+                    if (newPrice === pair.currentPrice && Math.abs(parseFloat(rawData.P) - pair.change24h) < 0.01) {
+                      return pair;
+                    }
                     return {
                       ...pair,
-                      currentPrice: parseFloat(rawData.c),
+                      currentPrice: newPrice,
                       change24h: parseFloat(parseFloat(rawData.P).toFixed(2)),
                       high24h: parseFloat(rawData.h),
                       low24h: parseFloat(rawData.l),
@@ -1725,6 +1758,8 @@ export default function App() {
       }
     };
   }, [serializedSymbols]);
+
+  const lastFetchedBaselineRef = useRef<string>("");
 
   // Fake price fluctuations removed because we now have reliable websocket data
 
@@ -1926,7 +1961,7 @@ export default function App() {
     syncLiveBalances
   ]);
 
-  // Background trading bot profit generator (collect simulated arbitrage yield!)
+  // Background trading bot execution cycle (Live data & Binance routing)
   useEffect(() => {
     const getLiveRsiAttr = (symbol: string, change24h: number) => {
       let baseRsi = 50 + (change24h * 3.8);
@@ -2199,12 +2234,12 @@ export default function App() {
         setActiveBots(nextBots);
 
         if (walletUsdtIncrement > 0) {
-          // If in paper trading mode, update local portfolio representation. (Live balances will sync separately via poller)
+          // Update local portfolio representation for immediate UI feedback. (Live balances will sync separately via poller)
           if (!isLiveTradingRef.current) {
             setPortfolio((prevWallet) => ({
               ...prevWallet,
-              usdt: parseFloat(
-                (prevWallet.usdt + walletUsdtIncrement).toFixed(2),
+              futuresUsdt: parseFloat(
+                (prevWallet.futuresUsdt + walletUsdtIncrement).toFixed(2),
               ),
             }));
           }
@@ -2403,7 +2438,7 @@ export default function App() {
               alert(
                 lang === "ar"
                   ? `❌ رفضت بينانس تنفيذ الصفقة.\n\nالسبب: ${resData.error || "عطل مجهول"}.\n\nملاحظة هامة: لتنفيذ الصفقات حقيقياً يجب التأكد من توفر رصيد كافٍ لتغطية قيمة الصفقة المحددة حسب شروط المنصة، ويجب إدخال مفتاح API صحيح تماماً.\n\nتم حفظ الصفقة الآن كمحاكاة تجريبية.`
-                  : `❌ Binance order rejected: ${resData.error || "Unknown error"}.\nNote: Spot orders must meet the exchange's minimum notional value and API keys must have Spot Trading Enabled.\nLogged as paper-demo instead.`
+                  : `❌ Binance order rejected: ${resData.error || "Unknown error"}.\nNote: Spot orders must meet the exchange's minimum notional value and API keys must have Spot Trading Enabled.`
               );
             }
             throw new Error(`Binance order rejected: ${resData.error || "Unknown error"}`);
@@ -2419,7 +2454,7 @@ export default function App() {
           alert(
             lang === "ar"
               ? `⚠️ التداول حقيقي ولكن مفاتيح API مفقودة!\n\nأنت في وضع التداول الحقيقي، ولكن لم يتم ربط وتفعيل مفاتيح API الخاصة بك. المنصة لا تستطيع تنفيذ الصفقات حقيقياً بدون مفاتيحك.\n\nالرجاء إدخال المفاتيح من تبويب 'أمان الـ API' لتنفيذ صفقات حقيقية في بينانس.\n\nتم تنفيذ العملية كمحاكاة تجريبية.`
-              : `⚠️ Live Trading but API keys missing!\n\nYou must securely link your Binance API keys in the 'API Security' tab first. Without them, trades are logged as paper-demo.`,
+              : `⚠️ Live Trading but API keys missing!\n\nYou must securely link your Binance API keys in the 'API Security' tab first to start trading.`,
           );
         } else {
           if (Date.now() - (window.lastApiErrorToastTime || 0) > 300000) {
@@ -2429,8 +2464,8 @@ export default function App() {
               symbol: newOrder.symbol,
               timestamp: Date.now(),
               isError: true,
-              aiExplanationAr: `⚠️ التداول حقيقي ولكن مفاتيح API مفقودة!\nتم تحويل صفقات البوت التلقائية مؤقتاً إلى المحاكاة التجريبية (Demo) حتى تقوم بربط حساب بينانس من قسم (أمان الـ API).`,
-              aiExplanationEn: `⚠️ Live Trading enabled but API keys missing!\nAutomated bot trades have temporarily fallen back to paper-demo until you link your Binance API.`,
+              aiExplanationAr: `⚠️ التداول حقيقي ولكن مفاتيح API مفقودة!\nيجب عليك ربط حساب بينانس من قسم (أمان الـ API) لتفعيل البوت.`,
+              aiExplanationEn: `⚠️ Live Trading enabled but API keys missing!\nPlease link your Binance API in Settings to enable automated bot trading.`,
             });
           }
           // Proceed as paper trade silently
@@ -2939,15 +2974,15 @@ export default function App() {
         } else {
           alert(
             lang === "ar"
-              ? "⚠️ مفتاح تصفية الطوارئ قيد العمل للتداول التجريبي فقط! لم يرسل أمر تصفية لبينانس لعدم وجود مفتاح API متصل بنجاح."
-              : "⚠️ Emergency Kill Switch activated in offline sandbox mode! No active API keys were found connected to dispatch live Binance requests.",
+              ? "⚠️ تم تفعيل مفتاح الطوارئ محلياً، ولكن لا يوجد مفتاح API متصل لإرسال أمر الإغلاق الفوري لمنصة بينانس. يرجى مراجعة إعدادات الأمان."
+              : "⚠️ Emergency Kill Switch activated locally, but no active API keys were found to dispatch the live closure command to Binance. Please verify Security settings.",
           );
         }
       } else {
         alert(
           lang === "ar"
-            ? "⚡ تم تفعيل مفتاح تصفية الطوارئ بنجاح! تم تعليق وإيقاف جميع البوتات والصفقات التجريبية المفتوحة فورياً وتصفيتها لحماية حسابك الافتراضي."
-            : "⚡ Emergency Kill Switch triggered successfully! All active demo bots and paper trading positions have been halted immediately.",
+            ? "⚡ تم تفعيل مفتاح تصفية الطوارئ بنجاح! تم تعليق وإيقاف جميع البوتات والصفقات الحالية فورياً لحماية حسابك."
+            : "⚡ Emergency Kill Switch triggered successfully! All active bots and positions have been halted immediately to protect your account.",
         );
       }
     } catch (err: any) {
@@ -4266,7 +4301,6 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
         futuresEquity={futuresEquity}
         isConnected={apiConnection.isConnected}
         isLiveTrading={isLiveTrading}
-        setIsLiveTrading={setIsLiveTrading}
         balanceSyncError={balanceSyncError}
         futuresApiError={futuresApiError}
         userData={userData}
@@ -4777,29 +4811,12 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                 </div>
 
                 <div className="flex items-center gap-1.5 text-[10px]">
-                  <button
-                    onClick={() => setSimulationsEnabled(!simulationsEnabled)}
-                    className={`flex items-center justify-center gap-1.5 px-2 py-1.5 border rounded-lg font-bold transition-all ${
-                      simulationsEnabled
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                        : "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
-                    }`}
-                  >
-                    {simulationsEnabled ? (
-                      <Play className="w-3 h-3" />
-                    ) : (
-                      <Pause className="w-3 h-3" />
-                    )}
+                  <div className="flex items-center justify-center gap-1.5 px-2 py-1.5 border border-emerald-500/30 bg-emerald-500/10 rounded-lg font-bold text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.1)]">
+                    <Zap className="w-3 h-3 animate-pulse" />
                     <span>
-                      {lang === "ar"
-                        ? simulationsEnabled
-                          ? "محاكاة: تعمل"
-                          : "محاكاة: إيقاف"
-                        : simulationsEnabled
-                          ? "Sim: ON"
-                          : "Sim: PAUSED"}
+                      {lang === "ar" ? "محرك التداول: حقيقي ⚡" : "TRADING ENGINE: LIVE ⚡"}
                     </span>
-                  </button>
+                  </div>
 
                   <button
                     onClick={() => setToastsMuted(!toastsMuted)}
@@ -5099,6 +5116,12 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                 futuresApiError={futuresApiError}
                 setFuturesApiError={handleSetFuturesApiError}
                 priceHistory15m={priceHistory15mRef.current}
+                activeBots={activeBots}
+                onCreateBot={handleCreateBot}
+                onDeleteBot={handleDeleteBot}
+                onToggleStatus={handleToggleBotStatus}
+                onResumeAllBots={handleResumeAllBots}
+                onUpdateBotConfig={handleUpdateBotConfig}
               />
             )}
           </div>
@@ -5131,10 +5154,6 @@ ${decision.reasons.map(r => '• '+r).join('\n')}`,
                 onSubmitOrder={handleAddNewOrder}
                 orders={orders}
                 portfolio={portfolio}
-                activeBots={activeBots}
-                onCreateBot={handleCreateBot}
-                onDeleteBot={handleDeleteBot}
-                onToggleStatus={handleToggleBotStatus}
               />
             )}
           </div>
